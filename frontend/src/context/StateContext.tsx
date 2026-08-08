@@ -242,77 +242,7 @@ const INITIAL_BADGES: Badge[] = [
   { id: "5", name: "Earth Guardian", description: "Perfect rating on 10+ consecutive trips", icon: "🌍", color: "bg-indigo-500" },
 ];
 
-const INITIAL_RIDES: Ride[] = [
-  {
-    id: "r-1",
-    hostId: "e-varsha",
-    hostName: "Varsha",
-    hostAvatar: "👩‍💼",
-    hostDept: "Human Resources",
-    hostRating: 4.9,
-    pickup: "Sunset Boulevard, San Francisco, CA",
-    destination: "Building A Office",
-    departureTime: "08:15 AM",
-    vehicleModel: "Tesla Model Y",
-    vehiclePlate: "CA-889XG",
-    vehicleType: "Electric",
-    seatsAvailable: 3,
-    seatsTotal: 4,
-    recurring: true,
-    detourRadius: 3,
-    co2Saved: 12.4,
-    esgCredits: 50,
-    luggageAllowed: true,
-    status: "Published",
-    passengers: []
-  },
-  {
-    id: "r-2",
-    hostId: "e-rahul",
-    hostName: "Rahul",
-    hostAvatar: "👨‍💻",
-    hostDept: "Engineering",
-    hostRating: 4.8,
-    pickup: "Marina District, San Francisco, CA",
-    destination: "Building B Office",
-    departureTime: "08:30 AM",
-    vehicleModel: "Tesla Model S",
-    vehiclePlate: "CA-770EV",
-    vehicleType: "Electric",
-    seatsAvailable: 3,
-    seatsTotal: 4,
-    recurring: false,
-    detourRadius: 5,
-    co2Saved: 9.8,
-    esgCredits: 35,
-    luggageAllowed: true,
-    status: "Published",
-    passengers: []
-  },
-  {
-    id: "r-3",
-    hostId: "e-naveen",
-    hostName: "Naveen",
-    hostAvatar: "👨‍💻",
-    hostDept: "Product Management",
-    hostRating: 4.8,
-    pickup: "Mission District, San Francisco, CA",
-    destination: "Building C Office",
-    departureTime: "08:00 AM",
-    vehicleModel: "Rivian R1T",
-    vehiclePlate: "CA-990EV",
-    vehicleType: "Electric",
-    seatsAvailable: 4,
-    seatsTotal: 5,
-    recurring: true,
-    detourRadius: 2,
-    co2Saved: 14.2,
-    esgCredits: 60,
-    luggageAllowed: true,
-    status: "Published",
-    passengers: []
-  }
-];
+const INITIAL_RIDES: Ride[] = [];
 
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
@@ -376,6 +306,45 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   ]);
   const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
+
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedRides = localStorage.getItem("ecoride_rides");
+      if (savedRides) {
+        try {
+          setRides(JSON.parse(savedRides));
+        } catch (e) {
+          console.error("Error loading rides from cache:", e);
+        }
+      }
+      const savedRequests = localStorage.getItem("ecoride_requests");
+      if (savedRequests) {
+        try {
+          setRequests(JSON.parse(savedRequests));
+        } catch (e) {
+          console.error("Error loading requests from cache:", e);
+        }
+      }
+      setIsLoaded(true);
+    }
+  }, []);
+
+  // Save rides to localStorage when updated
+  useEffect(() => {
+    if (isLoaded && typeof window !== "undefined") {
+      localStorage.setItem("ecoride_rides", JSON.stringify(rides));
+    }
+  }, [rides, isLoaded]);
+
+  // Save requests to localStorage when updated
+  useEffect(() => {
+    if (isLoaded && typeof window !== "undefined") {
+      localStorage.setItem("ecoride_requests", JSON.stringify(requests));
+    }
+  }, [requests, isLoaded]);
 
   const currentUser = employees.find(e => e.id === currentUserId) || employees[0];
 
