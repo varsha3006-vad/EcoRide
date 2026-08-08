@@ -388,6 +388,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 1. Initial Load (Supabase has priority, falls back to localStorage)
   useEffect(() => {
     const initializeData = async () => {
+      console.log("🌐 EcoRide Sync Engine initialized.");
+      console.log("🔗 Supabase Target URL:", SUPABASE_URL || "NOT CONFIGURED (Local Sandbox Mode)");
+      console.log("🔑 Anon Key Active:", SUPABASE_ANON_KEY ? "YES (Cloud Active)" : "NO");
+      
       let loadedRides = null;
       let loadedRequests = null;
       let loadedMessages = null;
