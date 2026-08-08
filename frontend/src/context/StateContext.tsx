@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -438,6 +438,99 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [messages, isLoaded]);
 
+  const prevRequestsRef = useRef<RideRequest[]>([]);
+  const prevRidesRef = useRef<Ride[]>([]);
+
+  // 4. Reactive State-Transition Notifications (Triggers cross-device notifications on data updates)
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    // Detect new requests for the host, or status updates for the passenger
+    requests.forEach(req => {
+      const prevReq = prevRequestsRef.current.find(r => r.id === req.id);
+      
+      // A. Brand new request created
+      if (!prevReq) {
+        const ride = rides.find(r => r.id === req.rideId);
+        if (ride && ride.hostId === currentUserId && req.status === "Pending" && req.requesterId !== currentUserId) {
+          addNotification({
+            id: `n-new-req-${Date.now()}-${Math.random()}`,
+            title: `Ride Join Request from ${req.requesterName} ✉️`,
+            message: `${req.requesterName} wants to join your ride to ${ride.destination}.`,
+            timestamp: "Just now",
+            type: "request",
+            read: false
+          });
+        }
+      } 
+      // B. Existing request status changed
+      else if (prevReq.status !== req.status) {
+        const ride = rides.find(r => r.id === req.rideId);
+        if (ride) {
+          // Passenger gets notification if their request was accepted/declined
+          if (req.requesterId === currentUserId) {
+            if (req.status === "Accepted") {
+              addNotification({
+                id: `n-req-acc-${Date.now()}-${Math.random()}`,
+                title: "Ride Request Approved! 🎉",
+                message: `${ride.hostName} accepted your ride request. Ready to commute!`,
+                timestamp: "Just now",
+                type: "success",
+                read: false
+              });
+            } else if (req.status === "Rejected") {
+              addNotification({
+                id: `n-req-rej-${Date.now()}-${Math.random()}`,
+                title: "Ride Request Declined ❌",
+                message: `${ride.hostName} declined your join request.`,
+                timestamp: "Just now",
+                type: "warning",
+                read: false
+              });
+            }
+          }
+        }
+      }
+    });
+
+    // Detect ride status changes (Started / Completed)
+    rides.forEach(ride => {
+      const prevRide = prevRidesRef.current.find(r => r.id === ride.id);
+      
+      if (prevRide && prevRide.status !== ride.status) {
+        const isPassenger = ride.passengers.includes(currentUserId);
+        const isHost = ride.hostId === currentUserId;
+        
+        // Notify passenger when host acts
+        if (isPassenger && !isHost) {
+          if (ride.status === "Started") {
+            addNotification({
+              id: `n-ride-start-${Date.now()}-${Math.random()}`,
+              title: "Carpool Started! 🚗",
+              message: `${ride.hostName} has started the commute to ${ride.destination}. Meet at your boarding point!`,
+              timestamp: "Just now",
+              type: "success",
+              read: false
+            });
+          } else if (ride.status === "Completed") {
+            addNotification({
+              id: `n-ride-comp-${Date.now()}-${Math.random()}`,
+              title: "Carpool Completed! 🌱",
+              message: `You arrived at ${ride.destination}. ESG credits and CO₂ savings have been updated!`,
+              timestamp: "Just now",
+              type: "success",
+              read: false
+            });
+          }
+        }
+      }
+    });
+
+    // Update comparison cache refs
+    prevRequestsRef.current = requests;
+    prevRidesRef.current = rides;
+  }, [requests, rides, isLoaded, currentUserId]);
+
   const currentUser = employees.find(e => e.id === currentUserId) || employees[0];
 
   // Switch identity
@@ -539,15 +632,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setRequests(prev => [newRequest, ...prev]);
 
-    // Send notification to the host of the ride
-    addNotification({
-      id: `n-host-req-${Date.now()}`,
-      title: `Ride Join Request from ${currentUser.name} ✉️`,
-      message: `${currentUser.name} wants to join your ride to ${targetRide.destination}. Open Requests to respond.`,
-      timestamp: "Just now",
-      type: "request",
-      read: false
-    });
+    // Request synced via Supabase
   };
 
   // Respond to join request (Accept / Reject)
@@ -594,15 +679,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // 3. Dispatch Side-effects (clean, single-execution)
       const newSeats = targetRide.seatsAvailable - 1;
 
-      // Notify passenger of acceptance
-      addNotification({
-        id: `n-acc-${Date.now()}-${reqToRespond.requesterId}-${Math.random()}`,
-        title: "Ride Request Approved! 🎉",
-        message: `${targetRide.hostName} accepted your ride request. Ready to commute!`,
-        timestamp: "Just now",
-        type: "success",
-        read: false
-      });
+      // Passenger acceptance notification is dynamically handled on their device via state sync
 
       // System welcome message in chat
       setMessages(prevMsgs => [
@@ -661,15 +738,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
 
     } else {
-      // Host manually declined
-      addNotification({
-        id: `n-host-dec-${Date.now()}-${reqToRespond.requesterId}-${Math.random()}`,
-        title: "Ride Request Declined",
-        message: `Your join request for ride ID ${reqToRespond.rideId.slice(0, 5)} was not accepted by the host.`,
-        timestamp: "Just now",
-        type: "warning",
-        read: false
-      });
+      // Host manually declined; passenger is notified reactively on state sync
     }
   };
 
