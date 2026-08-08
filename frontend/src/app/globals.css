@@ -110,3 +110,31 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+/* Mobile Responsive Native-App Experience Refinements */
+@media (max-w: 640px) {
+  main {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 2rem !important;
+  }
+
+  .glass-panel {
+    border-radius: 1.25rem !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 1.25rem !important;
+  }
+
+  .max-w-7xl {
+    width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .relative.w-full.h-\[320px\] {
+    height: 260px !important;
+    border-radius: 1rem !important;
+  }
+}
