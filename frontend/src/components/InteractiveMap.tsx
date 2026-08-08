@@ -13,6 +13,7 @@ interface InteractiveMapProps {
   onLocationDetected?: (address: string) => void;
   rideId?: string;
   isHost?: boolean;
+  passengerId?: string; // current user's id when they are a passenger
 }
 
 export default function InteractiveMap({ 
@@ -23,9 +24,10 @@ export default function InteractiveMap({
   waypoints = [],
   onLocationDetected,
   rideId,
-  isHost = false
+  isHost = false,
+  passengerId
 }: InteractiveMapProps) {
-  const { rides, updateRideLocation } = useAppState();
+  const { rides, updateRideLocation, updatePassengerLocation } = useAppState();
   const [eta, setEta] = useState(15);
   const [distanceStr, setDistanceStr] = useState("4.8 km");
   const [traffic, setTraffic] = useState<"Low" | "Medium" | "High">("Low");
@@ -576,6 +578,59 @@ export default function InteractiveMap({
       }
     }
   }, [rides, googleMapsLoaded, isHost, rideId, mapError]);
+
+  // 4.5 Passenger GPS Broadcasting — passengers broadcast live location to host's map
+  useEffect(() => {
+    if (isHost || !isDriving || !rideId || !passengerId || mapError || !navigator.geolocation) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude: lat, longitude: lng } = position.coords;
+        if (rideId && passengerId) {
+          updatePassengerLocation(rideId, passengerId, lat, lng);
+        }
+      },
+      (err) => console.warn("Passenger GPS error:", err.message),
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isDriving, isHost, rideId, passengerId, mapError]);
+
+  // 4.6 Host map: Show live orange markers for each accepted passenger's current GPS
+  const passengerMarkersRef = useRef<Record<string, any>>({});
+  useEffect(() => {
+    if (!isHost || !googleMapsLoaded || !rideId || mapError) return;
+
+    const google = (window as any).google;
+    if (!google || !google.maps || !googleMapInstanceRef.current) return;
+
+    const ride = rides.find(r => r.id === rideId);
+    if (!ride || !ride.passengerLocations) return;
+
+    Object.entries(ride.passengerLocations).forEach(([pId, coords]) => {
+      const latLng = new google.maps.LatLng(coords.lat, coords.lng);
+      if (passengerMarkersRef.current[pId]) {
+        // Move existing marker
+        passengerMarkersRef.current[pId].setPosition(latLng);
+      } else {
+        // Create new orange passenger marker
+        passengerMarkersRef.current[pId] = new google.maps.Marker({
+          position: latLng,
+          map: googleMapInstanceRef.current,
+          title: `Passenger live location`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: "#f97316",   // Orange for passengers
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2.5,
+            scale: 9
+          }
+        });
+      }
+    });
+  }, [rides, isHost, googleMapsLoaded, rideId, mapError]);
 
   return (
     <div className="relative w-full h-[320px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-inner">
