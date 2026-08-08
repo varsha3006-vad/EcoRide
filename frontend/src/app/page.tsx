@@ -403,25 +403,6 @@ export default function HomePage() {
               </div>
             )}
           </div>
-
-          {/* Quick switcher helper info for real-time validation testing */}
-          <div className="bg-slate-950/40 rounded-2xl p-4 border border-slate-800 space-y-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Select test account:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {["rahul@company.com", "shail@company.com", "leo@company.com", "naveen@company.com", "varsha@company.com"].map(testEmail => (
-                <button
-                  key={testEmail}
-                  onClick={() => {
-                    setEmailInput(testEmail);
-                    setLoginError("");
-                  }}
-                  className="text-[9px] font-semibold px-2 py-1 rounded bg-slate-800/60 hover:bg-slate-800 text-slate-300 transition-colors border border-slate-800/80 cursor-pointer"
-                >
-                  {testEmail}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     );

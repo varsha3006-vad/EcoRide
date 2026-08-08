@@ -31,22 +31,7 @@ export default function Navbar() {
         {/* Center/Right Actions */}
         <div className="flex items-center gap-2 sm:gap-4">
 
-          {/* Testing Persona Switcher */}
-          <div className="flex items-center gap-1 rounded-xl border border-slate-200/50 dark:border-slate-700/50 p-1 px-2 bg-slate-100 dark:bg-slate-800/80">
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider hidden lg:inline">Simulate ID:</span>
-            <select
-              value={currentUser.id}
-              onChange={e => switchUser(e.target.value)}
-              className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-200 outline-none border-none cursor-pointer"
-            >
-              {employees.map(emp => (
-                <option key={emp.id} value={emp.id} className="dark:bg-slate-950 dark:text-slate-200 font-semibold">
-                  {emp.avatar} {emp.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          
+
           {/* Role Switcher */}
           <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50">
             <button
