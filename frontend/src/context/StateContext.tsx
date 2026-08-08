@@ -2,6 +2,46 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+const supabaseSync = {
+  get: async (key: string) => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/ecoride_state?key=eq.${key}&select=value`, {
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.length > 0 ? data[0].value : null;
+    } catch (e) {
+      console.warn("Supabase load error:", e);
+      return null;
+    }
+  },
+  set: async (key: string, value: any) => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/ecoride_state`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "Prefer": "resolution=merge-duplicates"
+        },
+        body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
+      });
+    } catch (e) {
+      console.warn("Supabase save error:", e);
+    }
+  }
+};
+
 // Types
 export interface Employee {
   id: string;
@@ -309,42 +349,94 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from localStorage on mount
+  // 1. Initial Load (Supabase has priority, falls back to localStorage)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedRides = localStorage.getItem("ecoride_rides");
-      if (savedRides) {
-        try {
-          setRides(JSON.parse(savedRides));
-        } catch (e) {
-          console.error("Error loading rides from cache:", e);
+    const initializeData = async () => {
+      let loadedRides = null;
+      let loadedRequests = null;
+      let loadedMessages = null;
+
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        console.log("🔌 Connecting to Supabase for shared data...");
+        loadedRides = await supabaseSync.get("rides");
+        loadedRequests = await supabaseSync.get("requests");
+        loadedMessages = await supabaseSync.get("messages");
+      }
+
+      if (loadedRides) {
+        setRides(loadedRides);
+      } else if (typeof window !== "undefined") {
+        const savedRides = localStorage.getItem("ecoride_rides");
+        if (savedRides) {
+          try { setRides(JSON.parse(savedRides)); } catch (e) {}
         }
       }
-      const savedRequests = localStorage.getItem("ecoride_requests");
-      if (savedRequests) {
-        try {
-          setRequests(JSON.parse(savedRequests));
-        } catch (e) {
-          console.error("Error loading requests from cache:", e);
+
+      if (loadedRequests) {
+        setRequests(loadedRequests);
+      } else if (typeof window !== "undefined") {
+        const savedRequests = localStorage.getItem("ecoride_requests");
+        if (savedRequests) {
+          try { setRequests(JSON.parse(savedRequests)); } catch (e) {}
         }
       }
+
+      if (loadedMessages) {
+        setMessages(loadedMessages);
+      }
+
       setIsLoaded(true);
-    }
+    };
+
+    initializeData();
   }, []);
 
-  // Save rides to localStorage when updated
+  // 2. Real-time polling updates from Supabase (every 4 seconds)
   useEffect(() => {
-    if (isLoaded && typeof window !== "undefined") {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    const pollDatabase = async () => {
+      const dbRides = await supabaseSync.get("rides");
+      if (dbRides) setRides(dbRides);
+
+      const dbRequests = await supabaseSync.get("requests");
+      if (dbRequests) setRequests(dbRequests);
+
+      const dbMessages = await supabaseSync.get("messages");
+      if (dbMessages) setMessages(dbMessages);
+    };
+
+    const interval = setInterval(pollDatabase, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 3. Save updates back to Supabase & LocalStorage
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (typeof window !== "undefined") {
       localStorage.setItem("ecoride_rides", JSON.stringify(rides));
+    }
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("rides", rides);
     }
   }, [rides, isLoaded]);
 
-  // Save requests to localStorage when updated
   useEffect(() => {
-    if (isLoaded && typeof window !== "undefined") {
+    if (!isLoaded) return;
+    if (typeof window !== "undefined") {
       localStorage.setItem("ecoride_requests", JSON.stringify(requests));
     }
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("requests", requests);
+    }
   }, [requests, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("messages", messages);
+    }
+  }, [messages, isLoaded]);
 
   const currentUser = employees.find(e => e.id === currentUserId) || employees[0];
 

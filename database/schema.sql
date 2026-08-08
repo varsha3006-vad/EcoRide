@@ -252,3 +252,10 @@ INSERT INTO vehicles (employee_id, model, fuel_type, capacity, plate_number) VAL
 ('eeeee444-e444-e444-e444-eeeeeeeeeeee', 'Rivian R1T', 'Electric', 5, 'CA-990EV') ON CONFLICT (plate_number) DO NOTHING;
 INSERT INTO vehicles (employee_id, model, fuel_type, capacity, plate_number) VALUES
 ('eeeee555-e555-e555-e555-eeeeeeeeeeee', 'Tesla Model Y', 'Electric', 4, 'CA-889XG') ON CONFLICT (plate_number) DO NOTHING;
+
+-- 13. GLOBAL STATE SYNCHRONIZER (FOR CROSS-DEVICE PROTOTYPE TESTING)
+CREATE TABLE IF NOT EXISTS ecoride_state (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
