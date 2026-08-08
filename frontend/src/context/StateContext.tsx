@@ -1,0 +1,821 @@
+"use client";
+
+import React, { createContext, useContext, useState, useEffect } from "react";
+
+// Types
+export interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  department: string;
+  designation: string;
+  office: string;
+  vehicle?: {
+    model: string;
+    type: "Electric" | "Hybrid" | "ICE (Gasoline)";
+    capacity: number;
+    plateNumber: string;
+  };
+  esgScore: number;
+  carbonSaved: number; // in kg
+  credits: number;
+  rank: number;
+  badgeIds: string[];
+  gender?: "Male" | "Female" | "Other";
+}
+
+export interface Ride {
+  id: string;
+  hostId: string;
+  hostName: string;
+  hostAvatar: string;
+  hostDept: string;
+  hostRating: number;
+  pickup: string;
+  destination: string;
+  departureTime: string;
+  vehicleModel: string;
+  vehiclePlate: string;
+  vehicleType: "Electric" | "Hybrid" | "ICE (Gasoline)";
+  seatsAvailable: number;
+  seatsTotal: number;
+  recurring: boolean;
+  detourRadius: number; // in km
+  co2Saved: number; // in kg
+  esgCredits: number;
+  genderPref?: string;
+  deptPref?: string;
+  musicPref?: string;
+  smokingPref?: string;
+  luggageAllowed: boolean;
+  status: "Created" | "Published" | "Started" | "Completed" | "Cancelled";
+  passengers: string[]; // employeeIds
+  womenOnly?: boolean;
+}
+
+export interface RideRequest {
+  id: string;
+  rideId: string;
+  requesterId: string;
+  requesterName: string;
+  requesterAvatar: string;
+  requesterDept: string;
+  requesterRating: number;
+  pickup: string;
+  status: "Pending" | "Accepted" | "Rejected";
+  timestamp: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  rideId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  content: string;
+  timestamp: string;
+  isLocation?: boolean;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  type: "info" | "success" | "warning" | "request";
+  read: boolean;
+  link?: string;
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+interface StateContextType {
+  employees: Employee[];
+  currentUser: Employee;
+  switchUser: (employeeId: string) => void;
+  role: "Employee" | "Admin";
+  setRole: (role: "Employee" | "Admin") => void;
+  rides: Ride[];
+  requests: RideRequest[];
+  messages: ChatMessage[];
+  notifications: Notification[];
+  badges: Badge[];
+  leaderboard: Employee[];
+  createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers"> & { womenOnly?: boolean }) => void;
+  requestJoinRide: (rideId: string, pickup: string) => void;
+  handleRequestResponse: (requestId: string, accept: boolean) => void;
+  sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
+  startRide: (rideId: string) => void;
+  completeRide: (rideId: string, ratings: { safety: number; comfort: number; punctuality: number }) => void;
+  cancelRide: (rideId: string) => void;
+  markNotificationsRead: () => void;
+  adminDeleteRide: (rideId: string) => void;
+  adminDeactivateEmployee: (employeeId: string) => void;
+  isLoggedIn: boolean;
+  login: (email: string) => boolean;
+  logout: () => void;
+}
+
+const StateContext = createContext<StateContextType | undefined>(undefined);
+
+// Core Test Personas (The 5 real users replacing the dummy ones)
+const INITIAL_EMPLOYEES: Employee[] = [
+  {
+    id: "e-rahul",
+    name: "Rahul",
+    email: "rahul@company.com",
+    avatar: "👨‍💻",
+    department: "Engineering",
+    designation: "Principal Architect",
+    office: "Building B",
+    vehicle: {
+      model: "Tesla Model S",
+      type: "Electric",
+      capacity: 4,
+      plateNumber: "CA-770EV"
+    },
+    esgScore: 85,
+    carbonSaved: 120.4,
+    credits: 640,
+    rank: 2,
+    badgeIds: ["1", "2", "3"],
+    gender: "Male"
+  },
+  {
+    id: "e-shail",
+    name: "Shail",
+    email: "shail@company.com",
+    avatar: "👨‍🎨",
+    department: "Product Design",
+    designation: "Lead Designer",
+    office: "Building C",
+    vehicle: {
+      model: "Toyota Prius",
+      type: "Hybrid",
+      capacity: 4,
+      plateNumber: "CA-102HY"
+    },
+    esgScore: 80,
+    carbonSaved: 75.2,
+    credits: 410,
+    rank: 4,
+    badgeIds: ["1", "2"],
+    gender: "Male"
+  },
+  {
+    id: "e-leo",
+    name: "Leo",
+    email: "leo@company.com",
+    avatar: "👨‍💼",
+    department: "Operations",
+    designation: "Ops Coordinator",
+    office: "Building B",
+    vehicle: {
+      model: "Honda Accord",
+      type: "Hybrid",
+      capacity: 5,
+      plateNumber: "CA-338OP"
+    },
+    esgScore: 78,
+    carbonSaved: 45.1,
+    credits: 320,
+    rank: 5,
+    badgeIds: ["1"],
+    gender: "Male"
+  },
+  {
+    id: "e-naveen",
+    name: "Naveen",
+    email: "naveen@company.com",
+    avatar: "👨‍💻",
+    department: "Product Management",
+    designation: "Senior PM",
+    office: "Building A",
+    vehicle: {
+      model: "Rivian R1T",
+      type: "Electric",
+      capacity: 5,
+      plateNumber: "CA-990EV"
+    },
+    esgScore: 88,
+    carbonSaved: 160.8,
+    credits: 780,
+    rank: 1,
+    badgeIds: ["1", "2", "3", "4"],
+    gender: "Male"
+  },
+  {
+    id: "e-varsha",
+    name: "Varsha",
+    email: "varsha@company.com",
+    avatar: "👩‍💼",
+    department: "Human Resources",
+    designation: "HR Director",
+    office: "Building A",
+    vehicle: {
+      model: "Tesla Model Y",
+      type: "Electric",
+      capacity: 4,
+      plateNumber: "CA-889XG"
+    },
+    esgScore: 92,
+    carbonSaved: 95.5,
+    credits: 510,
+    rank: 3,
+    badgeIds: ["1", "3", "5"],
+    gender: "Female"
+  }
+];
+
+const INITIAL_BADGES: Badge[] = [
+  { id: "1", name: "Green Starter", description: "Completed first shared ride", icon: "🌱", color: "bg-emerald-500" },
+  { id: "2", name: "Eco Driver", description: "Hosted 5 or more carpools", icon: "🚗", color: "bg-blue-500" },
+  { id: "3", name: "Carbon Warrior", description: "Saved more than 100 kg CO₂", icon: "🛡️", color: "bg-teal-500" },
+  { id: "4", name: "Climate Hero", description: "Ranked in top 10 on the Leaderboard", icon: "🏆", color: "bg-amber-500" },
+  { id: "5", name: "Earth Guardian", description: "Perfect rating on 10+ consecutive trips", icon: "🌍", color: "bg-indigo-500" },
+];
+
+const INITIAL_RIDES: Ride[] = [
+  {
+    id: "r-1",
+    hostId: "e-varsha",
+    hostName: "Varsha",
+    hostAvatar: "👩‍💼",
+    hostDept: "Human Resources",
+    hostRating: 4.9,
+    pickup: "Sunset Boulevard, San Francisco, CA",
+    destination: "Building A Office",
+    departureTime: "08:15 AM",
+    vehicleModel: "Tesla Model Y",
+    vehiclePlate: "CA-889XG",
+    vehicleType: "Electric",
+    seatsAvailable: 3,
+    seatsTotal: 4,
+    recurring: true,
+    detourRadius: 3,
+    co2Saved: 12.4,
+    esgCredits: 50,
+    luggageAllowed: true,
+    status: "Published",
+    passengers: []
+  },
+  {
+    id: "r-2",
+    hostId: "e-rahul",
+    hostName: "Rahul",
+    hostAvatar: "👨‍💻",
+    hostDept: "Engineering",
+    hostRating: 4.8,
+    pickup: "Marina District, San Francisco, CA",
+    destination: "Building B Office",
+    departureTime: "08:30 AM",
+    vehicleModel: "Tesla Model S",
+    vehiclePlate: "CA-770EV",
+    vehicleType: "Electric",
+    seatsAvailable: 3,
+    seatsTotal: 4,
+    recurring: false,
+    detourRadius: 5,
+    co2Saved: 9.8,
+    esgCredits: 35,
+    luggageAllowed: true,
+    status: "Published",
+    passengers: []
+  },
+  {
+    id: "r-3",
+    hostId: "e-naveen",
+    hostName: "Naveen",
+    hostAvatar: "👨‍💻",
+    hostDept: "Product Management",
+    hostRating: 4.8,
+    pickup: "Mission District, San Francisco, CA",
+    destination: "Building C Office",
+    departureTime: "08:00 AM",
+    vehicleModel: "Rivian R1T",
+    vehiclePlate: "CA-990EV",
+    vehicleType: "Electric",
+    seatsAvailable: 4,
+    seatsTotal: 5,
+    recurring: true,
+    detourRadius: 2,
+    co2Saved: 14.2,
+    esgCredits: 60,
+    luggageAllowed: true,
+    status: "Published",
+    passengers: []
+  }
+];
+
+export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
+
+  const login = (email: string): boolean => {
+    const cleanEmail = email.trim().toLowerCase();
+    const domain = cleanEmail.split("@")[1];
+    
+    // Check whitelisted corporate domains
+    const isAllowedDomain = ["company.com", "enterprise.org"].includes(domain);
+    if (!isAllowedDomain) return false;
+
+    // Load active persona
+    const foundUser = employees.find(e => e.email.toLowerCase() === cleanEmail);
+    if (foundUser) {
+      setCurrentUserId(foundUser.id);
+    } else {
+      // Create user fallback
+      const newName = cleanEmail.split("@")[0].replace(/\./g, " ");
+      const formattedName = newName.charAt(0).toUpperCase() + newName.slice(1);
+      const newEmp: Employee = {
+        id: `e-new-${Date.now()}`,
+        name: formattedName,
+        email: cleanEmail,
+        avatar: "👤",
+        department: "Operations",
+        designation: "Associate",
+        office: "Building A",
+        esgScore: 80,
+        carbonSaved: 0,
+        credits: 100,
+        rank: employees.length + 1,
+        badgeIds: ["1"],
+        gender: "Other"
+      };
+      setEmployees(prev => [...prev, newEmp]);
+      setCurrentUserId(newEmp.id);
+    }
+    
+    setIsLoggedIn(true);
+    return true;
+  };
+
+  const logout = () => {
+    setIsLoggedIn(false);
+  };
+  const [currentUserId, setCurrentUserId] = useState<string>("e-rahul");
+  const [role, setRoleState] = useState<"Employee" | "Admin">("Employee");
+  const [rides, setRides] = useState<Ride[]>(INITIAL_RIDES);
+  const [requests, setRequests] = useState<RideRequest[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([
+    {
+      id: "n-1",
+      title: "Real-time Testing Active 🌱",
+      message: "Switch employee identities using the switcher in the header to simulate full Carpool flows!",
+      timestamp: "Today, 12:00 PM",
+      type: "success",
+      read: false
+    }
+  ]);
+  const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
+
+  const currentUser = employees.find(e => e.id === currentUserId) || employees[0];
+
+  // Switch identity
+  const switchUser = (employeeId: string) => {
+    const target = employees.find(e => e.id === employeeId);
+    if (!target) return;
+    
+    setCurrentUserId(employeeId);
+    
+    addNotification({
+      id: `n-sw-${Date.now()}`,
+      title: `Switched User to ${target.name}`,
+      message: `You are now simulating ${target.name} (${target.designation}).`,
+      timestamp: "Just now",
+      type: "info",
+      read: false
+    });
+  };
+
+  const setRole = (newRole: "Employee" | "Admin") => {
+    setRoleState(newRole);
+    addNotification({
+      id: `n-role-${Date.now()}`,
+      title: `Switched view to ${newRole}`,
+      message: `You are now interacting as an ${newRole}.`,
+      timestamp: "Just now",
+      type: "info",
+      read: false
+    });
+  };
+
+  // Compile Leaderboard dynamically
+  useEffect(() => {
+    const sorted = [...employees].sort((a, b) => b.credits - a.credits);
+    const updatedLeaderboard = sorted.map((emp, index) => ({
+      ...emp,
+      rank: index + 1
+    }));
+    setLeaderboard(updatedLeaderboard);
+  }, [employees]);
+
+  const addNotification = (notif: Notification) => {
+    setNotifications(prev => [notif, ...prev]);
+  };
+
+  // Create Ride
+  const createRide = (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers"> & { womenOnly?: boolean }) => {
+    const newRide: Ride = {
+      ...rideData,
+      id: `r-${Date.now()}`,
+      hostId: currentUser.id,
+      hostName: currentUser.name,
+      hostAvatar: currentUser.avatar,
+      hostDept: currentUser.department,
+      hostRating: 4.8,
+      status: "Published",
+      passengers: []
+    };
+
+    setRides(prev => [newRide, ...prev]);
+    
+    // User earns credit for creating a ride
+    setEmployees(prev => prev.map(emp => {
+      if (emp.id !== currentUser.id) return emp;
+      return {
+        ...emp,
+        credits: emp.credits + 15,
+        esgScore: Math.min(100, emp.esgScore + 2)
+      };
+    }));
+
+    addNotification({
+      id: `n-create-${Date.now()}`,
+      title: "Ride Hosted Successfully 🚗",
+      message: `Your ride from ${newRide.pickup} is published. 15 ESG credits added!`,
+      timestamp: "Just now",
+      type: "success",
+      read: false
+    });
+  };
+
+  // Request to Join a Ride
+  const requestJoinRide = (rideId: string, pickup: string) => {
+    const targetRide = rides.find(r => r.id === rideId);
+    if (!targetRide) return;
+
+    const newRequest: RideRequest = {
+      id: `req-${Date.now()}`,
+      rideId,
+      requesterId: currentUser.id,
+      requesterName: currentUser.name,
+      requesterAvatar: currentUser.avatar,
+      requesterDept: currentUser.department,
+      requesterRating: 4.9,
+      pickup,
+      status: "Pending",
+      timestamp: "Just now"
+    };
+
+    setRequests(prev => [newRequest, ...prev]);
+
+    // Send notification to the host of the ride
+    addNotification({
+      id: `n-host-req-${Date.now()}`,
+      title: `Ride Join Request from ${currentUser.name} ✉️`,
+      message: `${currentUser.name} wants to join your ride to ${targetRide.destination}. Open Requests to respond.`,
+      timestamp: "Just now",
+      type: "request",
+      read: false
+    });
+  };
+
+  // Respond to join request (Accept / Reject)
+  const handleRequestResponse = (requestId: string, accept: boolean) => {
+    const reqToRespond = requests.find(r => r.id === requestId);
+    if (!reqToRespond) return;
+
+    const targetRide = rides.find(r => r.id === reqToRespond.rideId);
+    if (!targetRide) return;
+
+    if (accept && targetRide.seatsAvailable <= 0) {
+      addNotification({
+        id: `n-fail-${Date.now()}`,
+        title: "Acceptance Failed",
+        message: "This ride has no available seats remaining.",
+        timestamp: "Just now",
+        type: "warning",
+        read: false
+      });
+      return;
+    }
+
+    // 1. Update request status
+    setRequests(prevRequests => {
+      return prevRequests.map(req => {
+        if (req.id === requestId) {
+          return { ...req, status: accept ? "Accepted" : "Rejected" };
+        }
+        return req;
+      });
+    });
+
+    if (accept) {
+      // 2. Deduct available seats
+      setRides(currRides => currRides.map(ride => {
+        if (ride.id !== reqToRespond.rideId) return ride;
+        return {
+          ...ride,
+          seatsAvailable: ride.seatsAvailable - 1,
+          passengers: [...ride.passengers, reqToRespond.requesterId]
+        };
+      }));
+
+      // 3. Dispatch Side-effects (clean, single-execution)
+      const newSeats = targetRide.seatsAvailable - 1;
+
+      // Notify passenger of acceptance
+      addNotification({
+        id: `n-acc-${Date.now()}-${reqToRespond.requesterId}-${Math.random()}`,
+        title: "Ride Request Approved! 🎉",
+        message: `${targetRide.hostName} accepted your ride request. Ready to commute!`,
+        timestamp: "Just now",
+        type: "success",
+        read: false
+      });
+
+      // System welcome message in chat
+      setMessages(prevMsgs => [
+        ...prevMsgs,
+        {
+          id: `m-sys-${Date.now()}-${Math.random()}`,
+          rideId: targetRide.id,
+          senderId: "system",
+          senderName: "System",
+          senderAvatar: "🤖",
+          content: `Carpool formed! ${targetRide.hostName} is riding with ${reqToRespond.requesterName}. Chat channel active!`,
+          timestamp: "Just now"
+        }
+      ]);
+
+      // Capacity Check: If full, decline other pending requesters
+      if (newSeats === 0) {
+        const otherRequestsForThisRide = requests.filter(r => r.rideId === targetRide.id && r.id !== requestId && r.status === "Pending");
+        
+        otherRequestsForThisRide.forEach((otherReq, idx) => {
+          addNotification({
+            id: `n-full-${Date.now()}-${otherReq.requesterId}-${idx}-${Math.random()}`,
+            title: "Ride No Longer Available 🚗",
+            message: `${targetRide.hostName}'s ride to ${targetRide.destination} is now full.`,
+            timestamp: "Just now",
+            type: "warning",
+            read: false
+          });
+        });
+
+        setRequests(prevReqs => prevReqs.map(r => {
+          if (r.rideId === targetRide.id && r.id !== requestId && r.status === "Pending") {
+            return { ...r, status: "Rejected" };
+          }
+          return r;
+        }));
+      }
+
+      // Update employee metrics
+      setEmployees(prev => prev.map(emp => {
+        if (emp.id === targetRide.hostId) {
+          return {
+            ...emp,
+            credits: emp.credits + 20,
+            esgScore: Math.min(100, emp.esgScore + 3)
+          };
+        }
+        if (emp.id === reqToRespond.requesterId) {
+          return {
+            ...emp,
+            credits: emp.credits + 10,
+            esgScore: Math.min(100, emp.esgScore + 1)
+          };
+        }
+        return emp;
+      }));
+
+    } else {
+      // Host manually declined
+      addNotification({
+        id: `n-host-dec-${Date.now()}-${reqToRespond.requesterId}-${Math.random()}`,
+        title: "Ride Request Declined",
+        message: `Your join request for ride ID ${reqToRespond.rideId.slice(0, 5)} was not accepted by the host.`,
+        timestamp: "Just now",
+        type: "warning",
+        read: false
+      });
+    }
+  };
+
+  // Send Message (Real-time and User-driven chat updates)
+  const sendMessage = (rideId: string, content: string, isLocation: boolean = false) => {
+    const newMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      rideId,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      content,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isLocation
+    };
+
+    setMessages(prev => [...prev, newMsg]);
+  };
+
+  // Start Ride
+  const startRide = (rideId: string) => {
+    setRides(prev => prev.map(ride => {
+      if (ride.id !== rideId) return ride;
+      
+      // Notify all passengers
+      ride.passengers.forEach(pId => {
+        addNotification({
+          id: `n-st-${Date.now()}-${pId}`,
+          title: "Ride Commute Started! 🚗💨",
+          message: `${ride.hostName}'s vehicle is now en route to ${ride.destination}.`,
+          timestamp: "Just now",
+          type: "info",
+          read: false
+        });
+      });
+
+      return {
+        ...ride,
+        status: "Started"
+      };
+    }));
+  };
+
+  // Complete Ride
+  const completeRide = (rideId: string, ratings: { safety: number; comfort: number; punctuality: number }) => {
+    setRides(prev => prev.map(ride => {
+      if (ride.id !== rideId) return ride;
+
+      const totalPassengers = ride.passengers.length;
+      const co2Offset = ride.co2Saved * (totalPassengers || 1);
+      const earnedCredits = ride.esgCredits + (totalPassengers * 15);
+
+      // Award credits to the driver & passengers in the employees array
+      setEmployees(prevEmps => prevEmps.map(emp => {
+        const isDriver = emp.id === ride.hostId;
+        const isPassenger = ride.passengers.includes(emp.id);
+
+        if (isDriver) {
+          const newCarbon = Number((emp.carbonSaved + co2Offset).toFixed(1));
+          const newCredits = emp.credits + earnedCredits;
+          
+          // Badge achievements
+          const updatedBadges = [...emp.badgeIds];
+          if (newCarbon >= 100 && !updatedBadges.includes("3")) {
+            updatedBadges.push("3"); // Carbon Warrior
+          }
+
+          return {
+            ...emp,
+            carbonSaved: newCarbon,
+            credits: newCredits,
+            badgeIds: updatedBadges,
+            esgScore: Math.min(100, emp.esgScore + 5)
+          };
+        } else if (isPassenger) {
+          const newCarbon = Number((emp.carbonSaved + (ride.co2Saved)).toFixed(1));
+          const newCredits = emp.credits + Math.round(earnedCredits * 0.5); // Passenger gets 50% credits share
+
+          return {
+            ...emp,
+            carbonSaved: newCarbon,
+            credits: newCredits,
+            esgScore: Math.min(100, emp.esgScore + 3)
+          };
+        }
+        return emp;
+      }));
+
+      addNotification({
+        id: `n-comp-${Date.now()}`,
+        title: "Ride Commute Completed! 🎉",
+        message: `Ride to ${ride.destination} completed. Carbon savings logged to ESG registries.`,
+        timestamp: "Just now",
+        type: "success",
+        read: false
+      });
+
+      return {
+        ...ride,
+        status: "Completed"
+      };
+    }));
+  };
+
+  // Cancel Ride
+  const cancelRide = (rideId: string) => {
+    setRides(prev => prev.map(ride => {
+      if (ride.id !== rideId) return ride;
+
+      // Penalty for driver late cancellation
+      setEmployees(prev => prev.map(emp => {
+        if (emp.id !== ride.hostId) return emp;
+        return {
+          ...emp,
+          credits: Math.max(0, emp.credits - 25),
+          esgScore: Math.max(0, emp.esgScore - 5)
+        };
+      }));
+
+      addNotification({
+        id: `n-can-${Date.now()}`,
+        title: "Ride Cancelled ⚠️",
+        message: `${ride.hostName} cancelled the commute trip. 25 credit penalty applied.`,
+        timestamp: "Just now",
+        type: "warning",
+        read: false
+      });
+
+      return {
+        ...ride,
+        status: "Cancelled"
+      };
+    }));
+  };
+
+  const markNotificationsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  // Admin Delete Ride
+  const adminDeleteRide = (rideId: string) => {
+    setRides(prev => prev.filter(r => r.id !== rideId));
+    addNotification({
+      id: `n-adm-del-${Date.now()}`,
+      title: "Ride Moderated 🚫",
+      message: `Ride ID ${rideId.slice(0, 8)} removed by administrator override.`,
+      timestamp: "Just now",
+      type: "warning",
+      read: false
+    });
+  };
+
+  // Admin Deactivate Employee
+  const adminDeactivateEmployee = (employeeId: string) => {
+    setEmployees(prev => prev.map(emp => {
+      if (emp.id !== employeeId) return emp;
+      return { ...emp, is_active: false };
+    }));
+
+    addNotification({
+      id: `n-adm-deac-${Date.now()}`,
+      title: "User Account Suspended 🚫",
+      message: `Employee ID ${employeeId} has been set to Inactive status.`,
+      timestamp: "Just now",
+      type: "warning",
+      read: false
+    });
+  };
+
+  return (
+    <StateContext.Provider
+      value={{
+        employees,
+        currentUser,
+        switchUser,
+        role,
+        setRole,
+        rides,
+        requests,
+        messages,
+        notifications,
+        badges: INITIAL_BADGES,
+        leaderboard,
+        createRide,
+        requestJoinRide,
+        handleRequestResponse,
+        sendMessage,
+        startRide,
+        completeRide,
+        cancelRide,
+        markNotificationsRead,
+        adminDeleteRide,
+        adminDeactivateEmployee,
+        isLoggedIn,
+        login,
+        logout
+      }}
+    >
+      {children}
+    </StateContext.Provider>
+  );
+};
+
+export const useAppState = () => {
+  const context = useContext(StateContext);
+  if (context === undefined) {
+    throw new Error("useAppState must be used within a StateProvider");
+  }
+  return context;
+};

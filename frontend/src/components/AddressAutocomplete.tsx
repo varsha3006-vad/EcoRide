@@ -1,0 +1,118 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+
+interface AddressAutocompleteProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  label: string;
+  required?: boolean;
+}
+
+export default function AddressAutocomplete({ 
+  value, 
+  onChange, 
+  placeholder, 
+  label, 
+  required = false 
+}: AddressAutocompleteProps) {
+  const [predictions, setPredictions] = useState<any[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const autocompleteServiceRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Initialize service once Google Maps scripts are loaded
+  useEffect(() => {
+    const initService = () => {
+      const google = (window as any).google;
+      if (google && google.maps && google.maps.places) {
+        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+      }
+    };
+
+    initService();
+    
+    // Check periodically for asynchronous loader mounts
+    const interval = setInterval(() => {
+      const google = (window as any).google;
+      if (google && google.maps && google.maps.places) {
+        initService();
+        clearInterval(interval);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Close suggestions box on clicking outside the container
+  useEffect(() => {
+    const clickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", clickOutside);
+    return () => document.removeEventListener("mousedown", clickOutside);
+  }, []);
+
+  const handleTextChange = (text: string) => {
+    onChange(text);
+    if (!text.trim()) {
+      setPredictions([]);
+      setIsOpen(false);
+      return;
+    }
+
+    const google = (window as any).google;
+    if (autocompleteServiceRef.current && google && google.maps) {
+      autocompleteServiceRef.current.getPlacePredictions(
+        { input: text },
+        (results: any, status: any) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+            setPredictions(results);
+            setIsOpen(true);
+          } else {
+            setPredictions([]);
+          }
+        }
+      );
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full z-20">
+      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+        {label}
+      </label>
+      <input
+        type="text"
+        required={required}
+        value={value}
+        onChange={e => handleTextChange(e.target.value)}
+        placeholder={placeholder}
+        onFocus={() => {
+          if (predictions.length > 0) setIsOpen(true);
+        }}
+        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-800 dark:text-white placeholder-slate-400 outline-none focus:border-brand-green-500 transition-all shadow-sm"
+      />
+      {isOpen && predictions.length > 0 && (
+        <ul className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-900/50">
+          {predictions.map(pred => (
+            <li
+              key={pred.place_id}
+              onClick={() => {
+                onChange(pred.description);
+                setPredictions([]);
+                setIsOpen(false);
+              }}
+              className="px-3.5 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer transition-colors"
+            >
+              {pred.description}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

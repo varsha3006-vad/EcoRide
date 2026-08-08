@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: ecoride_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ecoride_secure_password
+      POSTGRES_DB: ecoride_enterprise
+    ports:
+      - "5432:5432"
+    volumes:
+      - ecoride_db_data:/var/lib/postgresql/data
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ecoride_enterprise"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Redis Cache & Messaging Broker
+  cache:
+    image: redis:7-alpine
+    container_name: ecoride_cache
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ecoride_cache_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 3. Backend NestJS Server
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: ecoride_backend
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=postgresql://postgres:ecoride_secure_password@db:5432/ecoride_enterprise?schema=public
+      - REDIS_URL=redis://cache:6379
+      - JWT_SECRET=ecoride_jwt_secret_token_10293
+      - AZURE_TENANT_ID=your-azure-tenant-id
+      - AZURE_CLIENT_ID=your-azure-client-id
+      - AZURE_CLIENT_SECRET=your-azure-client-secret
+      - GOOGLE_CLIENT_ID=your-google-client-id
+      - GOOGLE_CLIENT_SECRET=your-google-client-secret
+      - BACKEND_URL=http://localhost:4000
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+
+  # 4. Frontend Next.js Server
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    container_name: ecoride_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - PORT=3000
+    depends_on:
+      - backend
+
+volumes:
+  ecoride_db_data:
+    driver: local
+  ecoride_cache_data:
+    driver: local
