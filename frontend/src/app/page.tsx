@@ -1403,7 +1403,32 @@ export default function HomePage() {
                                 )}
                               </div>
                             </div>
-                            {trip.status === "Started" && (
+                            {/* Show map for passengers as soon as they're accepted, and for host when ride is started */}
+                            {(trip.status === "Started" || (!isHost && trip.passengers.includes(currentUser.id))) && (
+                              <div className="rounded-2xl overflow-hidden border border-brand-green-500/20 shadow-md space-y-0">
+                                {!isHost && trip.status === "Published" && (
+                                  <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 text-xs text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-2">
+                                    <span className="animate-pulse">🟡</span>
+                                    Waiting for {trip.hostName} to start the ride — map will show live location once started
+                                  </div>
+                                )}
+                                {!isHost && trip.status === "Started" && (
+                                  <div className="px-3 py-2 bg-green-50 dark:bg-green-950/30 border-b border-green-200 dark:border-green-900/40 text-xs text-green-700 dark:text-green-400 font-semibold flex items-center gap-2">
+                                    <span className="animate-pulse">🟢</span>
+                                    {trip.hostName} is en route — tracking live location
+                                  </div>
+                                )}
+                                <InteractiveMap 
+                                  pickup={trip.pickup} 
+                                  destination={trip.destination} 
+                                  isDriving={trip.status === "Started"} 
+                                  waypoints={passengerPickups}
+                                  rideId={trip.id}
+                                  isHost={isHost}
+                                />
+                              </div>
+                            )}
+                            {isHost && trip.status === "Started" && (
                               <div className="rounded-2xl overflow-hidden border border-brand-green-500/20 shadow-md">
                                 <InteractiveMap 
                                   pickup={trip.pickup} 
@@ -1411,7 +1436,7 @@ export default function HomePage() {
                                   isDriving={true} 
                                   waypoints={passengerPickups}
                                   rideId={trip.id}
-                                  isHost={isHost}
+                                  isHost={true}
                                 />
                               </div>
                             )}
