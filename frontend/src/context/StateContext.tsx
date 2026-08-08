@@ -446,7 +446,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (dbRequests) setRequests(dbRequests);
 
       const dbMessages = await supabaseSync.get("messages");
-      if (dbMessages) setMessages(dbMessages);
+      if (dbMessages) {
+        setMessages(prev => {
+          const merged = [...prev];
+          dbMessages.forEach((m: any) => {
+            if (!merged.some(x => x.id === m.id)) {
+              merged.push(m);
+            }
+          });
+          return merged.sort((a, b) => a.id.localeCompare(b.id));
+        });
+      }
     };
 
     const interval = setInterval(pollDatabase, 4000);
@@ -474,12 +484,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [requests, isLoaded]);
 
-  useEffect(() => {
-    if (!isLoaded) return;
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      supabaseSync.set("messages", messages);
-    }
-  }, [messages, isLoaded]);
+
 
   const prevRequestsRef = useRef<RideRequest[]>([]);
   const prevRidesRef = useRef<Ride[]>([]);
@@ -796,9 +801,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Send Message (Real-time and User-driven chat updates)
-  const sendMessage = (rideId: string, content: string, isLocation: boolean = false) => {
+  const sendMessage = async (rideId: string, content: string, isLocation: boolean = false) => {
     const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       rideId,
       senderId: currentUser.id,
       senderName: currentUser.name,
@@ -808,7 +813,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isLocation
     };
 
+    // Optimistically append locally
     setMessages(prev => [...prev, newMsg]);
+
+    // Explicit Fetch-Modify-Write to prevent sync clobbers
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      const dbMsgs = await supabaseSync.get("messages") || [];
+      const updatedMsgs = [...dbMsgs];
+      if (!updatedMsgs.some(m => m.id === newMsg.id)) {
+        updatedMsgs.push(newMsg);
+      }
+      await supabaseSync.set("messages", updatedMsgs);
+      setMessages(updatedMsgs);
+    }
   };
 
   // Start Ride
