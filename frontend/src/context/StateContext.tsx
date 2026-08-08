@@ -92,6 +92,8 @@ export interface Ride {
   status: "Created" | "Published" | "Started" | "Completed" | "Cancelled";
   passengers: string[]; // employeeIds
   womenOnly?: boolean;
+  driverLat?: number;
+  driverLng?: number;
 }
 
 export interface RideRequest {
@@ -162,6 +164,7 @@ interface StateContextType {
   login: (email: string) => boolean;
   logout: () => void;
   isSupabaseConfigured: boolean;
+  updateRideLocation: (rideId: string, lat: number, lng: number) => void;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -487,47 +490,51 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Detect new requests for the host, or status updates for the passenger
     requests.forEach(req => {
-      const prevReq = prevRequestsRef.current.find(r => r.id === req.id);
-      
-      // A. Brand new request created
-      if (!prevReq) {
-        const ride = rides.find(r => r.id === req.rideId);
-        if (ride && ride.hostId === currentUserId && req.status === "Pending" && req.requesterId !== currentUserId) {
-          addNotification({
-            id: `n-new-req-${Date.now()}-${Math.random()}`,
-            title: `Ride Join Request from ${req.requesterName} ✉️`,
-            message: `${req.requesterName} wants to join your ride to ${ride.destination}.`,
-            timestamp: "Just now",
-            type: "request",
-            read: false
-          });
+      // A. Passenger gets notification if their request was accepted/declined
+      if (req.requesterId === currentUserId) {
+        if (req.status === "Accepted") {
+          const hasNotif = notifications.some(n => n.id === `n-req-acc-${req.id}`);
+          if (!hasNotif) {
+            const ride = rides.find(r => r.id === req.rideId);
+            addNotification({
+              id: `n-req-acc-${req.id}`,
+              title: "Ride Request Approved! 🎉",
+              message: `${ride ? ride.hostName : "The host"} accepted your ride request. Ready to commute!`,
+              timestamp: "Just now",
+              type: "success",
+              read: false
+            });
+          }
+        } else if (req.status === "Rejected") {
+          const hasNotif = notifications.some(n => n.id === `n-req-rej-${req.id}`);
+          if (!hasNotif) {
+            const ride = rides.find(r => r.id === req.rideId);
+            addNotification({
+              id: `n-req-rej-${req.id}`,
+              title: "Ride Request Declined ❌",
+              message: `${ride ? ride.hostName : "The host"} declined your join request.`,
+              timestamp: "Just now",
+              type: "warning",
+              read: false
+            });
+          }
         }
-      } 
-      // B. Existing request status changed
-      else if (prevReq.status !== req.status) {
+      }
+
+      // B. Host gets notification about pending requests from other users
+      if (req.status === "Pending" && req.requesterId !== currentUserId) {
         const ride = rides.find(r => r.id === req.rideId);
-        if (ride) {
-          // Passenger gets notification if their request was accepted/declined
-          if (req.requesterId === currentUserId) {
-            if (req.status === "Accepted") {
-              addNotification({
-                id: `n-req-acc-${Date.now()}-${Math.random()}`,
-                title: "Ride Request Approved! 🎉",
-                message: `${ride.hostName} accepted your ride request. Ready to commute!`,
-                timestamp: "Just now",
-                type: "success",
-                read: false
-              });
-            } else if (req.status === "Rejected") {
-              addNotification({
-                id: `n-req-rej-${Date.now()}-${Math.random()}`,
-                title: "Ride Request Declined ❌",
-                message: `${ride.hostName} declined your join request.`,
-                timestamp: "Just now",
-                type: "warning",
-                read: false
-              });
-            }
+        if (ride && ride.hostId === currentUserId) {
+          const hasNotif = notifications.some(n => n.id === `n-new-req-${req.id}`);
+          if (!hasNotif) {
+            addNotification({
+              id: `n-new-req-${req.id}`,
+              title: `Ride Join Request from ${req.requesterName} ✉️`,
+              message: `${req.requesterName} wants to join your ride to ${ride.destination}.`,
+              timestamp: "Just now",
+              type: "request",
+              read: false
+            });
           }
         }
       }
@@ -536,7 +543,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Detect ride status changes (Started / Completed)
     rides.forEach(ride => {
       const prevRide = prevRidesRef.current.find(r => r.id === ride.id);
-      
       if (prevRide && prevRide.status !== ride.status) {
         const isPassenger = ride.passengers.includes(currentUserId);
         const isHost = ride.hostId === currentUserId;
@@ -544,23 +550,29 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Notify passenger when host acts
         if (isPassenger && !isHost) {
           if (ride.status === "Started") {
-            addNotification({
-              id: `n-ride-start-${Date.now()}-${Math.random()}`,
-              title: "Carpool Started! 🚗",
-              message: `${ride.hostName} has started the commute to ${ride.destination}. Meet at your boarding point!`,
-              timestamp: "Just now",
-              type: "success",
-              read: false
-            });
+            const hasNotif = notifications.some(n => n.id === `n-ride-start-${ride.id}-${ride.status}`);
+            if (!hasNotif) {
+              addNotification({
+                id: `n-ride-start-${ride.id}-${ride.status}`,
+                title: "Carpool Started! 🚗",
+                message: `${ride.hostName} has started the commute to ${ride.destination}. Meet at your boarding point!`,
+                timestamp: "Just now",
+                type: "success",
+                read: false
+              });
+            }
           } else if (ride.status === "Completed") {
-            addNotification({
-              id: `n-ride-comp-${Date.now()}-${Math.random()}`,
-              title: "Carpool Completed! 🌱",
-              message: `You arrived at ${ride.destination}. ESG credits and CO₂ savings have been updated!`,
-              timestamp: "Just now",
-              type: "success",
-              read: false
-            });
+            const hasNotif = notifications.some(n => n.id === `n-ride-comp-${ride.id}-${ride.status}`);
+            if (!hasNotif) {
+              addNotification({
+                id: `n-ride-comp-${ride.id}-${ride.status}`,
+                title: "Carpool Completed! 🌱",
+                message: `You arrived at ${ride.destination}. ESG credits and CO₂ savings have been updated!`,
+                timestamp: "Just now",
+                type: "success",
+                read: false
+              });
+            }
           }
         }
       }
@@ -569,7 +581,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Update comparison cache refs
     prevRequestsRef.current = requests;
     prevRidesRef.current = rides;
-  }, [requests, rides, isLoaded, currentUserId]);
+  }, [requests, rides, isLoaded, currentUserId, notifications]);
 
   const currentUser = employees.find(e => e.id === currentUserId) || employees[0];
 
@@ -915,6 +927,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }));
   };
 
+  // Update Ride Location Coordinates (for cross-device passenger tracking)
+  const updateRideLocation = (rideId: string, lat: number, lng: number) => {
+    setRides(prev => prev.map(ride => {
+      if (ride.id === rideId) {
+        if (ride.driverLat === lat && ride.driverLng === lng) return ride;
+        return { ...ride, driverLat: lat, driverLng: lng };
+      }
+      return ride;
+    }));
+  };
+
   const markNotificationsRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
@@ -976,7 +999,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isLoggedIn,
         login,
         logout,
-        isSupabaseConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY)
+        isSupabaseConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY),
+        updateRideLocation
       }}
     >
       {children}

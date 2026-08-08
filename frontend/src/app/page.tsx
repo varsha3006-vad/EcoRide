@@ -1410,6 +1410,8 @@ export default function HomePage() {
                                   destination={trip.destination} 
                                   isDriving={true} 
                                   waypoints={passengerPickups}
+                                  rideId={trip.id}
+                                  isHost={isHost}
                                 />
                               </div>
                             )}

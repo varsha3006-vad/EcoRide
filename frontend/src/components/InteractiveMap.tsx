@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Navigation, MapPin, Layers, RefreshCw, Zap, Map as MapIcon } from "lucide-react";
+import { useAppState } from "@/context/StateContext";
 
 interface InteractiveMapProps {
   pickup: string;
@@ -10,6 +11,8 @@ interface InteractiveMapProps {
   passengerPickup?: string;
   waypoints?: string[];
   onLocationDetected?: (address: string) => void;
+  rideId?: string;
+  isHost?: boolean;
 }
 
 export default function InteractiveMap({ 
@@ -18,8 +21,11 @@ export default function InteractiveMap({
   isDriving = false, 
   passengerPickup, 
   waypoints = [],
-  onLocationDetected 
+  onLocationDetected,
+  rideId,
+  isHost = false
 }: InteractiveMapProps) {
+  const { rides, updateRideLocation } = useAppState();
   const [eta, setEta] = useState(15);
   const [distanceStr, setDistanceStr] = useState("4.8 km");
   const [traffic, setTraffic] = useState<"Low" | "Medium" | "High">("Low");
@@ -441,9 +447,9 @@ export default function InteractiveMap({
     }
   }, [googleMapsLoaded, mapError, pickup, destination, passengerPickup]);
 
-  // 3. Real-time GPS Car Tracking / Simulation
+  // 3. Real-time GPS Car Tracking / Simulation (Only active for the Host Driver)
   useEffect(() => {
-    if (!googleMapsLoaded || !isDriving || mapError) return;
+    if (!googleMapsLoaded || !isDriving || mapError || !isHost) return;
 
     const google = (window as any).google;
     if (!google || !google.maps) return;
@@ -467,6 +473,11 @@ export default function InteractiveMap({
           // Pan map to center on driver
           if (googleMapInstanceRef.current) {
             googleMapInstanceRef.current.panTo(currentLatLng);
+          }
+
+          // Push new coordinates to shared Supabase state
+          if (rideId) {
+            updateRideLocation(rideId, lat, lng);
           }
 
           // Recalculate directions from current live GPS coordinate to destination
@@ -532,12 +543,39 @@ export default function InteractiveMap({
           googleMapInstanceRef.current.panTo(newPos);
         }
 
+        // Push new simulated coordinates to shared Supabase state
+        if (rideId) {
+          updateRideLocation(rideId, newPos.lat(), newPos.lng());
+        }
+
         step++;
       }, 500);
 
       return () => clearInterval(interval);
     }
-  }, [isDriving, googleMapsLoaded, gpsMode, coordinatesPath, waypoints, destination, mapError]);
+  }, [isDriving, googleMapsLoaded, gpsMode, coordinatesPath, waypoints, destination, mapError, isHost, rideId]);
+
+  // 4. Passenger-side Real-time Tracking (Polls host coordinates from Supabase state)
+  useEffect(() => {
+    if (isHost || !googleMapsLoaded || !rideId || mapError) return;
+
+    const ride = rides.find(r => r.id === rideId);
+    if (ride && ride.driverLat && ride.driverLng) {
+      const google = (window as any).google;
+      if (google && google.maps) {
+        const currentLatLng = new google.maps.LatLng(ride.driverLat, ride.driverLng);
+        
+        // Move car marker
+        if (carMarkerRef.current) {
+          carMarkerRef.current.setPosition(currentLatLng);
+        }
+        // Center map on driver
+        if (googleMapInstanceRef.current) {
+          googleMapInstanceRef.current.panTo(currentLatLng);
+        }
+      }
+    }
+  }, [rides, googleMapsLoaded, isHost, rideId, mapError]);
 
   return (
     <div className="relative w-full h-[320px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-inner">
@@ -565,7 +603,7 @@ export default function InteractiveMap({
       </div>
 
       {/* Floating GPS Mode Toggle Controls */}
-      {isDriving && (
+      {isDriving && isHost && (
         <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-slate-950/90 backdrop-blur-md p-1 rounded-xl border border-slate-800 text-[10px] font-bold shadow-lg">
           <button
             onClick={() => setGpsMode("Live GPS")}
