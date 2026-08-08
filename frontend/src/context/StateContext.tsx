@@ -284,6 +284,41 @@ const INITIAL_BADGES: Badge[] = [
 
 const INITIAL_RIDES: Ride[] = [];
 
+const playNotificationSound = () => {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    
+    const audioCtx = new AudioCtx();
+    
+    // Premium Corporate Commute Chime (Double Sine Chime)
+    const osc1 = audioCtx.createOscillator();
+    const gain1 = audioCtx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
+    gain1.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.2);
+    osc1.connect(gain1);
+    gain1.connect(audioCtx.destination);
+    osc1.start(audioCtx.currentTime);
+    osc1.stop(audioCtx.currentTime + 0.25);
+
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(880.00, audioCtx.currentTime + 0.12); // A5 note
+    gain2.gain.setValueAtTime(0.1, audioCtx.currentTime + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.4);
+    osc2.connect(gain2);
+    gain2.connect(audioCtx.destination);
+    osc2.start(audioCtx.currentTime + 0.12);
+    osc2.stop(audioCtx.currentTime + 0.45);
+  } catch (e) {
+    console.warn("Audio Context playback blocked by browser/device settings:", e);
+  }
+};
+
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -574,6 +609,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addNotification = (notif: Notification) => {
     setNotifications(prev => [notif, ...prev]);
+    playNotificationSound();
   };
 
   // Create Ride
