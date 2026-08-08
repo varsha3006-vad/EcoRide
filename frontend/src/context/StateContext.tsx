@@ -505,26 +505,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => clearInterval(interval);
   }, []);
 
-  // 3. Save updates back to Supabase & LocalStorage
-  useEffect(() => {
-    if (!isLoaded) return;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("ecoride_rides", JSON.stringify(rides));
-    }
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      supabaseSync.set("rides", rides);
-    }
-  }, [rides, isLoaded]);
 
-  useEffect(() => {
-    if (!isLoaded) return;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("ecoride_requests", JSON.stringify(requests));
-    }
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      supabaseSync.set("requests", requests);
-    }
-  }, [requests, isLoaded]);
 
 
 
@@ -690,7 +671,16 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       passengers: []
     };
 
-    setRides(prev => [newRide, ...prev]);
+    setRides(prev => {
+      const updated = [newRide, ...prev];
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("rides", updated);
+      }
+      return updated;
+    });
     
     // User earns credit for creating a ride
     setEmployees(prev => prev.map(emp => {
@@ -730,9 +720,16 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: "Just now"
     };
 
-    setRequests(prev => [newRequest, ...prev]);
-
-    // Request synced via Supabase
+    setRequests(prev => {
+      const updated = [newRequest, ...prev];
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_requests", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("requests", updated);
+      }
+      return updated;
+    });
   };
 
   // Respond to join request (Accept / Reject)
@@ -755,45 +752,31 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    // 1. Update request status
-    setRequests(prevRequests => {
-      return prevRequests.map(req => {
-        if (req.id === requestId) {
-          return { ...req, status: accept ? "Accepted" : "Rejected" };
-        }
-        return req;
-      });
+    // 1. Update requests status
+    let updatedRequests = requests.map(req => {
+      if (req.id === requestId) {
+        return { ...req, status: accept ? ("Accepted" as const) : ("Rejected" as const) };
+      }
+      return req;
     });
 
+    let updatedRides = [...rides];
+
     if (accept) {
-      // 2. Deduct available seats
-      setRides(currRides => currRides.map(ride => {
+      // 2. Deduct available seats in target ride
+      updatedRides = rides.map(ride => {
         if (ride.id !== reqToRespond.rideId) return ride;
         return {
           ...ride,
           seatsAvailable: ride.seatsAvailable - 1,
           passengers: [...ride.passengers, reqToRespond.requesterId]
         };
-      }));
+      });
 
-      // 3. Dispatch Side-effects (clean, single-execution)
       const newSeats = targetRide.seatsAvailable - 1;
 
-      // Passenger acceptance notification is dynamically handled on their device via state sync
-
-      // System welcome message in chat
-      setMessages(prevMsgs => [
-        ...prevMsgs,
-        {
-          id: `m-sys-${Date.now()}-${Math.random()}`,
-          rideId: targetRide.id,
-          senderId: "system",
-          senderName: "System",
-          senderAvatar: "🤖",
-          content: `Carpool formed! ${targetRide.hostName} is riding with ${reqToRespond.requesterName}. Chat channel active!`,
-          timestamp: "Just now"
-        }
-      ]);
+      // System welcome message in chat (pushed directly to ride-specific channel database log)
+      sendMessage(targetRide.id, `Carpool formed! ${targetRide.hostName} is riding with ${reqToRespond.requesterName}. Chat channel active!`);
 
       // Capacity Check: If full, decline other pending requesters
       if (newSeats === 0) {
@@ -810,12 +793,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           });
         });
 
-        setRequests(prevReqs => prevReqs.map(r => {
+        updatedRequests = updatedRequests.map(r => {
           if (r.rideId === targetRide.id && r.id !== requestId && r.status === "Pending") {
-            return { ...r, status: "Rejected" };
+            return { ...r, status: "Rejected" as const };
           }
           return r;
-        }));
+        });
       }
 
       // Update employee metrics
@@ -836,9 +819,22 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         return emp;
       }));
+    }
 
-    } else {
-      // Host manually declined; passenger is notified reactively on state sync
+    setRequests(updatedRequests);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_requests", JSON.stringify(updatedRequests));
+    }
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("requests", updatedRequests);
+    }
+
+    setRides(updatedRides);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_rides", JSON.stringify(updatedRides));
+    }
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("rides", updatedRides);
     }
   };
 
@@ -876,141 +872,187 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Start Ride
   const startRide = (rideId: string) => {
-    setRides(prev => prev.map(ride => {
-      if (ride.id !== rideId) return ride;
-      
-      // Notify all passengers
-      ride.passengers.forEach(pId => {
-        addNotification({
-          id: `n-st-${Date.now()}-${pId}`,
-          title: "Ride Commute Started! 🚗💨",
-          message: `${ride.hostName}'s vehicle is now en route to ${ride.destination}.`,
-          timestamp: "Just now",
-          type: "info",
-          read: false
+    setRides(prev => {
+      const updated = prev.map(ride => {
+        if (ride.id !== rideId) return ride;
+        
+        // Notify all passengers
+        ride.passengers.forEach(pId => {
+          addNotification({
+            id: `n-st-${Date.now()}-${pId}`,
+            title: "Ride Commute Started! 🚗💨",
+            message: `${ride.hostName}'s vehicle is now en route to ${ride.destination}.`,
+            timestamp: "Just now",
+            type: "info",
+            read: false
+          });
         });
+
+        return {
+          ...ride,
+          status: "Started" as const
+        };
       });
 
-      return {
-        ...ride,
-        status: "Started"
-      };
-    }));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("rides", updated);
+      }
+      return updated;
+    });
   };
 
   // Complete Ride
   const completeRide = (rideId: string, ratings: { safety: number; comfort: number; punctuality: number }) => {
-    setRides(prev => prev.map(ride => {
-      if (ride.id !== rideId) return ride;
+    setRides(prev => {
+      const updated = prev.map(ride => {
+        if (ride.id !== rideId) return ride;
 
-      const totalPassengers = ride.passengers.length;
-      const co2Offset = ride.co2Saved * (totalPassengers || 1);
-      const earnedCredits = ride.esgCredits + (totalPassengers * 15);
+        const totalPassengers = ride.passengers.length;
+        const co2Offset = ride.co2Saved * (totalPassengers || 1);
+        const earnedCredits = ride.esgCredits + (totalPassengers * 15);
 
-      // Award credits to the driver & passengers in the employees array
-      setEmployees(prevEmps => prevEmps.map(emp => {
-        const isDriver = emp.id === ride.hostId;
-        const isPassenger = ride.passengers.includes(emp.id);
+        // Award credits to the driver & passengers in the employees array
+        setEmployees(prevEmps => prevEmps.map(emp => {
+          const isDriver = emp.id === ride.hostId;
+          const isPassenger = ride.passengers.includes(emp.id);
 
-        if (isDriver) {
-          const newCarbon = Number((emp.carbonSaved + co2Offset).toFixed(1));
-          const newCredits = emp.credits + earnedCredits;
-          
-          // Badge achievements
-          const updatedBadges = [...emp.badgeIds];
-          if (newCarbon >= 100 && !updatedBadges.includes("3")) {
-            updatedBadges.push("3"); // Carbon Warrior
+          if (isDriver) {
+            const newCarbon = Number((emp.carbonSaved + co2Offset).toFixed(1));
+            const newCredits = emp.credits + earnedCredits;
+            
+            // Badge achievements
+            const updatedBadges = [...emp.badgeIds];
+            if (newCarbon >= 100 && !updatedBadges.includes("3")) {
+              updatedBadges.push("3"); // Carbon Warrior
+            }
+
+            return {
+              ...emp,
+              carbonSaved: newCarbon,
+              credits: newCredits,
+              badgeIds: updatedBadges,
+              esgScore: Math.min(100, emp.esgScore + 5)
+            };
+          } else if (isPassenger) {
+            const newCarbon = Number((emp.carbonSaved + (ride.co2Saved)).toFixed(1));
+            const newCredits = emp.credits + Math.round(earnedCredits * 0.5); // Passenger gets 50% credits share
+
+            return {
+              ...emp,
+              carbonSaved: newCarbon,
+              credits: newCredits,
+              esgScore: Math.min(100, emp.esgScore + 3)
+            };
           }
+          return emp;
+        }));
 
-          return {
-            ...emp,
-            carbonSaved: newCarbon,
-            credits: newCredits,
-            badgeIds: updatedBadges,
-            esgScore: Math.min(100, emp.esgScore + 5)
-          };
-        } else if (isPassenger) {
-          const newCarbon = Number((emp.carbonSaved + (ride.co2Saved)).toFixed(1));
-          const newCredits = emp.credits + Math.round(earnedCredits * 0.5); // Passenger gets 50% credits share
+        addNotification({
+          id: `n-comp-${Date.now()}`,
+          title: "Ride Commute Completed! 🎉",
+          message: `Ride to ${ride.destination} completed. Carbon savings logged to ESG registries.`,
+          timestamp: "Just now",
+          type: "success",
+          read: false
+        });
 
-          return {
-            ...emp,
-            carbonSaved: newCarbon,
-            credits: newCredits,
-            esgScore: Math.min(100, emp.esgScore + 3)
-          };
+        // Wipe chat room on completion
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.delete(`messages_${rideId}`);
         }
-        return emp;
-      }));
+        setMessages(prev => prev.filter(m => m.rideId !== rideId));
 
-      addNotification({
-        id: `n-comp-${Date.now()}`,
-        title: "Ride Commute Completed! 🎉",
-        message: `Ride to ${ride.destination} completed. Carbon savings logged to ESG registries.`,
-        timestamp: "Just now",
-        type: "success",
-        read: false
+        return {
+          ...ride,
+          status: "Completed" as const
+        };
       });
 
-      // Wipe chat room on completion
-      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-        supabaseSync.delete(`messages_${rideId}`);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
       }
-      setMessages(prev => prev.filter(m => m.rideId !== rideId));
-
-      return {
-        ...ride,
-        status: "Completed"
-      };
-    }));
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("rides", updated);
+      }
+      return updated;
+    });
   };
 
   // Cancel Ride
   const cancelRide = (rideId: string) => {
-    setRides(prev => prev.map(ride => {
-      if (ride.id !== rideId) return ride;
+    setRides(prev => {
+      const updated = prev.map(ride => {
+        if (ride.id !== rideId) return ride;
 
-      // Penalty for driver late cancellation
-      setEmployees(prev => prev.map(emp => {
-        if (emp.id !== ride.hostId) return emp;
+        // Penalty for driver late cancellation
+        setEmployees(prev => prev.map(emp => {
+          if (emp.id !== ride.hostId) return emp;
+          return {
+            ...emp,
+            credits: Math.max(0, emp.credits - 25),
+            esgScore: Math.max(0, emp.esgScore - 5)
+          };
+        }));
+
+        addNotification({
+          id: `n-can-${Date.now()}`,
+          title: "Ride Cancelled ⚠️",
+          message: `${ride.hostName} cancelled the commute trip. 25 credit penalty applied.`,
+          timestamp: "Just now",
+          type: "warning",
+          read: false
+        });
+
+        // Wipe chat room on cancellation
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.delete(`messages_${rideId}`);
+        }
+        setMessages(prev => prev.filter(m => m.rideId !== rideId));
+
         return {
-          ...emp,
-          credits: Math.max(0, emp.credits - 25),
-          esgScore: Math.max(0, emp.esgScore - 5)
+          ...ride,
+          status: "Cancelled" as const
         };
-      }));
-
-      addNotification({
-        id: `n-can-${Date.now()}`,
-        title: "Ride Cancelled ⚠️",
-        message: `${ride.hostName} cancelled the commute trip. 25 credit penalty applied.`,
-        timestamp: "Just now",
-        type: "warning",
-        read: false
       });
 
-      // Wipe chat room on cancellation
-      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-        supabaseSync.delete(`messages_${rideId}`);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
       }
-      setMessages(prev => prev.filter(m => m.rideId !== rideId));
-
-      return {
-        ...ride,
-        status: "Cancelled"
-      };
-    }));
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("rides", updated);
+      }
+      return updated;
+    });
   };
+
+  const lastGpsSyncTimeRef = useRef<number>(0);
 
   // Update Ride Location Coordinates (for cross-device passenger tracking)
   const updateRideLocation = (rideId: string, lat: number, lng: number) => {
-    setRides(prev => prev.map(ride => {
-      if (ride.id === rideId) {
-        if (ride.driverLat === lat && ride.driverLng === lng) return ride;
-        return { ...ride, driverLat: lat, driverLng: lng };
+    setRides(prev => {
+      const updated = prev.map(ride => {
+        if (ride.id === rideId) {
+          if (ride.driverLat === lat && ride.driverLng === lng) return ride;
+          return { ...ride, driverLat: lat, driverLng: lng };
+        }
+        return ride;
+      });
+
+      const now = Date.now();
+      if (now - lastGpsSyncTimeRef.current > 3000) {
+        lastGpsSyncTimeRef.current = now;
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("rides", updated);
+        }
       }
-      return ride;
-    }));
+      return updated;
+    });
   };
 
   const markNotificationsRead = () => {
@@ -1019,7 +1061,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Admin Delete Ride
   const adminDeleteRide = (rideId: string) => {
-    setRides(prev => prev.filter(r => r.id !== rideId));
+    setRides(prev => {
+      const updated = prev.filter(r => r.id !== rideId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("rides", updated);
+      }
+      return updated;
+    });
+
     addNotification({
       id: `n-adm-del-${Date.now()}`,
       title: "Ride Moderated 🚫",
