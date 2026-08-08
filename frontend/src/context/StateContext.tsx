@@ -39,6 +39,20 @@ const supabaseSync = {
     } catch (e) {
       console.warn("Supabase save error:", e);
     }
+  },
+  delete: async (key: string) => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/ecoride_state?key=eq.${key}`, {
+        method: "DELETE",
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      });
+    } catch (e) {
+      console.warn("Supabase delete error:", e);
+    }
   }
 };
 
@@ -445,17 +459,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const dbRequests = await supabaseSync.get("requests");
       if (dbRequests) setRequests(dbRequests);
 
-      const dbMessages = await supabaseSync.get("messages");
-      if (dbMessages) {
-        setMessages(prev => {
-          const merged = [...prev];
-          dbMessages.forEach((m: any) => {
-            if (!merged.some(x => x.id === m.id)) {
-              merged.push(m);
-            }
+      const activeRides = dbRides || rides;
+      const myActiveRideIds = activeRides
+        .filter((r: Ride) => r.hostId === currentUserId || r.passengers.includes(currentUserId))
+        .map((r: Ride) => r.id);
+
+      for (const rId of myActiveRideIds) {
+        const dbMsgs = await supabaseSync.get(`messages_${rId}`);
+        if (dbMsgs) {
+          setMessages(prev => {
+            const otherMsgs = prev.filter(m => m.rideId !== rId);
+            return [...otherMsgs, ...dbMsgs].sort((a, b) => a.id.localeCompare(b.id));
           });
-          return merged.sort((a, b) => a.id.localeCompare(b.id));
-        });
+        }
       }
     };
 
@@ -818,13 +834,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Explicit Fetch-Modify-Write to prevent sync clobbers
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      const dbMsgs = await supabaseSync.get("messages") || [];
+      const key = `messages_${rideId}`;
+      const dbMsgs = await supabaseSync.get(key) || [];
       const updatedMsgs = [...dbMsgs];
       if (!updatedMsgs.some(m => m.id === newMsg.id)) {
         updatedMsgs.push(newMsg);
       }
-      await supabaseSync.set("messages", updatedMsgs);
-      setMessages(updatedMsgs);
+      await supabaseSync.set(key, updatedMsgs);
+      setMessages(prev => {
+        const otherMsgs = prev.filter(m => m.rideId !== rideId);
+        return [...otherMsgs, ...updatedMsgs].sort((a, b) => a.id.localeCompare(b.id));
+      });
     }
   };
 
@@ -906,6 +926,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         read: false
       });
 
+      // Wipe chat room on completion
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.delete(`messages_${rideId}`);
+      }
+      setMessages(prev => prev.filter(m => m.rideId !== rideId));
+
       return {
         ...ride,
         status: "Completed"
@@ -936,6 +962,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         type: "warning",
         read: false
       });
+
+      // Wipe chat room on cancellation
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.delete(`messages_${rideId}`);
+      }
+      setMessages(prev => prev.filter(m => m.rideId !== rideId));
 
       return {
         ...ride,
