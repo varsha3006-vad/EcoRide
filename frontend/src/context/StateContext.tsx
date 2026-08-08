@@ -465,10 +465,23 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const pollDatabase = async () => {
       const dbRides = await supabaseSync.get("rides");
-      if (dbRides) setRides(dbRides);
+      if (dbRides) {
+        setRides(dbRides);
+      }
 
       const dbRequests = await supabaseSync.get("requests");
-      if (dbRequests) setRequests(dbRequests);
+      if (dbRequests) {
+        // Merge: trust server as source of truth but preserve items not yet synced
+        setRequests(prev => {
+          const merged = [...dbRequests];
+          prev.forEach((localReq: RideRequest) => {
+            if (!merged.some((r: RideRequest) => r.id === localReq.id)) {
+              merged.push(localReq);
+            }
+          });
+          return merged;
+        });
+      }
 
       const activeRides = dbRides || ridesRef.current;
       const myActiveRideIds = activeRides
@@ -501,7 +514,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
-    const interval = setInterval(pollDatabase, 4000);
+    const interval = setInterval(pollDatabase, 2000);
     return () => clearInterval(interval);
   }, []);
 
