@@ -161,6 +161,7 @@ interface StateContextType {
   isLoggedIn: boolean;
   login: (email: string) => boolean;
   logout: () => void;
+  isSupabaseConfigured: boolean;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -970,7 +971,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         adminDeactivateEmployee,
         isLoggedIn,
         login,
-        logout
+        logout,
+        isSupabaseConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY)
       }}
     >
       {children}
