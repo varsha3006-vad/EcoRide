@@ -448,6 +448,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     initializeData();
   }, []);
 
+  const currentUserIdRef = useRef(currentUserId);
+  const ridesRef = useRef(rides);
+
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
+
+  useEffect(() => {
+    ridesRef.current = rides;
+  }, [rides]);
+
   // 2. Real-time polling updates from Supabase (every 4 seconds)
   useEffect(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
@@ -459,9 +470,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const dbRequests = await supabaseSync.get("requests");
       if (dbRequests) setRequests(dbRequests);
 
-      const activeRides = dbRides || rides;
+      const activeRides = dbRides || ridesRef.current;
       const myActiveRideIds = activeRides
-        .filter((r: Ride) => r.hostId === currentUserId || r.passengers.includes(currentUserId))
+        .filter((r: Ride) => r.hostId === currentUserIdRef.current || r.passengers.includes(currentUserIdRef.current))
         .map((r: Ride) => r.id);
 
       for (const rId of myActiveRideIds) {
@@ -472,6 +483,21 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return [...otherMsgs, ...dbMsgs].sort((a, b) => a.id.localeCompare(b.id));
           });
         }
+      }
+
+      // Garbage collect local messages for completed/cancelled rides
+      const finishedRideIds = activeRides
+        .filter((r: Ride) => r.status === "Completed" || r.status === "Cancelled")
+        .map((r: Ride) => r.id);
+
+      if (finishedRideIds.length > 0) {
+        setMessages(prev => {
+          const filtered = prev.filter(m => !finishedRideIds.includes(m.rideId));
+          if (filtered.length !== prev.length) {
+            return filtered;
+          }
+          return prev;
+        });
       }
     };
 
