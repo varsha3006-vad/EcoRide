@@ -316,7 +316,7 @@ const INITIAL_RIDES: Ride[] = [
 
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
   const login = (email: string): boolean => {
     const cleanEmail = email.trim().toLowerCase();
@@ -368,8 +368,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [notifications, setNotifications] = useState<Notification[]>([
     {
       id: "n-1",
-      title: "Real-time Testing Active 🌱",
-      message: "Switch employee identities using the switcher in the header to simulate full Carpool flows!",
+      title: "Welcome to EcoRide 🌱",
+      message: "Track your corporate carbon savings, earn ESG credits, and claim commuting rewards with colleagues.",
       timestamp: "Today, 12:00 PM",
       type: "success",
       read: false
