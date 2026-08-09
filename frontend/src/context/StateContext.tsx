@@ -372,6 +372,29 @@ const playNotificationSound = () => {
   }
 };
 
+const getLocalDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseRideDateTime = (dateStr?: string, timeStr?: string): Date | null => {
+  if (!timeStr) return null;
+  const todayStr = getLocalDateString();
+  const dateToUse = dateStr || todayStr;
+
+  const [timePart, ampm] = timeStr.split(" ");
+  let [hours, minutes] = timePart.split(":").map(Number);
+
+  if (ampm === "PM" && hours < 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+
+  const [year, month, day] = dateToUse.split("-").map(Number);
+  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+};
+
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -816,6 +839,131 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabaseSync.set("employees", employees);
     }
   }, [employees, isLoaded]);
+
+  // Background Expiration Guard & Reminders check
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+
+      setRides(prevRides => {
+        let changed = false;
+        
+        const updated = prevRides.map(ride => {
+          if (ride.status !== "Published") return ride;
+
+          const departureDate = parseRideDateTime(ride.rideDate, ride.departureTime);
+          if (!departureDate) return ride;
+
+          const diffMs = departureDate.getTime() - now.getTime();
+          const diffMins = diffMs / (1000 * 60);
+
+          // 1. Proactive Reminder (15 minutes before)
+          const reminderKey = `rem_sent_${ride.id}`;
+          if (diffMins > 0 && diffMins <= 15) {
+            if (typeof window !== "undefined" && !sessionStorage.getItem(reminderKey)) {
+              sessionStorage.setItem(reminderKey, "true");
+              
+              // Trigger notification to host
+              addNotification({
+                id: `rem-n-${Date.now()}`,
+                title: "Commute Starting Soon! ⏱️",
+                message: `Your ride to ${ride.destination} is scheduled to start in ${Math.round(diffMins)} minutes. Open EcoRide to start your trip.`,
+                timestamp: "Just now",
+                type: "info",
+                read: false
+              });
+
+              try {
+                triggerPushNotification(
+                  ride.hostId,
+                  "Commute Starting Soon! ⏱️",
+                  `Your ride to ${ride.destination} is scheduled to start in ${Math.round(diffMins)} minutes. Open EcoRide to start.`
+                );
+              } catch (e) {}
+            }
+          }
+
+          // 2. Expiration Guard (30 minutes after scheduled departure)
+          if (diffMins <= -30) {
+            changed = true;
+            
+            // Notify host
+            addNotification({
+              id: `exp-h-${Date.now()}`,
+              title: "Commute Expired 🚫",
+              message: `Your ride to ${ride.destination} has been cancelled due to inactivity (30 mins past departure time). 5 ESG credits deducted.`,
+              timestamp: "Just now",
+              type: "warning",
+              read: false
+            });
+
+            // Penalize driver credits
+            setEmployees(prevEmps => {
+              const updatedEmps = prevEmps.map(emp => {
+                if (emp.id === ride.hostId) {
+                  return {
+                    ...emp,
+                    credits: Math.max(0, emp.credits - 5)
+                  };
+                }
+                return emp;
+              });
+              if (typeof window !== "undefined") {
+                localStorage.setItem("ecoride_employees", JSON.stringify(updatedEmps));
+              }
+              if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+                supabaseSync.set("employees", updatedEmps);
+              }
+              return updatedEmps;
+            });
+
+            // Notify accepted passengers
+            const acceptedRequests = requests.filter(req => req.rideId === ride.id && req.status === "Accepted");
+            acceptedRequests.forEach(req => {
+              addNotification({
+                id: `exp-p-${Date.now()}`,
+                title: "Ride Cancelled by System 🚫",
+                message: `The ride hosted by ${ride.hostName} to ${ride.destination} was cancelled due to no-show.`,
+                timestamp: "Just now",
+                type: "warning",
+                read: false
+              });
+
+              try {
+                triggerPushNotification(
+                  req.requesterId,
+                  "Ride Cancelled by System 🚫",
+                  `The ride hosted by ${ride.hostName} to ${ride.destination} was cancelled due to no-show.`
+                );
+              } catch (e) {}
+            });
+
+            return {
+              ...ride,
+              status: "Cancelled" as const
+            };
+          }
+
+          return ride;
+        });
+
+        if (changed) {
+          if (typeof window !== "undefined") {
+            localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+          }
+          if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            supabaseSync.set("rides", updated);
+          }
+        }
+
+        return updated;
+      });
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [requests, isLoaded]);
 
   const updateNotificationPrefs = (prefs: { rides: boolean; chat: boolean; leaderboard: boolean }) => {
     setEmployees(prev => prev.map(emp => {
