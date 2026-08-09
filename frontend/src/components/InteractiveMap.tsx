@@ -326,22 +326,18 @@ export default function InteractiveMap({
           });
         }
 
-        // Car custom tracking marker — top-down car silhouette
+        // Car custom tracking marker — Red Car Emoji 🚗
+        const initialEmojiSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(90 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`
+        );
         const carMarker = new google.maps.Marker({
           position: startLatLng,
           map: mapInstance,
           title: "Carpool vehicle",
           icon: {
-            // Top-down car silhouette: body + windshields + wheel arches
-            // Points north (up). Rotation applied via updateRideLocation heading.
-            path: "M 0 -22 C -5 -22 -7 -18 -7 -14 L -7 -10 C -9 -10 -9 -6 -7 -6 L -7 14 C -7 18 -5 22 0 22 C 5 22 7 18 7 14 L 7 -6 C 9 -6 9 -10 7 -10 L 7 -14 C 7 -18 5 -22 0 -22 Z M -6 -12 L 6 -12 L 6 -4 L -6 -4 Z M -6 4 L 6 4 L 6 12 L -6 12 Z",
-            fillColor: "#ef4444",
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 1.5,
-            scale: 0.55,
-            anchor: new google.maps.Point(0, 0),
-            rotation: 0
+            url: initialEmojiSvg,
+            scaledSize: new google.maps.Size(32, 32),
+            anchor: new google.maps.Point(16, 16)
           }
         });
         carMarkerRef.current = carMarker;
@@ -557,8 +553,15 @@ export default function InteractiveMap({
             carMarkerRef.current.setPosition(currentLatLng);
             const heading = position.coords.heading;
             if (heading !== null && !isNaN(heading)) {
-              const currentIcon = carMarkerRef.current.getIcon();
-              carMarkerRef.current.setIcon({ ...currentIcon, rotation: heading });
+              const adjustedRotation = (heading + 90) % 360;
+              const rotatedSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(
+                `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(${adjustedRotation} 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`
+              );
+              carMarkerRef.current.setIcon({
+                url: rotatedSvg,
+                scaledSize: new google.maps.Size(32, 32),
+                anchor: new google.maps.Point(16, 16)
+              });
             }
           }
           // Pan map to center on driver and enforce drive zoom
@@ -633,6 +636,27 @@ export default function InteractiveMap({
         const newPos = coordinatesPath[step];
         carMarkerRef.current.setPosition(newPos);
         
+        const nextPos = step < numSteps - 1 ? coordinatesPath[step + 1] : null;
+        if (nextPos) {
+          const lat1 = newPos.lat();
+          const lng1 = newPos.lng();
+          const lat2 = nextPos.lat();
+          const lng2 = nextPos.lng();
+          const angleRad = Math.atan2(lng2 - lng1, lat2 - lat1);
+          const angleDeg = (angleRad * 180) / Math.PI;
+          const heading = (angleDeg + 360) % 360;
+          
+          const adjustedRotation = (heading + 90) % 360;
+          const rotatedSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(${adjustedRotation} 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`
+          );
+          carMarkerRef.current.setIcon({
+            url: rotatedSvg,
+            scaledSize: new google.maps.Size(32, 32),
+            anchor: new google.maps.Point(16, 16)
+          });
+        }
+
         if (googleMapInstanceRef.current) {
           googleMapInstanceRef.current.panTo(newPos);
           if (googleMapInstanceRef.current.getZoom() !== 17) {
