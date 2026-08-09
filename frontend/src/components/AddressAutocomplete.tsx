@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { Navigation, Loader2 } from "lucide-react";
 
 interface AddressAutocompleteProps {
   value: string;
@@ -19,8 +20,40 @@ export default function AddressAutocomplete({
 }: AddressAutocompleteProps) {
   const [predictions, setPredictions] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [detectingGps, setDetectingGps] = useState(false);
   const autocompleteServiceRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const triggerFreshGps = () => {
+    if (!navigator.geolocation) return;
+    setDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        
+        const google = (window as any).google;
+        if (google && google.maps) {
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
+            setDetectingGps(false);
+            if (status === "OK" && results[0]) {
+              const address = results[0].formatted_address;
+              onChange(address);
+              localStorage.setItem("ecoride_last_detected_pickup", address);
+            }
+          });
+        } else {
+          setDetectingGps(false);
+        }
+      },
+      (err) => {
+        console.warn(err);
+        setDetectingGps(false);
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  };
 
   // Initialize service once Google Maps scripts are loaded
   useEffect(() => {
@@ -85,17 +118,36 @@ export default function AddressAutocomplete({
       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
         {label}
       </label>
-      <input
-        type="text"
-        required={required}
-        value={value}
-        onChange={e => handleTextChange(e.target.value)}
-        placeholder={placeholder}
-        onFocus={() => {
-          if (predictions.length > 0) setIsOpen(true);
-        }}
-        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-800 dark:text-white placeholder-slate-400 outline-none focus:border-brand-green-500 transition-all shadow-sm"
-      />
+      <div className="relative">
+        <input
+          type="text"
+          required={required}
+          value={value}
+          onChange={e => handleTextChange(e.target.value)}
+          placeholder={placeholder}
+          onFocus={() => {
+            if (predictions.length > 0) setIsOpen(true);
+          }}
+          className={`w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 ${
+            label.toLowerCase().includes("pickup") ? "pl-3.5 pr-9" : "px-3.5"
+          } py-2 text-xs text-slate-800 dark:text-white placeholder-slate-400 outline-none focus:border-brand-green-500 transition-all shadow-sm`}
+        />
+        {label.toLowerCase().includes("pickup") && navigator.geolocation && (
+          <button
+            type="button"
+            onClick={triggerFreshGps}
+            disabled={detectingGps}
+            title="Locate Me (Fresh GPS)"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-green-600 transition-colors p-1 flex items-center justify-center cursor-pointer disabled:opacity-50"
+          >
+            {detectingGps ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-green-600" />
+            ) : (
+              <Navigation className="h-3.5 w-3.5 rotate-45" />
+            )}
+          </button>
+        )}
+      </div>
       {isOpen && predictions.length > 0 && (
         <ul className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-900/50">
           {predictions.map(pred => (

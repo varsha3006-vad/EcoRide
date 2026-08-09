@@ -82,6 +82,15 @@ export default function InteractiveMap({
     
     hasDetectedRef.current = true;
     
+    // Check if we have a cached address first to avoid prompt on every load/login
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("ecoride_last_detected_pickup");
+      if (cached && onLocationDetected) {
+        onLocationDetected(cached);
+        return; // Skip browser geolocation call
+      }
+    }
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const lat = position.coords.latitude;
@@ -97,7 +106,10 @@ export default function InteractiveMap({
             const geocoder = new google.maps.Geocoder();
             geocoder.geocode({ location: latLng }, (results: any, status: any) => {
               if (status === "OK" && results[0] && onLocationDetected) {
-                onLocationDetected(results[0].formatted_address);
+                const address = results[0].formatted_address;
+                onLocationDetected(address);
+                // Cache the address
+                localStorage.setItem("ecoride_last_detected_pickup", address);
               }
             });
           }
