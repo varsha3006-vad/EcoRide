@@ -26,10 +26,11 @@ export default function Navbar() {
             />
           </div>
 
-          {/* Vertical Divider */}
-          <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800 flex-shrink-0" />
+          {/* Vertical Divider - Hidden on mobile, shown on tablet/desktop */}
+          <div className="hidden sm:block h-6 w-[1px] bg-slate-200 dark:bg-slate-800 flex-shrink-0" />
 
-          <div>
+          {/* Brand Info - Hidden on mobile to prevent overlapping with buttons, shown on tablet/desktop */}
+          <div className="hidden sm:block">
             <h1 className="text-sm font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-1 sm:text-base">
               EcoRide <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-brand-green-100 text-brand-green-700 dark:bg-brand-green-950/30 dark:text-brand-green-400 border border-brand-green-500/20">Enterprise</span>
             </h1>
