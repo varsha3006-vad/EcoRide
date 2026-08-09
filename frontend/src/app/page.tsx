@@ -1404,7 +1404,7 @@ export default function HomePage() {
 
                                 {/* Open in Google Maps shortcut (available for all upcoming/active rides) */}
                                 <a
-                                  href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.pickup)}&destination=${encodeURIComponent(trip.destination)}${
+                                  href={`https://www.google.com/maps/navigation/?api=1&destination=${encodeURIComponent(trip.destination)}${
                                     requests.filter(req => req.rideId === trip.id && req.status === "Accepted").map(req => req.pickup).length > 0
                                       ? `&waypoints=${encodeURIComponent(requests.filter(req => req.rideId === trip.id && req.status === "Accepted").map(req => req.pickup).join('|'))}`
                                       : ""
@@ -1453,7 +1453,7 @@ export default function HomePage() {
                             {trip.status?.toLowerCase() === "started" && (() => {
                               const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
                               const passengerPickups = approvedReqs.map(req => req.pickup);
-                              const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.pickup)}&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&travelmode=driving`;
+                              const googleMapsUrl = `https://www.google.com/maps/navigation/?api=1&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&travelmode=driving`;
 
                               return (
                                 <div className="mt-3 space-y-3">
