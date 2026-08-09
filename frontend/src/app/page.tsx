@@ -88,7 +88,8 @@ export default function HomePage() {
     adminDeactivateEmployee,
     isLoggedIn,
     login,
-    updateNotificationPrefs
+    updateNotificationPrefs,
+    confirmBoarding
   } = useAppState();
 
   // Helper to filter time options dynamically for future times only when scheduling for today
@@ -158,6 +159,32 @@ export default function HomePage() {
   const [womenOnly, setWomenOnly] = useState(false);
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
+  const [confirmingBoardingId, setConfirmingBoardingId] = useState<string | null>(null);
+
+  const handleConfirmBoardingClick = (rideId: string) => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser. Boarding verification requires location services.");
+      return;
+    }
+
+    setConfirmingBoardingId(rideId);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude: lat, longitude: lng } = position.coords;
+        const res = confirmBoarding(rideId, currentUser.id, lat, lng);
+        if (!res.success) {
+          alert(res.message);
+        }
+        setConfirmingBoardingId(null);
+      },
+      (error) => {
+        console.error("Boarding location error:", error);
+        alert(`Could not verify your location: ${error.message || "Unknown error"}. Please ensure GPS location services are enabled.`);
+        setConfirmingBoardingId(null);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   // Reset form error when switching wizards
   useEffect(() => {
@@ -323,7 +350,7 @@ export default function HomePage() {
             setVicinityError(`Your pickup is ${distanceKm.toFixed(2)} km away from the driver's direct route. Max limit: 1.0 km.`);
             setVerifyingVicinity(false);
           } else {
-            requestJoinRide(joiningRide.id, passengerPickupInput);
+            requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng());
             setJoiningRide(null);
             setPassengerPickupInput("");
             setVerifyingVicinity(false);
@@ -1402,6 +1429,24 @@ export default function HomePage() {
                               </div>
 
                               <div className="flex items-center gap-2">
+                                {/* Passenger Action: Confirm Boarding */}
+                                {!isHost && trip.status === "Started" && (() => {
+                                  const hasBoarded = trip.boardedPassengers?.includes(currentUser.id);
+                                  return hasBoarded ? (
+                                    <span className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-200/20 flex items-center gap-1.5">
+                                      ✅ Boarded
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleConfirmBoardingClick(trip.id)}
+                                      disabled={confirmingBoardingId === trip.id}
+                                      className="px-2.5 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                                    >
+                                      {confirmingBoardingId === trip.id ? "Verifying..." : "Confirm Boarding"}
+                                    </button>
+                                  );
+                                })()}
+
                                 {/* Open Chat */}
                                 <button
                                   onClick={() => setActiveChatRideId(trip.id)}

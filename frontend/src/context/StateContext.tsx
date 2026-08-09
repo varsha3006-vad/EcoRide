@@ -134,6 +134,7 @@ export interface Ride {
   driverLat?: number;
   driverLng?: number;
   passengerLocations?: Record<string, { lat: number; lng: number }>; // passengerId -> live coords
+  boardedPassengers?: string[]; // list of passengerIds who have confirmed boarding
 }
 
 export interface RideRequest {
@@ -145,6 +146,8 @@ export interface RideRequest {
   requesterDept: string;
   requesterRating: number;
   pickup: string;
+  pickupLat?: number;
+  pickupLng?: number;
   status: "Pending" | "Accepted" | "Rejected";
   timestamp: string;
 }
@@ -190,9 +193,10 @@ interface StateContextType {
   notifications: Notification[];
   badges: Badge[];
   leaderboard: Employee[];
-  createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers"> & { womenOnly?: boolean }) => void;
-  requestJoinRide: (rideId: string, pickup: string) => void;
+  createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => void;
+  requestJoinRide: (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number) => void;
   handleRequestResponse: (requestId: string, accept: boolean) => void;
+  confirmBoarding: (rideId: string, passengerId: string, passLat: number, passLng: number) => { success: boolean; message: string };
   sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
   startRide: (rideId: string) => void;
   completeRide: (rideId: string, ratings: { safety: number; comfort: number; punctuality: number }) => void;
@@ -888,7 +892,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Request to Join a Ride — write OUTSIDE setState callback
-  const requestJoinRide = (rideId: string, pickup: string) => {
+  const requestJoinRide = (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number) => {
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
@@ -901,6 +905,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       requesterDept: currentUser.department,
       requesterRating: 4.9,
       pickup,
+      pickupLat,
+      pickupLng,
       status: "Pending",
       timestamp: "Just now"
     };
@@ -1272,6 +1278,39 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const updated = prev.map(ride => {
         if (ride.id === rideId) {
           if (ride.driverLat === lat && ride.driverLng === lng) return ride;
+
+          // Check proximity to accepted passengers to trigger arrival notifications
+          const rideRequests = requests.filter(req => req.rideId === rideId && req.status === "Accepted");
+          rideRequests.forEach(req => {
+            if (req.pickupLat && req.pickupLng) {
+              const distance = getOrthoDistance(lat, lng, req.pickupLat, req.pickupLng);
+              if (distance <= 0.15) { // 150 meters
+                const sentKey = `sent_arr_${rideId}_${req.requesterId}`;
+                if (typeof window !== "undefined" && !sessionStorage.getItem(sentKey)) {
+                  sessionStorage.setItem(sentKey, "true");
+                  
+                  // Trigger notification
+                  addNotification({
+                    id: `arr-${Date.now()}`,
+                    title: "Your colleague has arrived! 🚗",
+                    message: `Your colleague ${ride.hostName} has arrived at your pickup location: ${req.pickup}. Open EcoRide to confirm boarding.`,
+                    timestamp: "Just now",
+                    type: "info",
+                    read: false
+                  });
+
+                  try {
+                    triggerPushNotification(
+                      req.requesterId,
+                      "Your colleague has arrived! 🚗",
+                      `Your colleague ${ride.hostName} is at your pickup location. Confirm boarding in the app.`
+                    );
+                  } catch (e) {}
+                }
+              }
+            }
+          });
+
           return { ...ride, driverLat: lat, driverLng: lng };
         }
         return ride;
@@ -1320,6 +1359,67 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       return updated;
     });
+  };
+
+  // Haversine Distance helper
+  const getOrthoDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  // Confirm Boarding Action
+  const confirmBoarding = (rideId: string, passengerId: string, passLat: number, passLng: number) => {
+    const ride = rides.find(r => r.id === rideId);
+    if (!ride) return { success: false, message: "Ride not found." };
+    if (!ride.driverLat || !ride.driverLng) return { success: false, message: "Could not resolve colleague's location." };
+
+    const distance = getOrthoDistance(passLat, passLng, ride.driverLat, ride.driverLng);
+    if (distance > 0.15) { // 150 meters
+      return { 
+        success: false, 
+        message: `You must be near your colleague to confirm boarding. Current distance: ${(distance * 1000).toFixed(0)} meters (Max limit: 150m).`
+      };
+    }
+
+    setRides(prev => {
+      const updated = prev.map(r => {
+        if (r.id === rideId) {
+          const currentBoarded = r.boardedPassengers || [];
+          if (currentBoarded.includes(passengerId)) return r;
+          return {
+            ...r,
+            boardedPassengers: [...currentBoarded, passengerId]
+          };
+        }
+        return r;
+      });
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("rides", updated);
+      }
+      return updated;
+    });
+
+    addNotification({
+      id: `boarded-${Date.now()}`,
+      title: "Welcome Aboard! 🚗",
+      message: `You have boarded ${ride.hostName}'s ride. Have a safe green commute!`,
+      timestamp: "Just now",
+      type: "success",
+      read: false
+    });
+
+    return { success: true, message: "Boarded successfully!" };
   };
 
   const markNotificationsRead = () => {
@@ -1397,7 +1497,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         syncError,
         updateRideLocation,
         updatePassengerLocation,
-        updateNotificationPrefs
+        updateNotificationPrefs,
+        confirmBoarding
       }}
     >
       {children}
