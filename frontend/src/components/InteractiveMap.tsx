@@ -195,9 +195,19 @@ export default function InteractiveMap({
           initRoutes();
         });
       } else {
-        // Driving mode or no geolocation — create map immediately (pickup is known)
-        createMap({ lat: 20.5937, lng: 78.9629 }, 13, false);
-        initRoutes();
+        // Driving mode or no geolocation — create map on next tick to ensure mapRef.current is bound in DOM
+        setTimeout(() => {
+          if (!mapRef.current) {
+            console.warn("Map container ref not bound yet. Retrying in 100ms...");
+            setTimeout(() => {
+              createMap({ lat: 20.5937, lng: 78.9629 }, 13, false);
+              initRoutes();
+            }, 100);
+            return;
+          }
+          createMap({ lat: 20.5937, lng: 78.9629 }, 13, false);
+          initRoutes();
+        }, 50);
       }
     } catch (e) {
       console.warn("Map init error:", e);
