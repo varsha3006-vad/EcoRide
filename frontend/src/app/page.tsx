@@ -1912,8 +1912,13 @@ export default function HomePage() {
 
       {/* Bottom status signature */}
       <footer className="py-6 border-t mt-auto">
-        <div className="max-w-7xl mx-auto px-4 text-center text-[10px] text-slate-400 font-semibold flex items-center justify-center gap-1">
-          Made with <Heart className="h-3 w-3 text-brand-green-500 fill-brand-green-500" /> for Corporate Sustainability &amp; ESG Compliance
+        <div className="max-w-7xl mx-auto px-4 text-center text-[10px] text-slate-400 font-semibold flex flex-col items-center justify-center gap-1.5">
+          <div className="flex items-center gap-1">
+            Made with <Heart className="h-3 w-3 text-brand-green-500 fill-brand-green-500 animate-pulse" /> for Corporate Sustainability &amp; ESG Compliance
+          </div>
+          <div className="text-[9px] bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/40 text-slate-500 dark:text-slate-400 px-2.5 py-0.5 rounded-full font-bold">
+            EcoRide Production v1.0.0
+          </div>
         </div>
       </footer>
     </div>
