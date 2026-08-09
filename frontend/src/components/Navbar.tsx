@@ -16,13 +16,13 @@ export default function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         
         {/* Left: Brand Identity */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* L&T Technology Services Logo */}
-          <div className="flex items-center bg-white/70 dark:bg-white/90 p-1 rounded-lg shadow-sm border border-slate-100 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+          {/* L&T Technology Services Logo - Compact on mobile, standard on larger screens */}
+          <div className="flex items-center bg-white/75 dark:bg-white/90 p-0.5 sm:p-1 rounded-lg shadow-sm border border-slate-100 flex-shrink-0 max-w-[85px] sm:max-w-[130px] overflow-hidden">
             <img 
               src="/logo.png" 
               alt="L&T Technology Services" 
-              className="h-7 w-auto object-contain flex-shrink-0" 
+              className="h-5 sm:h-7 w-auto object-contain flex-shrink-0" 
             />
           </div>
 
@@ -51,31 +51,31 @@ export default function Navbar() {
         </div>
 
         {/* Center/Right Actions */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-3.5">
 
 
-          {/* Role Switcher */}
-          <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50">
+          {/* Role Switcher - Compacted padding/sizes on mobile */}
+          <div className="flex items-center rounded-xl bg-slate-100 p-0.5 sm:p-1 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50 flex-shrink-0">
             <button
               onClick={() => setRole("Employee")}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              className={`flex items-center gap-0.5 px-2 py-1 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-lg transition-all cursor-pointer ${
                 role === "Employee"
                   ? "bg-white text-brand-green-600 shadow-sm dark:bg-slate-900 dark:text-brand-green-400"
-                  : "text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                  : "text-slate-650 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
               }`}
             >
-              <User className="h-3.5 w-3.5" />
+              <User className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
               <span className="hidden sm:inline">Employee</span>
             </button>
             <button
               onClick={() => setRole("Admin")}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              className={`flex items-center gap-0.5 px-2 py-1 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-lg transition-all cursor-pointer ${
                 role === "Admin"
                   ? "bg-white text-brand-blue-600 shadow-sm dark:bg-slate-900 dark:text-brand-blue-400"
-                  : "text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                  : "text-slate-650 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
               }`}
             >
-              <Shield className="h-3.5 w-3.5" />
+              <Shield className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
               <span className="hidden sm:inline">Admin</span>
             </button>
           </div>
@@ -94,11 +94,11 @@ export default function Navbar() {
                 setShowProfileMenu(false);
                 if (!showNotifications) markNotificationsRead();
               }}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200/40 dark:border-slate-700/40 text-slate-600 dark:text-slate-300"
+              className="relative flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200/40 dark:border-slate-700/40 text-slate-600 dark:text-slate-300 cursor-pointer"
             >
-              <Bell className="h-5 w-5" />
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-900 animate-bounce">
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-rose-500 text-[8px] sm:text-[10px] font-bold text-white ring-1 sm:ring-2 ring-white dark:ring-slate-900 animate-bounce">
                   {unreadCount}
                 </span>
               )}
@@ -157,12 +157,12 @@ export default function Navbar() {
                 setShowProfileMenu(!showProfileMenu);
                 setShowNotifications(false);
               }}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 p-1 pr-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 p-0.5 sm:p-1 pr-1 sm:pr-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green-100 text-base dark:bg-brand-green-950/40">
+              <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-brand-green-100 text-sm sm:text-base dark:bg-brand-green-950/40">
                 {currentUser.avatar}
               </span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-slate-500" />
             </button>
 
             {/* Profile Dropdown */}
