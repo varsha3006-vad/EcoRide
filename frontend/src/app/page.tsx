@@ -8,6 +8,7 @@ import InteractiveMap from "@/components/InteractiveMap";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import ChatModal from "@/components/ChatModal";
 import PastRidesModal from "@/components/PastRidesModal";
+import ProfileModal from "@/components/ProfileModal";
 import {
   Car,
   Search,
@@ -230,6 +231,15 @@ export default function HomePage() {
     const handleOpen = () => setShowPastRidesModal(true);
     window.addEventListener("open-past-rides", handleOpen);
     return () => window.removeEventListener("open-past-rides", handleOpen);
+  }, []);
+
+  // Profile Editor states
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  useEffect(() => {
+    const handleOpen = () => setShowProfileModal(true);
+    window.addEventListener("open-profile-editor", handleOpen);
+    return () => window.removeEventListener("open-profile-editor", handleOpen);
   }, []);
 
   useEffect(() => {
@@ -1908,6 +1918,11 @@ export default function HomePage() {
       {/* Past Commutes Modal */}
       {showPastRidesModal && (
         <PastRidesModal onClose={() => setShowPastRidesModal(false)} />
+      )}
+
+      {/* Profile Editor Modal */}
+      {showProfileModal && (
+        <ProfileModal onClose={() => setShowProfileModal(false)} />
       )}
 
       {/* Bottom status signature */}

@@ -84,12 +84,13 @@ export interface Employee {
   department: string;
   designation: string;
   office: string;
+  phone?: string;
   vehicle?: {
     model: string;
     type: "Electric" | "Hybrid" | "ICE (Gasoline)";
     capacity: number;
     plateNumber: string;
-  };
+  } | null;
   esgScore: number;
   carbonSaved: number; // in kg
   credits: number;
@@ -212,6 +213,7 @@ interface StateContextType {
   updateRideLocation: (rideId: string, lat: number, lng: number) => void;
   updatePassengerLocation: (rideId: string, passengerId: string, lat: number, lng: number) => void;
   updateNotificationPrefs: (prefs: { rides: boolean; chat: boolean; leaderboard: boolean }) => void;
+  updateProfile: (updatedDetails: Partial<Employee>) => void;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -498,6 +500,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       let finalEmployees = loadedEmployees || INITIAL_EMPLOYEES;
+      if (!loadedEmployees && typeof window !== "undefined") {
+        const savedEmployees = localStorage.getItem("ecoride_employees");
+        if (savedEmployees) {
+          try { finalEmployees = JSON.parse(savedEmployees); } catch (e) {}
+        }
+      }
 
       // Self-healing migration to reset ESG scores and history
       if (typeof window !== "undefined") {
@@ -1466,6 +1474,35 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  // Update Profile Action
+  const updateProfile = (updatedDetails: Partial<Employee>) => {
+    setEmployees(prev => {
+      const updated = prev.map(emp => {
+        if (emp.id === currentUserId) {
+          return { ...emp, ...updatedDetails };
+        }
+        return emp;
+      });
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_employees", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("employees", updated);
+      }
+      return updated;
+    });
+
+    addNotification({
+      id: `n-prof-upd-${Date.now()}`,
+      title: "Profile Updated Successfully! 👤",
+      message: "Your changes have been saved to your corporate profile.",
+      timestamp: "Just now",
+      type: "success",
+      read: false
+    });
+  };
+
   return (
     <StateContext.Provider
       value={{
@@ -1498,7 +1535,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateRideLocation,
         updatePassengerLocation,
         updateNotificationPrefs,
-        confirmBoarding
+        confirmBoarding,
+        updateProfile
       }}
     >
       {children}
