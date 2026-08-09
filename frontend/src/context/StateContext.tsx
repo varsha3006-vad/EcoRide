@@ -372,6 +372,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const isAllowedDomain = ["company.com", "enterprise.org"].includes(domain);
     if (!isAllowedDomain) return false;
 
+    // Cache the last logged-in email to localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_last_email", cleanEmail);
+    }
+
     // Load active persona
     const foundUser = employees.find(e => e.email.toLowerCase() === cleanEmail);
     if (foundUser) {

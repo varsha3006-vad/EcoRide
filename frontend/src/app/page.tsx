@@ -76,6 +76,16 @@ export default function HomePage() {
   // Onboarding Login form states
   const [emailInput, setEmailInput] = useState("");
   const [loginError, setLoginError] = useState("");
+
+  // Hydrate last logged in email on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const lastEmail = localStorage.getItem("ecoride_last_email");
+      if (lastEmail) {
+        setEmailInput(lastEmail);
+      }
+    }
+  }, []);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
 
@@ -402,26 +412,7 @@ export default function HomePage() {
           {/* Form */}
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Quick Select Account</label>
-              <select
-                value={emailInput}
-                onChange={e => {
-                  setEmailInput(e.target.value);
-                  setLoginError("");
-                }}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-xs text-white outline-none focus:border-brand-green-500 transition-all cursor-pointer mb-2.5"
-              >
-                <option value="" className="text-slate-500">-- Select Corporate Identity --</option>
-                <option value="alex@company.com">Alex Shah (Driver / Host)</option>
-                <option value="chris@company.com">Chris Kumar (Passenger)</option>
-                <option value="bob@company.com">Bob Davis (Passenger)</option>
-                <option value="dan@company.com">Dan Patel (Passenger)</option>
-                <option value="elle@company.com">Elle Nair (Passenger)</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Or Type Email Address</label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Company Email Address</label>
               <input
                 type="email"
                 required
@@ -430,7 +421,7 @@ export default function HomePage() {
                   setEmailInput(e.target.value);
                   setLoginError("");
                 }}
-                placeholder="e.g. rahul@company.com"
+                placeholder="e.g. alex@company.com"
                 className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3.5 text-sm text-white placeholder-slate-650 focus:border-brand-green-500 focus:ring-1 focus:ring-brand-green-500 outline-none transition-all"
               />
               {loginError && (
@@ -438,6 +429,34 @@ export default function HomePage() {
                   ⚠️ {loginError}
                 </p>
               )}
+
+              {/* Quick Login Pills (Alex, Chris, Bob, Dan, Elle) */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                <span className="text-[10px] text-slate-500 font-bold uppercase mr-1">Quick Tap:</span>
+                {[
+                  { name: "Alex", email: "alex@company.com" },
+                  { name: "Chris", email: "chris@company.com" },
+                  { name: "Bob", email: "bob@company.com" },
+                  { name: "Dan", email: "dan@company.com" },
+                  { name: "Elle", email: "elle@company.com" }
+                ].map(p => (
+                  <button
+                    key={p.email}
+                    type="button"
+                    onClick={() => {
+                      setEmailInput(p.email);
+                      setLoginError("");
+                    }}
+                    className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                      emailInput.toLowerCase().trim() === p.email
+                        ? "bg-brand-green-600 border-brand-green-500 text-white shadow-sm"
+                        : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {otpSent ? (
