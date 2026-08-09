@@ -53,6 +53,14 @@ const TIME_OPTIONS = [
   "09:00 PM", "09:30 PM", "10:00 PM", "10:30 PM", "11:00 PM", "11:30 PM"
 ];
 
+const getLocalDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function HomePage() {
   const {
     currentUser,
@@ -77,7 +85,7 @@ export default function HomePage() {
 
   // Helper to filter time options dynamically for future times only when scheduling for today
   const getFilteredTimeOptions = (selectedDateStr: string) => {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateString();
     const isToday = !selectedDateStr || selectedDateStr === todayStr;
 
     if (!isToday) return TIME_OPTIONS;
@@ -131,7 +139,7 @@ export default function HomePage() {
   const [pickup, setPickup] = useState("");
   const [dest, setDest] = useState("");
   const [time, setTime] = useState("");
-  const [rideDate, setRideDate] = useState(new Date().toISOString().split('T')[0]);
+  const [rideDate, setRideDate] = useState(getLocalDateString());
   const [capacity, setCapacity] = useState(3);
   const [vehicleType, setVehicleType] = useState<"Electric" | "Hybrid" | "ICE (Gasoline)">("Electric");
   const [recurring, setRecurring] = useState(false);
@@ -994,7 +1002,7 @@ export default function HomePage() {
                           <input
                             type="date"
                             required
-                            min={new Date().toISOString().split('T')[0]}
+                            min={getLocalDateString()}
                             value={rideDate}
                             onChange={e => setRideDate(e.target.value)}
                             className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
