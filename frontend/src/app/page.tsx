@@ -428,7 +428,8 @@ export default function HomePage() {
   // Search/Filter rides list
   const filteredRides = rides.filter(r => {
     if (r.hostId === currentUser.id) return false; // Hide own rides
-    if (r.status !== "Published") return false;
+    const isJoinable = r.status === "Published" || (r.status === "Started" && r.seatsAvailable > 0);
+    if (!isJoinable) return false;
     if (searchPickup && !r.pickup.toLowerCase().includes(searchPickup.toLowerCase())) return false;
     if (searchDest && !r.destination.toLowerCase().includes(searchDest.toLowerCase())) return false;
     if (filterDept !== "All" && r.hostDept !== filterDept) return false;
@@ -1153,9 +1154,16 @@ export default function HomePage() {
                                   </h4>
                                   <p className="text-[10px] text-slate-500 font-semibold">{ride.pickup} → {ride.destination}</p>
                                   <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-[9px] bg-white dark:bg-slate-800 border px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 font-medium">
-                                      ⏱️ {ride.departureTime}
-                                    </span>
+                                    {ride.status === "Started" ? (
+                                      <span className="text-[9px] bg-rose-500 text-white dark:bg-rose-600 px-1.5 py-0.5 rounded font-bold animate-pulse flex items-center gap-1">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-white block animate-ping"></span>
+                                        ⚡ Live Ongoing
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] bg-white dark:bg-slate-800 border px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 font-medium">
+                                        ⏱️ {ride.departureTime}
+                                      </span>
+                                    )}
                                     <span className="text-[9px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 px-1.5 py-0.5 rounded font-medium">
                                       🌱 {ride.co2Saved} kg CO₂ saved
                                     </span>
