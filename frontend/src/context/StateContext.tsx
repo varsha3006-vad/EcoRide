@@ -228,11 +228,11 @@ const INITIAL_EMPLOYEES: Employee[] = [
       capacity: 4,
       plateNumber: "CA-770EV"
     },
-    esgScore: 85,
-    carbonSaved: 120.4,
-    credits: 640,
-    rank: 2,
-    badgeIds: ["1", "2", "3"],
+    esgScore: 0,
+    carbonSaved: 0,
+    credits: 0,
+    rank: 1,
+    badgeIds: [],
     gender: "Male"
   },
   {
@@ -249,11 +249,11 @@ const INITIAL_EMPLOYEES: Employee[] = [
       capacity: 4,
       plateNumber: "CA-102HY"
     },
-    esgScore: 80,
-    carbonSaved: 75.2,
-    credits: 410,
-    rank: 4,
-    badgeIds: ["1", "2"],
+    esgScore: 0,
+    carbonSaved: 0,
+    credits: 0,
+    rank: 1,
+    badgeIds: [],
     gender: "Male"
   },
   {
@@ -270,11 +270,11 @@ const INITIAL_EMPLOYEES: Employee[] = [
       capacity: 5,
       plateNumber: "CA-338OP"
     },
-    esgScore: 78,
-    carbonSaved: 45.1,
-    credits: 320,
-    rank: 5,
-    badgeIds: ["1"],
+    esgScore: 0,
+    carbonSaved: 0,
+    credits: 0,
+    rank: 1,
+    badgeIds: [],
     gender: "Male"
   },
   {
@@ -291,11 +291,11 @@ const INITIAL_EMPLOYEES: Employee[] = [
       capacity: 5,
       plateNumber: "CA-990EV"
     },
-    esgScore: 88,
-    carbonSaved: 160.8,
-    credits: 780,
+    esgScore: 0,
+    carbonSaved: 0,
+    credits: 0,
     rank: 1,
-    badgeIds: ["1", "2", "3", "4"],
+    badgeIds: [],
     gender: "Male"
   },
   {
@@ -312,11 +312,11 @@ const INITIAL_EMPLOYEES: Employee[] = [
       capacity: 4,
       plateNumber: "CA-889XG"
     },
-    esgScore: 92,
-    carbonSaved: 95.5,
-    credits: 510,
-    rank: 3,
-    badgeIds: ["1", "3", "5"],
+    esgScore: 0,
+    carbonSaved: 0,
+    credits: 0,
+    rank: 1,
+    badgeIds: [],
     gender: "Female"
   }
 ];
@@ -402,11 +402,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         department: "Operations",
         designation: "Associate",
         office: "Building A",
-        esgScore: 80,
+        esgScore: 0,
         carbonSaved: 0,
-        credits: 100,
+        credits: 0,
         rank: employees.length + 1,
-        badgeIds: ["1"],
+        badgeIds: [],
         gender: "Other"
       };
       setEmployees(prev => [...prev, newEmp]);
@@ -473,21 +473,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         loadedEmployees = await supabaseSync.get("employees");
       }
 
-      if (loadedRides) {
-        setRides(loadedRides);
-      } else if (typeof window !== "undefined") {
+      let finalRides = loadedRides || [];
+      if (!loadedRides && typeof window !== "undefined") {
         const savedRides = localStorage.getItem("ecoride_rides");
         if (savedRides) {
-          try { setRides(JSON.parse(savedRides)); } catch (e) {}
+          try { finalRides = JSON.parse(savedRides); } catch (e) {}
         }
       }
 
-      if (loadedRequests) {
-        setRequests(loadedRequests);
-      } else if (typeof window !== "undefined") {
+      let finalRequests = loadedRequests || [];
+      if (!loadedRequests && typeof window !== "undefined") {
         const savedRequests = localStorage.getItem("ecoride_requests");
         if (savedRequests) {
-          try { setRequests(JSON.parse(savedRequests)); } catch (e) {}
+          try { finalRequests = JSON.parse(savedRequests); } catch (e) {}
         }
       }
 
@@ -495,9 +493,44 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setMessages(loadedMessages);
       }
 
-      if (loadedEmployees) {
-        setEmployees(loadedEmployees);
+      let finalEmployees = loadedEmployees || INITIAL_EMPLOYEES;
+
+      // Self-healing migration to reset ESG scores and history
+      if (typeof window !== "undefined") {
+        const hasReset = localStorage.getItem("ecoride_esg_reset_v3");
+        if (hasReset !== "true") {
+          console.log("🛠️ Performing client-side self-healing ESG reset...");
+          
+          // Reset stats for all employees
+          finalEmployees = finalEmployees.map((emp: Employee) => ({
+            ...emp,
+            esgScore: 0,
+            carbonSaved: 0,
+            credits: 0,
+            badgeIds: []
+          }));
+
+          // Wipe all rides and requests
+          finalRides = [];
+          finalRequests = [];
+
+          // Sync to localStorage
+          localStorage.setItem("ecoride_rides", JSON.stringify(finalRides));
+          localStorage.setItem("ecoride_requests", JSON.stringify(finalRequests));
+          localStorage.setItem("ecoride_esg_reset_v3", "true");
+
+          // Sync to Supabase
+          if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            supabaseSync.set("employees", finalEmployees);
+            supabaseSync.set("rides", finalRides);
+            supabaseSync.set("requests", finalRequests);
+          }
+        }
       }
+
+      setEmployees(finalEmployees);
+      setRides(finalRides);
+      setRequests(finalRequests);
 
       if (typeof window !== "undefined") {
         const savedIsLoggedIn = localStorage.getItem("ecoride_is_logged_in") === "true";
@@ -819,20 +852,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabaseSync.set("rides", updatedRides);
     }
     
-    // User earns credit for creating a ride
-    setEmployees(prev => prev.map(emp => {
-      if (emp.id !== currentUser.id) return emp;
-      return {
-        ...emp,
-        credits: emp.credits + 15,
-        esgScore: Math.min(100, emp.esgScore + 2)
-      };
-    }));
-
+    // No upfront credits awarded for hosting alone. Credits earned on complete based on co-passengers.
     addNotification({
       id: `n-create-${Date.now()}`,
       title: "Ride Hosted Successfully 🚗",
-      message: `Your ride from ${newRide.pickup} is published. 15 ESG credits added!`,
+      message: `Your ride from ${newRide.pickup} is published. Share it with colleagues to start offset tracking!`,
       timestamp: "Just now",
       type: "success",
       read: false
@@ -1121,8 +1145,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (ride.id !== rideId) return ride;
 
         const totalPassengers = ride.passengers.length;
-        const co2Offset = ride.co2Saved * (totalPassengers || 1);
-        const earnedCredits = ride.esgCredits + (totalPassengers * 15);
+        const co2Offset = totalPassengers > 0 ? (ride.co2Saved * totalPassengers) : 0;
+        const earnedCredits = totalPassengers > 0 ? (ride.esgCredits + (totalPassengers * 15)) : 0;
 
         // Award credits to the driver & passengers in the employees array
         setEmployees(prevEmps => prevEmps.map(emp => {
@@ -1135,7 +1159,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             
             // Badge achievements
             const updatedBadges = [...emp.badgeIds];
-            if (newCarbon >= 100 && !updatedBadges.includes("3")) {
+            if (totalPassengers > 0 && newCarbon >= 100 && !updatedBadges.includes("3")) {
               updatedBadges.push("3"); // Carbon Warrior
             }
 
@@ -1144,7 +1168,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               carbonSaved: newCarbon,
               credits: newCredits,
               badgeIds: updatedBadges,
-              esgScore: Math.min(100, emp.esgScore + 5)
+              esgScore: totalPassengers > 0 ? Math.min(100, emp.esgScore + 5) : emp.esgScore
             };
           } else if (isPassenger) {
             const newCarbon = Number((emp.carbonSaved + (ride.co2Saved)).toFixed(1));
@@ -1154,7 +1178,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               ...emp,
               carbonSaved: newCarbon,
               credits: newCredits,
-              esgScore: Math.min(100, emp.esgScore + 3)
+              esgScore: totalPassengers > 0 ? Math.min(100, emp.esgScore + 3) : emp.esgScore
             };
           }
           return emp;
@@ -1162,8 +1186,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         addNotification({
           id: `n-comp-${Date.now()}`,
-          title: "Ride Commute Completed! 🎉",
-          message: `Ride to ${ride.destination} completed. Carbon savings logged to ESG registries.`,
+          title: totalPassengers > 0 ? "Ride Shared Successfully! 🎉" : "Ride Completed (Single Commute) 🚗",
+          message: totalPassengers > 0
+            ? `Ride to ${ride.destination} completed. Shared commute savings logged to ESG registries.`
+            : `Ride to ${ride.destination} completed. No carbon offsets registered (commute was single-occupancy).`,
           timestamp: "Just now",
           type: "success",
           read: false

@@ -75,6 +75,30 @@ export default function HomePage() {
     updateNotificationPrefs
   } = useAppState();
 
+  // Helper to filter time options dynamically for future times only when scheduling for today
+  const getFilteredTimeOptions = (selectedDateStr: string) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isToday = !selectedDateStr || selectedDateStr === todayStr;
+
+    if (!isToday) return TIME_OPTIONS;
+
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+
+    return TIME_OPTIONS.filter((timeStr) => {
+      const [time, modifier] = timeStr.split(" ");
+      let [hours, minutes] = time.split(":").map(Number);
+
+      if (modifier === "PM" && hours < 12) hours += 12;
+      if (modifier === "AM" && hours === 12) hours = 0;
+
+      if (hours > currentHours) return true;
+      if (hours === currentHours && minutes > currentMinutes) return true;
+      return false;
+    });
+  };
+
   const hasActiveHostedRide = rides.some(r => r.hostId === currentUser?.id && (r.status === "Published" || r.status === "Started"));
 
   // Onboarding Login form states
@@ -985,9 +1009,13 @@ export default function HomePage() {
                             className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
                           >
                             <option value="">Select departure...</option>
-                            {TIME_OPTIONS.map(t => (
-                              <option key={t} value={t}>{t}</option>
-                            ))}
+                            {getFilteredTimeOptions(rideDate).length === 0 ? (
+                              <option disabled value="">No future times today. Select a future date.</option>
+                            ) : (
+                              getFilteredTimeOptions(rideDate).map(t => (
+                                <option key={t} value={t}>{t}</option>
+                              ))
+                            )}
                           </select>
                         </div>
                       </div>
