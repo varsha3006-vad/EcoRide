@@ -1151,6 +1151,11 @@ export default function HomePage() {
                 
                 {/* Clean Header / Title for Mobile */}
                 <div className="text-center py-2 space-y-1">
+                  {currentUser && (
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Welcome, <span className="font-extrabold text-brand-green-600 dark:text-brand-green-400">{currentUser.name}</span>
+                    </p>
+                  )}
                   <h2 className="text-xl font-extrabold tracking-tight text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
                     🚗 Choose Your Commute
                   </h2>
