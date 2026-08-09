@@ -42,7 +42,7 @@ export default function InteractiveMap({
   const [mapError, setMapError] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [currentCoords, setCurrentCoords] = useState<{lat: number, lng: number} | null>(null);
-  const [gpsMode, setGpsMode] = useState<"Simulated" | "Live GPS">("Live GPS");
+  const gpsMode = "Live GPS";
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyBfIUY_3TlArLC4BRriogce52erVVY80EI";
   const hasDetectedRef = useRef(false);
@@ -749,31 +749,7 @@ export default function InteractiveMap({
         </div>
       </div>
 
-      {/* Floating GPS Mode Toggle Controls */}
-      {isDriving && isHost && (
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-slate-950/90 backdrop-blur-md p-1 rounded-xl border border-slate-800 text-[10px] font-bold shadow-lg">
-          <button
-            onClick={() => setGpsMode("Live GPS")}
-            className={`px-2.5 py-1.5 rounded-lg transition-all ${
-              gpsMode === "Live GPS" 
-                ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/10" 
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
-            }`}
-          >
-            📡 Live GPS
-          </button>
-          <button
-            onClick={() => setGpsMode("Simulated")}
-            className={`px-2.5 py-1.5 rounded-lg transition-all ${
-              gpsMode === "Simulated" 
-                ? "bg-sky-500 text-white shadow-md shadow-sky-500/10" 
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
-            }`}
-          >
-            🕹️ Simulate
-          </button>
-        </div>
-      )}
+      {/* Simulation Toggle Controls Removed as Real-time GPS is active */}
 
       {/* Bottom status bar */}
       <div className="mt-auto w-full bg-slate-950/90 backdrop-blur-md border-t border-slate-800/80 p-3 flex items-center justify-between z-10">
