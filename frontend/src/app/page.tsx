@@ -35,7 +35,10 @@ import {
   Leaf,
   Shield,
   ChevronDown,
-  ArrowLeft
+  ArrowLeft,
+  Map,
+  Zap,
+  Navigation
 } from "lucide-react";
 
 const TIME_OPTIONS = [
@@ -112,6 +115,7 @@ export default function HomePage() {
   const [vicinityError, setVicinityError] = useState("");
   const [verifyingVicinity, setVerifyingVicinity] = useState(false);
   const [reviewingRequest, setReviewingRequest] = useState<any | null>(null);
+  const [mapViewPreferences, setMapViewPreferences] = useState<Record<string, "embedded" | "native">>({});
 
   const handleJoinSubmit = () => {
     if (!joiningRide || !passengerPickupInput) return;
@@ -278,7 +282,7 @@ export default function HomePage() {
 
   const myCreatedRides = rides.filter(r => r.hostId === currentUser.id);
   const myJoinedRides = rides.filter(r => r.passengers.includes(currentUser.id));
-  const myUpcomingTrips = [...myCreatedRides, ...myJoinedRides].filter(r => r.status !== "Completed" && r.status !== "Cancelled");
+  const myUpcomingTrips = [...myCreatedRides, ...myJoinedRides].filter(r => r.status?.toLowerCase() !== "completed" && r.status?.toLowerCase() !== "cancelled");
 
   // Search/Filter rides list
   const filteredRides = rides.filter(r => {
@@ -1170,8 +1174,23 @@ export default function HomePage() {
                                   Chat Group
                                 </button>
 
+                                {/* Open in Google Maps shortcut (available for all upcoming/active rides) */}
+                                <a
+                                  href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.pickup)}&destination=${encodeURIComponent(trip.destination)}${
+                                    requests.filter(req => req.rideId === trip.id && req.status === "Accepted").map(req => req.pickup).length > 0
+                                      ? `&waypoints=${encodeURIComponent(requests.filter(req => req.rideId === trip.id && req.status === "Accepted").map(req => req.pickup).join('|'))}`
+                                      : ""
+                                  }&travelmode=driving`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <Navigation className="h-3 w-3 text-brand-blue-500" />
+                                  Google Maps
+                                </a>
+
                                 {/* Host actions */}
-                                {isHost && trip.status === "Published" && (
+                                {isHost && trip.status?.toLowerCase() === "published" && (
                                   <button
                                     onClick={() => startRide(trip.id)}
                                     className="px-2.5 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold transition-all cursor-pointer"
@@ -1181,7 +1200,7 @@ export default function HomePage() {
                                 )}
 
                                 {/* In Progress Ride - Host View */}
-                                {isHost && trip.status === "Started" && (
+                                {isHost && trip.status?.toLowerCase() === "started" && (
                                   <button
                                     onClick={() => completeRide(trip.id, { safety: 5, comfort: 5, punctuality: 5 })}
                                     className="px-2.5 py-1.5 rounded-lg bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-[10px] font-bold transition-all cursor-pointer"
@@ -1191,7 +1210,7 @@ export default function HomePage() {
                                 )}
 
                                 {/* Cancel action */}
-                                {trip.status !== "Completed" && (
+                                {trip.status?.toLowerCase() !== "completed" && (
                                   <button
                                     onClick={() => cancelRide(trip.id)}
                                     className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer"
@@ -1201,6 +1220,85 @@ export default function HomePage() {
                                 )}
                               </div>
                             </div>
+
+                            {/* Ongoing Ride Map with Embedded / Native selection */}
+                            {trip.status?.toLowerCase() === "started" && (() => {
+                              const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
+                              const passengerPickups = approvedReqs.map(req => req.pickup);
+                              const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.pickup)}&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&travelmode=driving`;
+
+                              return (
+                                <div className="mt-3 space-y-3">
+                                  {/* Toggle Bar */}
+                                  <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800/80 p-0.5 border border-slate-200/40 dark:border-slate-700/40 w-fit">
+                                    <button
+                                      type="button"
+                                      onClick={() => setMapViewPreferences(prev => ({ ...prev, [trip.id]: "embedded" }))}
+                                      className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        (mapViewPreferences[trip.id] || "embedded") === "embedded"
+                                          ? "bg-white text-brand-green-600 shadow-sm dark:bg-slate-900 dark:text-brand-green-400"
+                                          : "text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+                                      }`}
+                                    >
+                                      <Map className="h-3 w-3" />
+                                      View inside EcoRide
+                                    </button>
+                                    <a
+                                      href={googleMapsUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={() => {
+                                        setMapViewPreferences(prev => ({ ...prev, [trip.id]: "native" }));
+                                      }}
+                                      className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        mapViewPreferences[trip.id] === "native"
+                                          ? "bg-white text-brand-blue-600 shadow-sm dark:bg-slate-900 dark:text-brand-blue-400"
+                                          : "text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+                                      }`}
+                                    >
+                                      <Zap className="h-3 w-3" />
+                                      Open in Google Maps
+                                    </a>
+                                  </div>
+
+                                  {/* Conditional Map View */}
+                                  {(mapViewPreferences[trip.id] || "embedded") === "embedded" ? (
+                                    <div className="rounded-2xl overflow-hidden border border-brand-green-500/20 shadow-md">
+                                      <InteractiveMap
+                                        pickup={trip.pickup}
+                                        destination={trip.destination}
+                                        isDriving={true}
+                                        waypoints={passengerPickups}
+                                        rideId={trip.id}
+                                        isHost={isHost}
+                                        passengerId={isHost ? undefined : currentUser.id}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="p-5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col items-center justify-center text-center gap-2.5 py-6">
+                                      <div className="h-8 w-8 rounded-full bg-brand-blue-50 dark:bg-brand-blue-950/20 flex items-center justify-center text-brand-blue-500 animate-pulse">
+                                        <Zap className="h-4 w-4" />
+                                      </div>
+                                      <div>
+                                        <h5 className="text-[11px] font-bold text-slate-800 dark:text-white">Opened in Native Google Maps</h5>
+                                        <p className="text-[9px] text-slate-500 dark:text-slate-400 max-w-[280px] mt-0.5 leading-normal">
+                                          GPS waypoints and navigation directions are loaded. Open again or toggle back to embed.
+                                        </p>
+                                      </div>
+                                      <a
+                                        href={googleMapsUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-3.5 py-2 bg-brand-blue-600 hover:bg-brand-blue-700 text-white rounded-xl text-[9px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <Navigation className="h-3 w-3" />
+                                        Relaunch Directions
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })}

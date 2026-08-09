@@ -703,23 +703,15 @@ export default function InteractiveMap({
     <div className="relative w-full h-[320px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-inner">
       
       {googleMapsLoaded && !mapError ? (
-        /* Real Google Map — hidden until tiles load, then fades in smoothly */
+        /* Real Google Map */
         <div
           ref={mapRef}
-          className="w-full h-full absolute inset-0 z-0 transition-opacity duration-500"
-          style={{ opacity: mapReady ? 1 : 0 }}
+          className="w-full h-full absolute inset-0 z-0"
         />
       ) : (
         /* Loading / error fallback */
         <div className="absolute inset-0 w-full h-full z-0 bg-slate-950 flex items-center justify-center text-slate-500 text-xs">
           Loading Google Maps Engine...
-        </div>
-      )}
-      {/* Show spinner while map tiles are loading */}
-      {googleMapsLoaded && !mapReady && !mapError && (
-        <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center bg-slate-900 gap-2">
-          <div className="h-8 w-8 rounded-full border-2 border-brand-green-500 border-t-transparent animate-spin" />
-          <span className="text-[10px] text-slate-400 font-medium">Detecting your location...</span>
         </div>
       )}
 
