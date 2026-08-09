@@ -96,6 +96,11 @@ export interface Employee {
   rank: number;
   badgeIds: string[];
   gender?: "Male" | "Female" | "Other";
+  notificationPrefs?: {
+    rides: boolean;
+    chat: boolean;
+    leaderboard: boolean;
+  };
 }
 
 export interface Ride {
@@ -202,6 +207,7 @@ interface StateContextType {
   syncError: string | null;
   updateRideLocation: (rideId: string, lat: number, lng: number) => void;
   updatePassengerLocation: (rideId: string, passengerId: string, lat: number, lng: number) => void;
+  updateNotificationPrefs: (prefs: { rides: boolean; chat: boolean; leaderboard: boolean }) => void;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -445,12 +451,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let loadedRides = null;
       let loadedRequests = null;
       let loadedMessages = null;
+      let loadedEmployees = null;
 
       if (SUPABASE_URL && SUPABASE_ANON_KEY) {
         console.log("🔌 Connecting to Supabase for shared data...");
         loadedRides = await supabaseSync.get("rides");
         loadedRequests = await supabaseSync.get("requests");
         loadedMessages = await supabaseSync.get("messages");
+        loadedEmployees = await supabaseSync.get("employees");
       }
 
       if (loadedRides) {
@@ -473,6 +481,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (loadedMessages) {
         setMessages(loadedMessages);
+      }
+
+      if (loadedEmployees) {
+        setEmployees(loadedEmployees);
       }
 
       setIsLoaded(true);
@@ -731,6 +743,23 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLeaderboard(updatedLeaderboard);
   }, [employees]);
 
+  // Synchronize employees state to Supabase automatically
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("employees", employees);
+    }
+  }, [employees, isLoaded]);
+
+  const updateNotificationPrefs = (prefs: { rides: boolean; chat: boolean; leaderboard: boolean }) => {
+    setEmployees(prev => prev.map(emp => {
+      if (emp.id === currentUserId) {
+        return { ...emp, notificationPrefs: prefs };
+      }
+      return emp;
+    }));
+  };
+
   const addNotification = (notif: Notification) => {
     setNotifications(prev => [notif, ...prev]);
     playNotificationSound();
@@ -783,6 +812,30 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  // Helper to trigger push notification
+  const triggerPushNotification = async (targetUserId: string, title: string, body: string, url = "/") => {
+    try {
+      const recipient = employees.find(e => e.id === targetUserId);
+      const prefs = recipient?.notificationPrefs || { rides: true, chat: true, leaderboard: true };
+
+      const isChat = title.includes("💬") || title.toLowerCase().includes("message");
+      const isLeaderboard = title.toLowerCase().includes("leaderboard") || title.toLowerCase().includes("rank");
+      const isRide = !isChat && !isLeaderboard;
+
+      if (isChat && !prefs.chat) return;
+      if (isRide && !prefs.rides) return;
+      if (isLeaderboard && !prefs.leaderboard) return;
+
+      await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: targetUserId, title, body, url }),
+      });
+    } catch (e) {
+      console.warn("Failed to send push notification:", e);
+    }
+  };
+
   // Request to Join a Ride — write OUTSIDE setState callback
   const requestJoinRide = (rideId: string, pickup: string) => {
     const targetRide = rides.find(r => r.id === rideId);
@@ -811,6 +864,13 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
       supabaseSync.set("requests", updatedRequests);
     }
+
+    // Trigger push notification to host
+    triggerPushNotification(
+      targetRide.hostId,
+      `Ride Join Request from ${currentUser.name} ✉️`,
+      `${currentUser.name} wants to join your ride to ${targetRide.destination}.`
+    );
   };
 
   // Respond to join request (Accept / Reject)
@@ -917,6 +977,21 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
       supabaseSync.set("rides", updatedRides);
     }
+
+    // Trigger push notification to passenger
+    if (accept) {
+      triggerPushNotification(
+        reqToRespond.requesterId,
+        "Ride Request Approved! 🎉",
+        `${targetRide.hostName} accepted your ride request. Ready to commute!`
+      );
+    } else {
+      triggerPushNotification(
+        reqToRespond.requesterId,
+        "Ride Request Declined ❌",
+        `${targetRide.hostName} declined your join request.`
+      );
+    }
   };
 
   // Send Message (Real-time and User-driven chat updates)
@@ -934,6 +1009,20 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Optimistically append locally
     setMessages(prev => [...prev, newMsg]);
+
+    // Trigger push notifications to other participants
+    const targetRideForMsg = rides.find(r => r.id === rideId);
+    if (targetRideForMsg) {
+      const recipients = [targetRideForMsg.hostId, ...targetRideForMsg.passengers].filter(id => id !== currentUser.id);
+      recipients.forEach(targetId => {
+        triggerPushNotification(
+          targetId,
+          `New message from ${currentUser.name} 💬`,
+          content.length > 60 ? content.substring(0, 57) + "..." : content,
+          `/?rideId=${rideId}`
+        );
+      });
+    }
 
     // Explicit Fetch-Modify-Write to prevent sync clobbers
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
@@ -981,6 +1070,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (SUPABASE_URL && SUPABASE_ANON_KEY) {
         supabaseSync.set("rides", updated);
       }
+
+      // Trigger push notifications to all passengers
+      const activeRide = prev.find(r => r.id === rideId);
+      if (activeRide) {
+        activeRide.passengers.forEach(pId => {
+          triggerPushNotification(
+            pId,
+            "Ride Commute Started! 🚗💨",
+            `${activeRide.hostName}'s vehicle is now en route to ${activeRide.destination}.`
+          );
+        });
+      }
+
       return updated;
     });
   };
@@ -1241,7 +1343,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isSupabaseConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY),
         syncError,
         updateRideLocation,
-        updatePassengerLocation
+        updatePassengerLocation,
+        updateNotificationPrefs
       }}
     >
       {children}

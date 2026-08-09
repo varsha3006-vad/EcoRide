@@ -34,6 +34,8 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+
 export default function RootLayout({
   children,
 }: {
@@ -43,6 +45,7 @@ export default function RootLayout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <StateProvider>
+          <ServiceWorkerRegister />
           {children}
         </StateProvider>
       </body>

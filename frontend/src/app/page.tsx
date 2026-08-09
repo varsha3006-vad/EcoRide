@@ -70,7 +70,8 @@ export default function HomePage() {
     adminDeleteRide,
     adminDeactivateEmployee,
     isLoggedIn,
-    login
+    login,
+    updateNotificationPrefs
   } = useAppState();
 
   // Onboarding Login form states
@@ -137,6 +138,26 @@ export default function HomePage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(true);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+
+  // Notification Preferences states
+  const [showPreferencesModal, setShowPreferencesModal] = useState(false);
+  const [isPushEnabled, setIsPushEnabled] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsPushEnabled(
+        "Notification" in window &&
+        Notification.permission === "granted" &&
+        localStorage.getItem("ecoride_push_enabled") === "true"
+      );
+    }
+  }, [showPreferencesModal]);
+
+  useEffect(() => {
+    const handleOpen = () => setShowPreferencesModal(true);
+    window.addEventListener("open-notification-preferences", handleOpen);
+    return () => window.removeEventListener("open-notification-preferences", handleOpen);
+  }, []);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -1637,6 +1658,123 @@ export default function HomePage() {
                 Got It!
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Preferences Modal */}
+      {showPreferencesModal && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in select-none">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-950 rounded-3xl border border-slate-150 dark:border-slate-800 p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm">
+                🔔 Notification Preferences
+              </h3>
+              <button
+                onClick={() => setShowPreferencesModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-650 dark:hover:text-slate-350 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Push notifications global toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-900/50">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-slate-800 dark:text-white">Mobile Push Notifications</p>
+                  <p className="text-[10px] text-slate-500">
+                    {isPushEnabled ? "Active on this device" : "Receive alerts when app is closed"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    window.dispatchEvent(
+                      new CustomEvent("toggle-push-notifications", {
+                        detail: { enable: !isPushEnabled }
+                      })
+                    );
+                    // Optimistically toggle
+                    setIsPushEnabled(!isPushEnabled);
+                  }}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                    isPushEnabled ? "bg-brand-green-500" : "bg-slate-200 dark:bg-slate-800"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      isPushEnabled ? "translate-x-4.5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Sub-Preferences list */}
+              <div className={`space-y-3 transition-opacity duration-200 ${isPushEnabled ? "opacity-100" : "opacity-50 pointer-events-none"}`}>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Alert categories</p>
+                
+                {/* Preference 1: Rides */}
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    disabled={!isPushEnabled}
+                    checked={currentUser?.notificationPrefs?.rides ?? true}
+                    onChange={(e) => {
+                      const currentPrefs = currentUser?.notificationPrefs || { rides: true, chat: true, leaderboard: true };
+                      updateNotificationPrefs({ ...currentPrefs, rides: e.target.checked });
+                    }}
+                    className="mt-0.5 rounded border-slate-350 dark:border-slate-850 text-brand-green-600 focus:ring-brand-green-500 cursor-pointer h-3.5 w-3.5"
+                  />
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Ride &amp; Commute Status</p>
+                    <p className="text-[10px] text-slate-500">Requests, approvals, cancellations, starts &amp; arrivals</p>
+                  </div>
+                </label>
+
+                {/* Preference 2: Chat Messages */}
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    disabled={!isPushEnabled}
+                    checked={currentUser?.notificationPrefs?.chat ?? true}
+                    onChange={(e) => {
+                      const currentPrefs = currentUser?.notificationPrefs || { rides: true, chat: true, leaderboard: true };
+                      updateNotificationPrefs({ ...currentPrefs, chat: e.target.checked });
+                    }}
+                    className="mt-0.5 rounded border-slate-350 dark:border-slate-855 text-brand-green-600 focus:ring-brand-green-500 cursor-pointer h-3.5 w-3.5"
+                  />
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Chat Messages</p>
+                    <p className="text-[10px] text-slate-500">Real-time chat alerts from host and co-passengers</p>
+                  </div>
+                </label>
+
+                {/* Preference 3: Leaderboard */}
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    disabled={!isPushEnabled}
+                    checked={currentUser?.notificationPrefs?.leaderboard ?? true}
+                    onChange={(e) => {
+                      const currentPrefs = currentUser?.notificationPrefs || { rides: true, chat: true, leaderboard: true };
+                      updateNotificationPrefs({ ...currentPrefs, leaderboard: e.target.checked });
+                    }}
+                    className="mt-0.5 rounded border-slate-350 dark:border-slate-860 text-brand-green-600 focus:ring-brand-green-500 cursor-pointer h-3.5 w-3.5"
+                  />
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">ESG &amp; Carbon Updates</p>
+                    <p className="text-[10px] text-slate-500">Leaderboard updates, achievements, rank milestones</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowPreferencesModal(false)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-750 text-white text-xs font-bold cursor-pointer transition-all shadow-md text-center mt-2"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}
