@@ -361,10 +361,10 @@ export default function HomePage() {
 
             <div>
               <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-1.5 justify-center">
-                EcoRide <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-green-500/10 text-brand-green-400 border border-brand-green-500/20">Enterprise</span>
+                EcoRide <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-green-500/10 text-brand-green-500 border border-brand-green-500/20">Enterprise</span>
               </h2>
               {/* Tagline */}
-              <p className="text-xs text-brand-green-400 font-bold mt-2 italic tracking-wide max-w-[320px]">
+              <p className="text-xs text-brand-green-500 font-bold mt-2 italic tracking-wide max-w-[320px]">
                 "Share Your Ride. Reduce Your Footprint. Build Your Community"
               </p>
               <p className="text-[10px] text-slate-500 mt-1">Smart Corporate Ride Sharing & ESG Portal</p>

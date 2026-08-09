@@ -16,18 +16,18 @@ export default function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         
         {/* Left: Brand Identity */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* L&T Technology Services Logo */}
-          <div className="flex items-center bg-white/70 dark:bg-white/90 p-1 rounded-lg shadow-sm border border-slate-100">
+          <div className="flex items-center bg-white/70 dark:bg-white/90 p-1 rounded-lg shadow-sm border border-slate-100 flex-shrink-0">
             <img 
               src="/logo.png" 
               alt="L&T Technology Services" 
-              className="h-7 w-auto object-contain" 
+              className="h-7 w-auto object-contain flex-shrink-0" 
             />
           </div>
 
           {/* Vertical Divider */}
-          <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800" />
+          <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800 flex-shrink-0" />
 
           <div>
             <h1 className="text-sm font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-1 sm:text-base">
