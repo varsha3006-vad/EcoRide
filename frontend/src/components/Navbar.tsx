@@ -18,11 +18,11 @@ export default function Navbar() {
         {/* Left: Brand Identity */}
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
           {/* L&T Technology Services Logo - Compact on mobile, standard on larger screens */}
-          <div className="flex items-center bg-white/75 dark:bg-white/90 p-1 sm:p-1.5 rounded-lg shadow-sm border border-slate-100 flex-shrink-0 max-w-[110px] sm:max-w-[160px] overflow-hidden">
+          <div className="flex items-center bg-white/75 dark:bg-white/90 p-1 sm:p-1.5 rounded-lg shadow-sm border border-slate-100 flex-shrink-0 max-w-[125px] sm:max-w-[180px] overflow-hidden">
             <img 
               src="/logo.png" 
               alt="L&T Technology Services" 
-              className="h-6 sm:h-9 w-auto object-contain flex-shrink-0" 
+              className="h-7 sm:h-10 w-auto object-contain flex-shrink-0" 
             />
           </div>
 
