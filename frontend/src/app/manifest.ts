@@ -2,8 +2,8 @@ import { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "EcoRide Enterprise",
-    short_name: "EcoRide",
+    name: "Ecoride",
+    short_name: "Ecoride",
     description: "Smart Corporate Carpooling & ESG Portal",
     start_url: "/",
     display: "standalone",

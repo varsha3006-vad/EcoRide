@@ -123,6 +123,34 @@ export default function HomePage() {
   const [reviewingRequest, setReviewingRequest] = useState<any | null>(null);
   const [mapViewPreferences, setMapViewPreferences] = useState<Record<string, "embedded" | "native">>({});
 
+  // PWA installation states
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(true);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response to install: ${outcome}`);
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    } else {
+      setShowInstallGuide(true);
+    }
+  };
+
   const handleJoinSubmit = () => {
     if (!joiningRide || !passengerPickupInput) return;
     setVerifyingVicinity(true);
@@ -374,7 +402,26 @@ export default function HomePage() {
           {/* Form */}
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Company Email Address</label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Quick Select Account</label>
+              <select
+                value={emailInput}
+                onChange={e => {
+                  setEmailInput(e.target.value);
+                  setLoginError("");
+                }}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-xs text-white outline-none focus:border-brand-green-500 transition-all cursor-pointer mb-2.5"
+              >
+                <option value="" className="text-slate-500">-- Select Corporate Identity --</option>
+                <option value="rahul@company.com">Rahul Shah (Driver / Host)</option>
+                <option value="shail@company.com">Shail Kumar (Passenger)</option>
+                <option value="leo@company.com">Leo Davis (Passenger)</option>
+                <option value="naveen@company.com">Naveen Patel (Passenger)</option>
+                <option value="varsha@company.com">Varsha Nair (Passenger)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Or Type Email Address</label>
               <input
                 type="email"
                 required
@@ -1070,6 +1117,38 @@ export default function HomePage() {
                   </p>
                 </div>
 
+                {/* PWA Install Banner */}
+                {showInstallBanner && (
+                  <div className="glass-panel p-4 rounded-2xl border border-brand-green-500/20 bg-brand-green-500/5 dark:bg-brand-green-950/10 flex items-center justify-between gap-3 text-left animate-slide-up shadow-sm">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className="text-lg p-2 rounded-xl bg-brand-green-500/10 text-brand-green-600 dark:text-brand-green-400 mt-0.5 flex-shrink-0">
+                        📱
+                      </span>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-white">Install Ecoride App Shortcut</h4>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                          Add the Ecoride link to your home screen for quick, one-tap mobile access.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={handleInstallClick}
+                        className="px-3 py-1.5 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold cursor-pointer transition-all shadow-sm flex-shrink-0"
+                      >
+                        Install
+                      </button>
+                      <button
+                        onClick={() => setShowInstallBanner(false)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-650 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors flex-shrink-0"
+                        title="Dismiss"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Stacking Offer / Join Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Offer a Ride Card */}
@@ -1490,6 +1569,57 @@ export default function HomePage() {
           rideId={activeChatRideId}
           onClose={() => setActiveChatRideId(null)}
         />
+      )}
+
+      {/* iOS / Safari Installation Guide Sheet */}
+      {showInstallGuide && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-end justify-center sm:items-center animate-fade-in p-4 select-none">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl border border-slate-150 dark:border-slate-800 p-6 shadow-2xl animate-slide-up space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm">
+                📲 Add Ecoride to Home Screen
+              </h3>
+              <button
+                onClick={() => setShowInstallGuide(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-650 dark:hover:text-slate-350 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-left text-xs text-slate-700 dark:text-slate-300">
+              <p>
+                To install the **Ecoride** app shortcut on your mobile home screen, follow these quick steps:
+              </p>
+              <div className="space-y-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-900">
+                <div className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800 text-[10px] font-bold">1</span>
+                  <p className="leading-relaxed">
+                    Tap the <strong>Share</strong> button <span className="bg-slate-200 dark:bg-slate-850 px-1.5 py-0.5 rounded text-[10px] border border-slate-300 dark:border-slate-700">⎙</span> or browser options menu.
+                  </p>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800 text-[10px] font-bold">2</span>
+                  <p className="leading-relaxed">
+                    Scroll down and tap <strong>Add to Home Screen</strong>.
+                  </p>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800 text-[10px] font-bold">3</span>
+                  <p className="leading-relaxed">
+                    Confirm the name is <strong>Ecoride</strong> and tap <strong>Add</strong>.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInstallGuide(false)}
+                className="w-full py-2.5 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-xs font-bold cursor-pointer transition-all shadow-md text-center"
+              >
+                Got It!
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Bottom status signature */}
