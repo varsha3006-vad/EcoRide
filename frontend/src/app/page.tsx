@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAppState } from "@/context/StateContext";
 import Navbar from "@/components/Navbar";
@@ -103,6 +103,12 @@ export default function HomePage() {
   const [luggage, setLuggage] = useState(true);
   const [womenOnly, setWomenOnly] = useState(false);
   const [notes, setNotes] = useState("");
+  const [formError, setFormError] = useState("");
+
+  // Reset form error when switching wizards
+  useEffect(() => {
+    setFormError("");
+  }, [activeWizard]);
 
   // Admin filter states
   const [adminActiveTab, setAdminActiveTab] = useState<"kpis" | "rides" | "employees">("kpis");
@@ -229,10 +235,34 @@ export default function HomePage() {
     e.preventDefault();
     if (!pickup || !dest || !time) return;
 
+    // Validate that the departure time is in the future
+    const parseDepartureDateTime = (dateStr: string, timeStr: string): Date => {
+      const [timePart, ampm] = timeStr.split(" ");
+      let [hours, minutes] = timePart.split(":").map(Number);
+      if (ampm === "PM" && hours < 12) {
+        hours += 12;
+      } else if (ampm === "AM" && hours === 12) {
+        hours = 0;
+      }
+      const [year, month, day] = dateStr.split("-").map(Number);
+      return new Date(year, month - 1, day, hours, minutes, 0, 0);
+    };
+
+    const selectedDateTime = parseDepartureDateTime(rideDate, time);
+    const now = new Date();
+
+    if (selectedDateTime < now) {
+      setFormError("Departure time cannot be in the past. Please choose a future date and time.");
+      return;
+    }
+
+    setFormError("");
+
     createRide({
       pickup,
       destination: dest,
       departureTime: time,
+      rideDate,
       vehicleModel: currentUser.vehicle?.model || "Tesla Model Y",
       vehiclePlate: currentUser.vehicle?.plateNumber || "CA-990EV",
       vehicleType: vehicleType,
@@ -887,6 +917,12 @@ export default function HomePage() {
                           </select>
                         </div>
                       </div>
+
+                      {formError && (
+                        <p className="text-[10px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/30 px-3.5 py-2.5 rounded-2xl text-center">
+                          ⚠️ {formError}
+                        </p>
+                      )}
 
                       <div className="flex justify-end gap-2 border-t pt-3">
                         <button
