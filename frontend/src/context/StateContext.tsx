@@ -385,8 +385,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Load active persona
     const foundUser = employees.find(e => e.email.toLowerCase() === cleanEmail);
+    let resolvedUserId = "";
+
     if (foundUser) {
       setCurrentUserId(foundUser.id);
+      resolvedUserId = foundUser.id;
     } else {
       // Create user fallback
       const newName = cleanEmail.split("@")[0].replace(/\./g, " ");
@@ -408,14 +411,23 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       setEmployees(prev => [...prev, newEmp]);
       setCurrentUserId(newEmp.id);
+      resolvedUserId = newEmp.id;
     }
     
     setIsLoggedIn(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_is_logged_in", "true");
+      localStorage.setItem("ecoride_logged_in_user_id", resolvedUserId);
+    }
     return true;
   };
 
   const logout = () => {
     setIsLoggedIn(false);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("ecoride_is_logged_in");
+      localStorage.removeItem("ecoride_logged_in_user_id");
+    }
   };
   const [currentUserId, setCurrentUserId] = useState<string>("e-alex");
   const [role, setRoleState] = useState<"Employee" | "Admin">("Employee");
@@ -485,6 +497,15 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (loadedEmployees) {
         setEmployees(loadedEmployees);
+      }
+
+      if (typeof window !== "undefined") {
+        const savedIsLoggedIn = localStorage.getItem("ecoride_is_logged_in") === "true";
+        const savedUserId = localStorage.getItem("ecoride_logged_in_user_id");
+        if (savedIsLoggedIn && savedUserId) {
+          setIsLoggedIn(true);
+          setCurrentUserId(savedUserId);
+        }
       }
 
       setIsLoaded(true);
@@ -767,6 +788,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Create Ride — write OUTSIDE setState callback to avoid race condition
   const createRide = (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers"> & { womenOnly?: boolean }) => {
+    const hasActive = ridesRef.current.some(r => r.hostId === currentUser.id && (r.status === "Published" || r.status === "Started"));
+    if (hasActive) {
+      console.warn("User already has an active ride hosted or started.");
+      return;
+    }
+
     const newRide: Ride = {
       ...rideData,
       id: `r-${Date.now()}`,

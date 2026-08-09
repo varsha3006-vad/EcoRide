@@ -74,6 +74,8 @@ export default function HomePage() {
     updateNotificationPrefs
   } = useAppState();
 
+  const hasActiveHostedRide = rides.some(r => r.hostId === currentUser?.id && (r.status === "Published" || r.status === "Started"));
+
   // Onboarding Login form states
   const [emailInput, setEmailInput] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -1194,16 +1196,28 @@ export default function HomePage() {
                   {/* Offer a Ride Card */}
                   <div
                     role="button"
-                    onClick={() => setActiveWizard("host")}
-                    className="group relative flex items-center justify-between p-6 rounded-3xl bg-gradient-to-tr from-brand-green-600 to-brand-green-500 text-white shadow-xl hover:brightness-105 transition-all cursor-pointer overflow-hidden"
+                    onClick={() => {
+                      if (hasActiveHostedRide) {
+                        alert("You already have an active ride hosted or started. Please cancel or complete it before offering a new ride.");
+                        return;
+                      }
+                      setActiveWizard("host");
+                    }}
+                    className={`group relative flex items-center justify-between p-6 rounded-3xl bg-gradient-to-tr text-white shadow-xl transition-all cursor-pointer overflow-hidden ${
+                      hasActiveHostedRide
+                        ? "from-slate-700 to-slate-650 opacity-60 hover:opacity-75"
+                        : "from-brand-green-600 to-brand-green-500 hover:brightness-105"
+                    }`}
                   >
                     <div className="z-10 text-left">
                       <span className="inline-block bg-white/20 text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full mb-1.5">
-                        Host Commuters
+                        {hasActiveHostedRide ? "Active Ride Ongoing" : "Host Commuters"}
                       </span>
                       <h3 className="text-lg font-extrabold tracking-tight">Offer a Ride</h3>
                       <p className="text-[11px] text-brand-green-50 mt-1 max-w-[220px] leading-relaxed">
-                        Share your route, reduce corporate congestion, and earn ESG credits.
+                        {hasActiveHostedRide
+                          ? "You are currently hosting an active/started ride. Complete or cancel it first."
+                          : "Share your route, reduce corporate congestion, and earn ESG credits."}
                       </p>
                     </div>
                     <div className="z-10 bg-white/10 p-3 rounded-2xl group-hover:scale-110 transition-transform">

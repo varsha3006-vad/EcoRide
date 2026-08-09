@@ -147,6 +147,7 @@ export default function InteractiveMap({
         zoom,
         disableDefaultUI: true,
         zoomControl: true,
+        gestureHandling: "greedy",
         styles: MAP_STYLES
       });
       googleMapInstanceRef.current = map;
@@ -238,6 +239,7 @@ export default function InteractiveMap({
       // Initialize Directions Renderer
       const directionsRenderer = new google.maps.DirectionsRenderer({
         map: map,
+        preserveViewport: isDriving,
         suppressMarkers: true,
         polylineOptions: {
           strokeColor: "#10b981",
@@ -559,9 +561,12 @@ export default function InteractiveMap({
               carMarkerRef.current.setIcon({ ...currentIcon, rotation: heading });
             }
           }
-          // Pan map to center on driver
+          // Pan map to center on driver and enforce drive zoom
           if (googleMapInstanceRef.current) {
             googleMapInstanceRef.current.panTo(currentLatLng);
+            if (googleMapInstanceRef.current.getZoom() !== 17) {
+              googleMapInstanceRef.current.setZoom(17);
+            }
           }
 
           // Push new coordinates to shared Supabase state
@@ -630,6 +635,9 @@ export default function InteractiveMap({
         
         if (googleMapInstanceRef.current) {
           googleMapInstanceRef.current.panTo(newPos);
+          if (googleMapInstanceRef.current.getZoom() !== 17) {
+            googleMapInstanceRef.current.setZoom(17);
+          }
         }
 
         // Push new simulated coordinates to shared Supabase state
@@ -646,7 +654,7 @@ export default function InteractiveMap({
 
   // 4. Passenger-side Real-time Tracking (Polls host coordinates from Supabase state)
   useEffect(() => {
-    if (isHost || !googleMapsLoaded || !rideId || mapError) return;
+    if (isHost || !googleMapsLoaded || !rideId || mapError || !isDriving) return;
 
     const ride = rides.find(r => r.id === rideId);
     if (ride && ride.driverLat && ride.driverLng) {
@@ -658,13 +666,16 @@ export default function InteractiveMap({
         if (carMarkerRef.current) {
           carMarkerRef.current.setPosition(currentLatLng);
         }
-        // Center map on driver
+        // Center map on driver and zoom in
         if (googleMapInstanceRef.current) {
           googleMapInstanceRef.current.panTo(currentLatLng);
+          if (googleMapInstanceRef.current.getZoom() !== 17) {
+            googleMapInstanceRef.current.setZoom(17);
+          }
         }
       }
     }
-  }, [rides, googleMapsLoaded, isHost, rideId, mapError]);
+  }, [rides, googleMapsLoaded, isHost, rideId, mapError, isDriving]);
 
   // 4.5 Passenger GPS Broadcasting — passengers broadcast live location to host's map
   useEffect(() => {
