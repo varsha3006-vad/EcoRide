@@ -1,0 +1,282 @@
+"use client";
+
+import React, { useState } from "react";
+import { useAppState } from "@/context/StateContext";
+import { X, Award, Leaf, Calendar, MapPin, User, Mail, Briefcase, ChevronRight } from "lucide-react";
+import { Employee } from "@/context/StateContext";
+
+interface PastRidesModalProps {
+  onClose: () => void;
+}
+
+export default function PastRidesModal({ onClose }: PastRidesModalProps) {
+  const { rides, currentUser, employees } = useAppState();
+  const [selectedColleague, setSelectedColleague] = useState<Employee | null>(null);
+
+  // Filter completed rides where the user was the host or a passenger
+  const pastRides = rides.filter(
+    (r) =>
+      r.status === "Completed" &&
+      (r.hostId === currentUser.id || r.passengers.includes(currentUser.id))
+  );
+
+  // Calculate cumulative stats for past commutes
+  const totalCommutes = pastRides.length;
+  
+  const totalCreditsEarned = pastRides.reduce((acc, ride) => {
+    const isDriver = ride.hostId === currentUser.id;
+    const totalPassengers = ride.passengers.length;
+    if (isDriver) {
+      return acc + ride.esgCredits + (totalPassengers * 15);
+    } else {
+      const earnedCredits = ride.esgCredits + (totalPassengers * 15);
+      return acc + Math.round(earnedCredits * 0.5);
+    }
+  }, 0);
+
+  const totalCarbonSaved = pastRides.reduce((acc, ride) => {
+    const isDriver = ride.hostId === currentUser.id;
+    const totalPassengers = ride.passengers.length;
+    if (isDriver) {
+      return acc + (ride.co2Saved * (totalPassengers || 1));
+    } else {
+      return acc + ride.co2Saved;
+    }
+  }, 0);
+
+  // Average distance per commute is 12.5km if not explicitly tracked
+  const totalDistance = pastRides.length * 12.5;
+
+  const handleColleagueClick = (empId: string) => {
+    const found = employees.find((emp) => emp.id === empId);
+    if (found) {
+      setSelectedColleague(found);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in select-none">
+      <div className="w-full max-w-md bg-white dark:bg-slate-950 rounded-3xl border border-slate-150 dark:border-slate-800 p-6 shadow-2xl space-y-5 flex flex-col max-h-[80vh] overflow-hidden">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between border-b pb-3 flex-shrink-0">
+          <h3 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm">
+            📜 Past Commutes History
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-650 dark:hover:text-slate-350 cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto space-y-5 pr-1 text-xs">
+          {/* Cumulative Stats Card */}
+          <div className="grid grid-cols-2 gap-3 bg-gradient-to-tr from-brand-green-50 to-brand-green-100/50 dark:from-brand-green-950/10 dark:to-brand-green-950/20 p-4 rounded-2xl border border-brand-green-500/10">
+            <div>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Total Commutes</p>
+              <p className="text-base font-black text-slate-800 dark:text-white mt-0.5">{totalCommutes}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Carbon Offsets</p>
+              <p className="text-base font-black text-brand-green-600 dark:text-brand-green-400 mt-0.5 flex items-center gap-1">
+                <Leaf className="h-3.5 w-3.5" />
+                {totalCarbonSaved.toFixed(1)} kg
+              </p>
+            </div>
+            <div className="mt-1">
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">ESG Credits Earned</p>
+              <p className="text-base font-black text-brand-blue-600 dark:text-brand-blue-400 mt-0.5 flex items-center gap-1">
+                <Award className="h-3.5 w-3.5" />
+                +{totalCreditsEarned}
+              </p>
+            </div>
+            <div className="mt-1">
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Total Distance</p>
+              <p className="text-base font-black text-slate-700 dark:text-slate-300 mt-0.5">
+                {totalDistance.toFixed(1)} km
+              </p>
+            </div>
+          </div>
+
+          {/* Past Ride Entries */}
+          <div className="space-y-3">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completed Commutes</h4>
+            {pastRides.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-900 p-4">
+                No past completed commutes logged yet. Go to your active commute schedule to start and complete rides.
+              </div>
+            ) : (
+              pastRides.map((ride) => {
+                const isHost = ride.hostId === currentUser.id;
+                const rideDateFormatted = ride.rideDate
+                  ? new Date(ride.rideDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : "Aug 10, 2026";
+                
+                const rideCredits = isHost
+                  ? ride.esgCredits + (ride.passengers.length * 15)
+                  : Math.round((ride.esgCredits + (ride.passengers.length * 15)) * 0.5);
+
+                const rideCarbon = isHost
+                  ? (ride.co2Saved * (ride.passengers.length || 1))
+                  : ride.co2Saved;
+
+                return (
+                  <div key={ride.id} className="glass-panel p-4 rounded-2xl border border-slate-150 dark:border-slate-800 text-left space-y-3 shadow-sm hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
+                    {/* Date & Role badge */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
+                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                        {rideDateFormatted} at {ride.departureTime}
+                      </div>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold border ${
+                        isHost
+                          ? "bg-brand-green-500/10 text-brand-green-600 dark:text-brand-green-400 border-brand-green-500/20"
+                          : "bg-brand-blue-500/10 text-brand-blue-600 dark:text-brand-blue-400 border-brand-blue-500/20"
+                      }`}>
+                        {isHost ? "🚗 Host Driver" : "👥 Co-Passenger"}
+                      </span>
+                    </div>
+
+                    {/* Route */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-white">
+                        <span className="h-1.5 w-1.5 rounded-full bg-brand-green-500" />
+                        <span className="truncate">{ride.pickup}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-white">
+                        <span className="h-1.5 w-1.5 rounded-full bg-brand-blue-500" />
+                        <span className="truncate">{ride.destination}</span>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 dark:border-slate-900 text-center">
+                      <div>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase">Credits</p>
+                        <p className="text-xs font-extrabold text-brand-blue-600 dark:text-brand-blue-400 mt-0.5">+{rideCredits}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase">CO₂ Saved</p>
+                        <p className="text-xs font-extrabold text-brand-green-600 dark:text-brand-green-400 mt-0.5">{rideCarbon.toFixed(1)} kg</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase">Distance</p>
+                        <p className="text-xs font-extrabold text-slate-700 dark:text-slate-300 mt-0.5">12.5 km</p>
+                      </div>
+                    </div>
+
+                    {/* Crew List */}
+                    <div className="space-y-1.5">
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Commute Crew</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {/* Host */}
+                        <button
+                          onClick={() => handleColleagueClick(ride.hostId)}
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                            ride.hostId === currentUser.id
+                              ? "bg-slate-50 dark:bg-slate-900 text-slate-650 dark:text-slate-300 border-slate-200 dark:border-slate-800"
+                              : "bg-brand-green-500/10 text-brand-green-700 border-brand-green-500/20 hover:bg-brand-green-500/20"
+                          }`}
+                        >
+                          🚗 {ride.hostId === currentUser.id ? "Me (Host)" : `${ride.hostName} (Host)`}
+                        </button>
+                        
+                        {/* Passengers */}
+                        {ride.passengers.map((pId) => {
+                          const passengerEmp = employees.find((e) => e.id === pId);
+                          if (!passengerEmp) return null;
+                          return (
+                            <button
+                              key={pId}
+                              onClick={() => handleColleagueClick(pId)}
+                              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                                pId === currentUser.id
+                                  ? "bg-slate-50 dark:bg-slate-900 text-slate-650 dark:text-slate-300 border-slate-200 dark:border-slate-800"
+                                  : "bg-brand-blue-500/10 text-brand-blue-700 border-brand-blue-500/20 hover:bg-brand-blue-500/20"
+                              }`}
+                            >
+                              👤 {pId === currentUser.id ? "Me" : passengerEmp.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-2 border-t flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-750 text-white text-xs font-bold cursor-pointer transition-all shadow-md text-center"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+
+      {/* Colleague Profile Popover Overlay */}
+      {selectedColleague && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-55 flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-xs bg-white dark:bg-slate-950 rounded-3xl border border-slate-150 dark:border-slate-800 p-5 shadow-2xl space-y-4 text-center relative animate-scale-up">
+            <button
+              onClick={() => setSelectedColleague(null)}
+              className="absolute top-3 right-3 p-1 rounded-lg text-slate-400 hover:text-slate-650 dark:hover:text-slate-350 cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {/* Avatar & Info */}
+            <div className="space-y-1.5 mt-2 text-xs">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green-100 text-2xl dark:bg-brand-green-950/40 mx-auto">
+                {selectedColleague.avatar}
+              </span>
+              <h4 className="text-sm font-black text-slate-800 dark:text-white">{selectedColleague.name}</h4>
+              <p className="text-[9px] uppercase font-bold text-brand-green-600 dark:text-brand-green-400 tracking-wider">
+                {selectedColleague.designation}
+              </p>
+            </div>
+
+            {/* Profile Grid */}
+            <div className="space-y-2 text-left bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-900/50 text-[10px]">
+              <div className="flex items-center gap-2 text-slate-650 dark:text-slate-350">
+                <Briefcase className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                <span className="truncate">{selectedColleague.department} Department</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-650 dark:text-slate-350">
+                <Mail className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                <span className="truncate select-text">{selectedColleague.email}</span>
+              </div>
+            </div>
+
+            {/* ESG Stats */}
+            <div className="grid grid-cols-2 gap-2 text-center text-xs">
+              <div className="p-2 bg-brand-green-500/5 rounded-xl border border-brand-green-500/10">
+                <p className="text-[8px] font-bold text-slate-400 uppercase">CO₂ Offsets</p>
+                <p className="text-xs font-black text-brand-green-600 mt-0.5">{selectedColleague.carbonSaved.toFixed(1)} kg</p>
+              </div>
+              <div className="p-2 bg-brand-blue-500/5 rounded-xl border border-brand-blue-500/10">
+                <p className="text-[8px] font-bold text-slate-400 uppercase">ESG Credits</p>
+                <p className="text-xs font-black text-brand-blue-600 mt-0.5">{selectedColleague.credits}</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setSelectedColleague(null)}
+              className="w-full py-2 rounded-xl bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-750 text-white text-xs font-bold cursor-pointer transition-all shadow-md text-center"
+            >
+              Close Profile
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -192,6 +192,15 @@ export default function Navbar() {
                     <button
                       onClick={() => {
                         setShowProfileMenu(false);
+                        window.dispatchEvent(new CustomEvent("open-past-rides"));
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-900/50 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      📜 Past Commutes
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
                         window.dispatchEvent(new CustomEvent("open-notification-preferences"));
                       }}
                       className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-900/50 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"

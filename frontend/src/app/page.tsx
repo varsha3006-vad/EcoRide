@@ -7,6 +7,7 @@ import Navbar from "@/components/Navbar";
 import InteractiveMap from "@/components/InteractiveMap";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import ChatModal from "@/components/ChatModal";
+import PastRidesModal from "@/components/PastRidesModal";
 import {
   Car,
   Search,
@@ -154,6 +155,15 @@ export default function HomePage() {
       );
     }
   }, [showPreferencesModal]);
+
+  // Past Commutes states
+  const [showPastRidesModal, setShowPastRidesModal] = useState(false);
+
+  useEffect(() => {
+    const handleOpen = () => setShowPastRidesModal(true);
+    window.addEventListener("open-past-rides", handleOpen);
+    return () => window.removeEventListener("open-past-rides", handleOpen);
+  }, []);
 
   useEffect(() => {
     const handleOpen = () => setShowPreferencesModal(true);
@@ -1796,6 +1806,11 @@ export default function HomePage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Past Commutes Modal */}
+      {showPastRidesModal && (
+        <PastRidesModal onClose={() => setShowPastRidesModal(false)} />
       )}
 
       {/* Bottom status signature */}
