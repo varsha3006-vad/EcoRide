@@ -147,6 +147,10 @@ export default function InteractiveMap({
         zoom,
         disableDefaultUI: true,
         zoomControl: true,
+        zoomControlOptions: {
+          position: google.maps.ControlPosition.RIGHT_CENTER
+        },
+        scrollwheel: true,
         gestureHandling: "greedy",
         styles: MAP_STYLES
       });
