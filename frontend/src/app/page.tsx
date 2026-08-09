@@ -811,8 +811,8 @@ export default function HomePage() {
                     </div>
 
                     <form onSubmit={handleHostSubmit} className="space-y-4">
-                      {/* Map Route preview inside wizard — key forces GPS remount every time wizard opens */}
-                      <InteractiveMap key={`offer-map-${Date.now()}`} pickup={pickup} destination={dest} onLocationDetected={setPickup} />
+                      {/* Map Route preview inside wizard */}
+                      <InteractiveMap key="offer-map" pickup={pickup} destination={dest} onLocationDetected={setPickup} />
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-30">
                         <div>
