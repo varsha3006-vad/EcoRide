@@ -412,11 +412,11 @@ export default function HomePage() {
                 className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-xs text-white outline-none focus:border-brand-green-500 transition-all cursor-pointer mb-2.5"
               >
                 <option value="" className="text-slate-500">-- Select Corporate Identity --</option>
-                <option value="rahul@company.com">Rahul Shah (Driver / Host)</option>
-                <option value="shail@company.com">Shail Kumar (Passenger)</option>
-                <option value="leo@company.com">Leo Davis (Passenger)</option>
-                <option value="naveen@company.com">Naveen Patel (Passenger)</option>
-                <option value="varsha@company.com">Varsha Nair (Passenger)</option>
+                <option value="alex@company.com">Alex Shah (Driver / Host)</option>
+                <option value="chris@company.com">Chris Kumar (Passenger)</option>
+                <option value="bob@company.com">Bob Davis (Passenger)</option>
+                <option value="dan@company.com">Dan Patel (Passenger)</option>
+                <option value="elle@company.com">Elle Nair (Passenger)</option>
               </select>
             </div>
 

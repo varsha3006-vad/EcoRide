@@ -209,9 +209,9 @@ const StateContext = createContext<StateContextType | undefined>(undefined);
 // Core Test Personas (The 5 real users replacing the dummy ones)
 const INITIAL_EMPLOYEES: Employee[] = [
   {
-    id: "e-rahul",
-    name: "Rahul",
-    email: "rahul@company.com",
+    id: "e-alex",
+    name: "Alex",
+    email: "alex@company.com",
     avatar: "👨‍💻",
     department: "Engineering",
     designation: "Principal Architect",
@@ -230,9 +230,9 @@ const INITIAL_EMPLOYEES: Employee[] = [
     gender: "Male"
   },
   {
-    id: "e-shail",
-    name: "Shail",
-    email: "shail@company.com",
+    id: "e-chris",
+    name: "Chris",
+    email: "chris@company.com",
     avatar: "👨‍🎨",
     department: "Product Design",
     designation: "Lead Designer",
@@ -251,9 +251,9 @@ const INITIAL_EMPLOYEES: Employee[] = [
     gender: "Male"
   },
   {
-    id: "e-leo",
-    name: "Leo",
-    email: "leo@company.com",
+    id: "e-bob",
+    name: "Bob",
+    email: "bob@company.com",
     avatar: "👨‍💼",
     department: "Operations",
     designation: "Ops Coordinator",
@@ -272,9 +272,9 @@ const INITIAL_EMPLOYEES: Employee[] = [
     gender: "Male"
   },
   {
-    id: "e-naveen",
-    name: "Naveen",
-    email: "naveen@company.com",
+    id: "e-dan",
+    name: "Dan",
+    email: "dan@company.com",
     avatar: "👨‍💻",
     department: "Product Management",
     designation: "Senior PM",
@@ -293,9 +293,9 @@ const INITIAL_EMPLOYEES: Employee[] = [
     gender: "Male"
   },
   {
-    id: "e-varsha",
-    name: "Varsha",
-    email: "varsha@company.com",
+    id: "e-elle",
+    name: "Elle",
+    email: "elle@company.com",
     avatar: "👩‍💼",
     department: "Human Resources",
     designation: "HR Director",
@@ -406,7 +406,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const logout = () => {
     setIsLoggedIn(false);
   };
-  const [currentUserId, setCurrentUserId] = useState<string>("e-rahul");
+  const [currentUserId, setCurrentUserId] = useState<string>("e-alex");
   const [role, setRoleState] = useState<"Employee" | "Admin">("Employee");
   const [rides, setRides] = useState<Ride[]>(INITIAL_RIDES);
   const [requests, setRequests] = useState<RideRequest[]>([]);
