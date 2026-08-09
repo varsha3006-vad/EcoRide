@@ -335,11 +335,11 @@ export default function InteractiveMap({
             // Top-down car silhouette: body + windshields + wheel arches
             // Points north (up). Rotation applied via updateRideLocation heading.
             path: "M 0 -22 C -5 -22 -7 -18 -7 -14 L -7 -10 C -9 -10 -9 -6 -7 -6 L -7 14 C -7 18 -5 22 0 22 C 5 22 7 18 7 14 L 7 -6 C 9 -6 9 -10 7 -10 L 7 -14 C 7 -18 5 -22 0 -22 Z M -6 -12 L 6 -12 L 6 -4 L -6 -4 Z M -6 4 L 6 4 L 6 12 L -6 12 Z",
-            fillColor: "#10b981",
+            fillColor: "#ef4444",
             fillOpacity: 1,
             strokeColor: "#ffffff",
             strokeWeight: 1.5,
-            scale: 0.85,
+            scale: 0.55,
             anchor: new google.maps.Point(0, 0),
             rotation: 0
           }
