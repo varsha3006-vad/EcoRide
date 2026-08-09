@@ -1404,11 +1404,11 @@ export default function HomePage() {
 
                                 {/* Open in Google Maps shortcut (available for all upcoming/active rides) */}
                                 <a
-                                  href={`https://www.google.com/maps/navigation/?api=1&destination=${encodeURIComponent(trip.destination)}${
+                                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(trip.destination)}${
                                     requests.filter(req => req.rideId === trip.id && req.status === "Accepted").map(req => req.pickup).length > 0
                                       ? `&waypoints=${encodeURIComponent(requests.filter(req => req.rideId === trip.id && req.status === "Accepted").map(req => req.pickup).join('|'))}`
                                       : ""
-                                  }&travelmode=driving`}
+                                  }&dir_action=navigate&travelmode=driving`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1.5"
@@ -1453,7 +1453,7 @@ export default function HomePage() {
                             {trip.status?.toLowerCase() === "started" && (() => {
                               const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
                               const passengerPickups = approvedReqs.map(req => req.pickup);
-                              const googleMapsUrl = `https://www.google.com/maps/navigation/?api=1&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&travelmode=driving`;
+                              const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&dir_action=navigate&travelmode=driving`;
 
                               return (
                                 <div className="mt-3 space-y-3">
