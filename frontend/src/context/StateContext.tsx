@@ -1,57 +1,76 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+let setSyncErrorExternal: ((err: string | null) => void) | null = null;
+
 const supabaseSync = {
   get: async (key: string) => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+    if (!supabase) return null;
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/ecoride_state?key=eq.${key}&select=value`, {
-        headers: {
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.length > 0 ? data[0].value : null;
-    } catch (e) {
-      console.warn("Supabase load error:", e);
+      const { data, error } = await supabase
+        .from("ecoride_state")
+        .select("value")
+        .eq("key", key)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("Supabase load error:", error);
+        if (setSyncErrorExternal) setSyncErrorExternal(`Load error (${key}): ${error.message} (${error.code})`);
+        return null;
+      }
+      if (setSyncErrorExternal) setSyncErrorExternal(null);
+      return data ? data.value : null;
+    } catch (e: any) {
+      console.warn("Supabase load exception:", e);
+      if (setSyncErrorExternal) setSyncErrorExternal(`Load exception (${key}): ${e.message}`);
       return null;
     }
   },
   set: async (key: string, value: any) => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+    if (!supabase) return;
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/ecoride_state`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-          "Prefer": "resolution=merge-duplicates"
-        },
-        body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
-      });
-    } catch (e) {
-      console.warn("Supabase save error:", e);
+      const { error } = await supabase
+        .from("ecoride_state")
+        .upsert(
+          { key, value, updated_at: new Date().toISOString() },
+          { onConflict: "key" }
+        );
+      if (error) {
+        console.warn("Supabase save error:", error);
+        if (setSyncErrorExternal) setSyncErrorExternal(`Save error (${key}): ${error.message} (${error.code})`);
+      } else {
+        if (setSyncErrorExternal) setSyncErrorExternal(null);
+      }
+    } catch (e: any) {
+      console.warn("Supabase save exception:", e);
+      if (setSyncErrorExternal) setSyncErrorExternal(`Save exception (${key}): ${e.message}`);
     }
   },
   delete: async (key: string) => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+    if (!supabase) return;
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/ecoride_state?key=eq.${key}`, {
-        method: "DELETE",
-        headers: {
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      });
-    } catch (e) {
-      console.warn("Supabase delete error:", e);
+      const { error } = await supabase
+        .from("ecoride_state")
+        .delete()
+        .eq("key", key);
+      if (error) {
+        console.warn("Supabase delete error:", error);
+        if (setSyncErrorExternal) setSyncErrorExternal(`Delete error (${key}): ${error.message} (${error.code})`);
+      } else {
+        if (setSyncErrorExternal) setSyncErrorExternal(null);
+      }
+    } catch (e: any) {
+      console.warn("Supabase delete exception:", e);
+      if (setSyncErrorExternal) setSyncErrorExternal(`Delete exception (${key}): ${e.message}`);
     }
   }
 };
@@ -89,6 +108,7 @@ export interface Ride {
   pickup: string;
   destination: string;
   departureTime: string;
+  rideDate?: string; // YYYY-MM-DD — which day the ride runs
   vehicleModel: string;
   vehiclePlate: string;
   vehicleType: "Electric" | "Hybrid" | "ICE (Gasoline)";
@@ -179,6 +199,7 @@ interface StateContextType {
   login: (email: string) => boolean;
   logout: () => void;
   isSupabaseConfigured: boolean;
+  syncError: string | null;
   updateRideLocation: (rideId: string, lat: number, lng: number) => void;
   updatePassengerLocation: (rideId: string, passengerId: string, lat: number, lng: number) => void;
 }
@@ -403,6 +424,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
 
   const [isLoaded, setIsLoaded] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSyncErrorExternal = setSyncError;
+  }, []);
 
   // 1. Initial Load (Supabase has priority, falls back to localStorage)
   useEffect(() => {
@@ -461,125 +487,95 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     ridesRef.current = rides;
   }, [rides]);
 
-  // 2. Real-time Supabase subscription (WebSocket) — scales to 10,000+ concurrent users
+  // 1.5. Local storage event listener — cross-tab synchronization in Sandbox Mode
   useEffect(() => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "ecoride_rides" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setRides(parsed);
+          ridesRef.current = parsed;
+        } catch (err) {}
+      }
+      if (e.key === "ecoride_requests" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setRequests(parsed);
+        } catch (err) {}
+      }
+    };
 
-    // Helper to apply incoming DB row to local state
-    const applyDbRow = async (key: string, value: any) => {
-      if (!key || value === undefined || value === null) return;
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
+  // 2. Real-time Supabase sync — WebSocket subscription (instant) + polling fallback
+  useEffect(() => {
+    if (!supabase) return;
+
+    // Helper to apply incoming row to local state
+    const applyRow = (key: string, value: any) => {
+      if (!key || !value) return;
       if (key === "rides") {
         setRides(value);
         ridesRef.current = value;
       } else if (key === "requests") {
-        setRequests(prev => {
-          const merged = [...value];
-          prev.forEach((localReq: RideRequest) => {
-            if (!merged.some((r: RideRequest) => r.id === localReq.id)) {
-              merged.push(localReq);
-            }
-          });
-          return merged;
-        });
+        setRequests(value);
       } else if (key.startsWith("messages_")) {
         const rId = key.replace("messages_", "");
         setMessages(prev => {
-          const otherMsgs = prev.filter(m => m.rideId !== rId);
+          const otherMsgs = prev.filter((m: ChatMessage) => m.rideId !== rId);
           return [...otherMsgs, ...value].sort((a: ChatMessage, b: ChatMessage) => a.id.localeCompare(b.id));
         });
       }
     };
 
-    // --- Supabase Realtime Smart Polling Engine ---
-    // Fetches only changed rows (via updated_at comparison) — drastically reduces bandwidth
-    // vs. naive full-replace polling. Scales via Supabase connection pooling.
-    // For true 10k WebSocket scale: upgrade to Supabase Pro + install @supabase/supabase-js.
-    let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
+    // --- Supabase Realtime WebSocket subscription ---
+    // Instant push: fires immediately when any row in ecoride_state changes
+    const channel = supabase
+      .channel("ecoride-realtime")
+      .on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "ecoride_state" },
+        (payload: any) => {
+          const row = payload.new;
+          if (row?.key && row?.value) applyRow(row.key, row.value);
+        }
+      )
+      .subscribe();
 
-    const connectRealtime = () => {
-      console.log("🔌 EcoRide Realtime: Smart change-detection polling engine active (2.5s)");
-    };
-
-    connectRealtime();
-
-    // Smart polling engine: fetches only changed rows using updated_at timestamps
-    let lastRidesUpdatedAt = "";
-    let lastRequestsUpdatedAt = "";
-
+    // --- Fallback polling ---
     const pollDatabase = async () => {
       try {
-        // Fetch rides — only if updated since last fetch
-        const ridesRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/ecoride_state?key=eq.rides&select=value,updated_at`,
-          { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }
-        );
-        if (ridesRes.ok) {
-          const ridesData = await ridesRes.json();
-          if (ridesData.length > 0) {
-            const { value, updated_at } = ridesData[0];
-            if (updated_at !== lastRidesUpdatedAt) {
-              lastRidesUpdatedAt = updated_at;
-              await applyDbRow("rides", value);
-            }
-          }
-        }
+        const ridesVal = await supabaseSync.get("rides");
+        if (ridesVal) applyRow("rides", ridesVal);
 
-        // Fetch requests — only if updated since last fetch
-        const reqRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/ecoride_state?key=eq.requests&select=value,updated_at`,
-          { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }
-        );
-        if (reqRes.ok) {
-          const reqData = await reqRes.json();
-          if (reqData.length > 0) {
-            const { value, updated_at } = reqData[0];
-            if (updated_at !== lastRequestsUpdatedAt) {
-              lastRequestsUpdatedAt = updated_at;
-              await applyDbRow("requests", value);
-            }
-          }
-        }
+        const reqVal = await supabaseSync.get("requests");
+        if (reqVal) applyRow("requests", reqVal);
 
-        // Fetch messages for active rides
+        // Messages for active rides
         const activeRides = ridesRef.current;
         const myActiveRideIds = activeRides
           .filter((r: Ride) => r.hostId === currentUserIdRef.current || r.passengers.includes(currentUserIdRef.current))
           .filter((r: Ride) => r.status !== "Completed" && r.status !== "Cancelled")
           .map((r: Ride) => r.id);
-
         for (const rId of myActiveRideIds) {
-          const msgRes = await fetch(
-            `${SUPABASE_URL}/rest/v1/ecoride_state?key=eq.messages_${rId}&select=value`,
-            { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }
-          );
-          if (msgRes.ok) {
-            const msgData = await msgRes.json();
-            if (msgData.length > 0) {
-              await applyDbRow(`messages_${rId}`, msgData[0].value);
-            }
-          }
+          const msgVal = await supabaseSync.get(`messages_${rId}`);
+          if (msgVal) applyRow(`messages_${rId}`, msgVal);
         }
-
-        // Garbage-collect local messages for finished rides
-        const finishedRideIds = activeRides
-          .filter((r: Ride) => r.status === "Completed" || r.status === "Cancelled")
-          .map((r: Ride) => r.id);
-        if (finishedRideIds.length > 0) {
-          setMessages(prev => prev.filter(m => !finishedRideIds.includes(m.rideId)));
-        }
-
       } catch (e) {
         console.warn("Poll error:", e);
       }
     };
 
-    // Poll every 2.5 seconds — only processes changed rows (updated_at comparison)
-    const interval = setInterval(pollDatabase, 2500);
+    // Poll every 2s regardless — ensures data stays in sync even without Realtime
+    const interval = setInterval(pollDatabase, 2000);
+    // Also run immediately on mount
+    pollDatabase();
 
     return () => {
+      supabase.removeChannel(channel);
       clearInterval(interval);
-      if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
     };
   }, []);
 
@@ -735,7 +731,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     playNotificationSound();
   };
 
-  // Create Ride
+  // Create Ride — write OUTSIDE setState callback to avoid race condition
   const createRide = (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers"> & { womenOnly?: boolean }) => {
     const newRide: Ride = {
       ...rideData,
@@ -749,16 +745,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       passengers: []
     };
 
-    setRides(prev => {
-      const updated = [newRide, ...prev];
-      if (typeof window !== "undefined") {
-        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
-      }
-      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-        supabaseSync.set("rides", updated);
-      }
-      return updated;
-    });
+    // Use ref for current rides to avoid stale closure
+    const updatedRides = [newRide, ...ridesRef.current];
+    setRides(updatedRides);
+    ridesRef.current = updatedRides;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_rides", JSON.stringify(updatedRides));
+    }
+    // Write to Supabase OUTSIDE setState — no race condition
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("rides", updatedRides);
+    }
     
     // User earns credit for creating a ride
     setEmployees(prev => prev.map(emp => {
@@ -780,7 +778,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // Request to Join a Ride
+  // Request to Join a Ride — write OUTSIDE setState callback
   const requestJoinRide = (rideId: string, pickup: string) => {
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
@@ -798,16 +796,16 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: "Just now"
     };
 
-    setRequests(prev => {
-      const updated = [newRequest, ...prev];
-      if (typeof window !== "undefined") {
-        localStorage.setItem("ecoride_requests", JSON.stringify(updated));
-      }
-      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-        supabaseSync.set("requests", updated);
-      }
-      return updated;
-    });
+    const updatedRequests = [newRequest, ...requests];
+    setRequests(updatedRequests);
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_requests", JSON.stringify(updatedRequests));
+    }
+    // Write to Supabase OUTSIDE setState — no race condition
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("requests", updatedRequests);
+    }
   };
 
   // Respond to join request (Accept / Reject)
@@ -1236,6 +1234,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         login,
         logout,
         isSupabaseConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY),
+        syncError,
         updateRideLocation,
         updatePassengerLocation
       }}

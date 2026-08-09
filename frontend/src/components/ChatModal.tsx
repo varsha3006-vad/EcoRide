@@ -145,6 +145,25 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
           </button>
         </div>
 
+        {/* Quick Messages Bar */}
+        <div className="px-4 py-1.5 border-t bg-slate-50/50 dark:bg-slate-900/10 flex gap-1.5 overflow-x-auto scrollbar-none scroll-smooth">
+          {[
+            "I am on my way 🚗",
+            "At the pickup location 📍",
+            "Running 5 mins late ⏳",
+            "Reached the office! 🏢"
+          ].map((msgText) => (
+            <button
+              key={msgText}
+              type="button"
+              onClick={() => sendMessage(rideId, msgText)}
+              className="flex-shrink-0 px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-[9px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-250/40 dark:border-slate-800/60 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+            >
+              {msgText}
+            </button>
+          ))}
+        </div>
+
         {/* Input Form */}
         <form onSubmit={handleSend} className="p-3 border-t bg-white dark:bg-slate-950 flex items-center gap-2">
           <input

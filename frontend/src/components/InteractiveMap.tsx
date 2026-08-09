@@ -40,6 +40,7 @@ export default function InteractiveMap({
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
   const [coordinatesPath, setCoordinatesPath] = useState<any[]>([]);
   const [mapError, setMapError] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [currentCoords, setCurrentCoords] = useState<{lat: number, lng: number} | null>(null);
   const [gpsMode, setGpsMode] = useState<"Simulated" | "Live GPS">("Live GPS");
 
@@ -108,63 +109,109 @@ export default function InteractiveMap({
     );
   }, [googleMapsLoaded, isDriving, mapError, pickup, onLocationDetected]);
 
-  // 1.8 Pan map to current coordinates and add blue marker when loaded
-  useEffect(() => {
-    if (!googleMapsLoaded || !googleMapInstanceRef.current || !currentCoords) return;
+  // 1.8 — removed: centering is now done inside map init (GPS-first)
 
-    try {
-      const google = (window as any).google;
-      googleMapInstanceRef.current.setCenter(currentCoords);
-      googleMapInstanceRef.current.setZoom(14);
-
-      new google.maps.Marker({
-        position: currentCoords,
-        map: googleMapInstanceRef.current,
-        title: "My Current Location",
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          fillColor: "#4285F4",
-          fillOpacity: 1,
-          strokeColor: "#ffffff",
-          strokeWeight: 2.5,
-          scale: 7
-        }
-      });
-    } catch (e) {
-      console.warn("Current location marker placement failed:", e);
-    }
-  }, [googleMapsLoaded, currentCoords]);
-
-  // 2. Initialize Google Map and Route Renderer
+  // 2. Initialize Google Map and Route Renderer — GPS-first to avoid USA flash
   useEffect(() => {
     if (!googleMapsLoaded || !mapRef.current || mapError) return;
 
-    try {
-      const google = (window as any).google;
-      if (!google || !google.maps) return;
+    const google = (window as any).google;
+    if (!google || !google.maps) return;
 
-      // Define default center coordinates
-      const officeCoords = { lat: 37.7749, lng: -122.4194 }; // HQ Office
+    const MAP_STYLES = [
+      { elementType: "geometry", stylers: [{ color: "#1e293b" }] },
+      { elementType: "labels.text.stroke", stylers: [{ color: "#0f172a" }] },
+      { elementType: "labels.text.fill", stylers: [{ color: "#94a3b8" }] },
+      { featureType: "road", elementType: "geometry", stylers: [{ color: "#334155" }] },
+      { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1e293b" }] },
+      { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#475569" }] },
+      { featureType: "water", elementType: "geometry", stylers: [{ color: "#0f172a" }] }
+    ];
 
-      // Create Map
+    const createMap = (center: { lat: number; lng: number }, zoom: number, isUserLocation: boolean) => {
+      if (!mapRef.current) return;
       const map = new google.maps.Map(mapRef.current, {
-        center: officeCoords,
-        zoom: 13,
+        center,
+        zoom,
         disableDefaultUI: true,
         zoomControl: true,
-        // Premium Dark Theme styling
-        styles: [
-          { elementType: "geometry", stylers: [{ color: "#1e293b" }] },
-          { elementType: "labels.text.stroke", stylers: [{ color: "#0f172a" }] },
-          { elementType: "labels.text.fill", stylers: [{ color: "#94a3b8" }] },
-          { featureType: "road", elementType: "geometry", stylers: [{ color: "#334155" }] },
-          { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1e293b" }] },
-          { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#475569" }] },
-          { featureType: "water", elementType: "geometry", stylers: [{ color: "#0f172a" }] }
-        ]
+        styles: MAP_STYLES
       });
-
       googleMapInstanceRef.current = map;
+
+      // Fade map in only after tiles are fully painted — eliminates the blank flash
+      google.maps.event.addListenerOnce(map, 'tilesloaded', () => setMapReady(true));
+
+      // Place a blue dot for the user's real current position
+      if (isUserLocation) {
+        setCurrentCoords(center);
+        new google.maps.Marker({
+          position: center,
+          map,
+          title: "My Current Location",
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: "#4285F4",
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2.5,
+            scale: 7
+          }
+        });
+        // Reverse-geocode for onLocationDetected callback
+        if (onLocationDetected && !pickup) {
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ location: center }, (results: any, status: any) => {
+            if (status === "OK" && results[0] && onLocationDetected) {
+              onLocationDetected(results[0].formatted_address);
+            }
+          });
+        }
+      }
+      return map;
+    };
+
+    try {
+      // --- GPS-FIRST: get position before creating the map ---
+      if (navigator.geolocation && !isDriving) {
+        // Race GPS vs 3s timeout
+        const gpsPromise = new Promise<{ lat: number; lng: number } | null>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            () => resolve(null),
+            { timeout: 3000, maximumAge: 30000, enableHighAccuracy: true }
+          );
+        });
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+
+        Promise.race([gpsPromise, timeoutPromise]).then((coords) => {
+          if (coords) {
+            createMap(coords, 15, true);
+          } else {
+            // GPS denied or timed out — use a neutral world view, no USA snap
+            createMap({ lat: 20.5937, lng: 78.9629 }, 5, false); // India centroid
+          }
+          // Continue with directions/routes after map is ready
+          initRoutes();
+        });
+      } else {
+        // Driving mode or no geolocation — create map immediately (pickup is known)
+        createMap({ lat: 20.5937, lng: 78.9629 }, 13, false);
+        initRoutes();
+      }
+    } catch (e) {
+      console.warn("Map init error:", e);
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleMapsLoaded, mapError]);
+
+  // Extracted route-drawing logic (called after map is created)
+  const initRoutes = () => {
+    if (!googleMapInstanceRef.current || !mapRef.current) return;
+    const google = (window as any).google;
+    if (!google || !google.maps) return;
+    const map = googleMapInstanceRef.current;
 
       // Initialize Directions Renderer
       const directionsRenderer = new google.maps.DirectionsRenderer({
@@ -207,18 +254,20 @@ export default function InteractiveMap({
           }
         });
 
-        // Destination office marker
+        // Destination — flag post icon
         new google.maps.Marker({
           position: endLatLng,
           map: mapInstance,
-          title: "Corporate HQ",
+          title: "Destination",
           icon: {
-            path: google.maps.SymbolPath.CIRCLE,
+            // Flag with pole: pole is vertical line, flag is rectangle on top-right
+            path: "M -1 12 L -1 -10 L 10 -10 L 10 -2 L -1 -2",
             fillColor: "#0ea5e9",
             fillOpacity: 1,
             strokeColor: "#ffffff",
-            strokeWeight: 2,
-            scale: 8
+            strokeWeight: 1.5,
+            scale: 1.3,
+            anchor: new google.maps.Point(-1, 12)
           }
         });
 
@@ -253,18 +302,22 @@ export default function InteractiveMap({
           });
         }
 
-        // Car custom tracking marker
+        // Car custom tracking marker — top-down car silhouette
         const carMarker = new google.maps.Marker({
           position: startLatLng,
           map: mapInstance,
           title: "Carpool vehicle",
           icon: {
-            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 5,
-            fillColor: "#ffffff",
+            // Top-down car silhouette: body + windshields + wheel arches
+            // Points north (up). Rotation applied via updateRideLocation heading.
+            path: "M 0 -22 C -5 -22 -7 -18 -7 -14 L -7 -10 C -9 -10 -9 -6 -7 -6 L -7 14 C -7 18 -5 22 0 22 C 5 22 7 18 7 14 L 7 -6 C 9 -6 9 -10 7 -10 L 7 -14 C 7 -18 5 -22 0 -22 Z M -6 -12 L 6 -12 L 6 -4 L -6 -4 Z M -6 4 L 6 4 L 6 12 L -6 12 Z",
+            fillColor: "#10b981",
             fillOpacity: 1,
-            strokeColor: "#10b981",
-            strokeWeight: 3
+            strokeColor: "#ffffff",
+            strokeWeight: 1.5,
+            scale: 0.85,
+            anchor: new google.maps.Point(0, 0),
+            rotation: 0
           }
         });
         carMarkerRef.current = carMarker;
@@ -280,18 +333,20 @@ export default function InteractiveMap({
           if (loc) {
             waypointLatLngs.push(loc);
             
-            // Draw marker for waypoint
+            // Draw triangle milestone marker for waypoint
             new google.maps.Marker({
               position: loc,
               map: mapInstance,
               title: "Passenger Pickup",
               icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                fillColor: "#3b82f6",
+                // Upward-pointing triangle (milestone)
+                path: "M 0 -11 L 10 7 L -10 7 Z",
+                fillColor: "#6366f1",
                 fillOpacity: 1,
                 strokeColor: "#ffffff",
-                strokeWeight: 2,
-                scale: 7
+                strokeWeight: 1.5,
+                scale: 1.1,
+                anchor: new google.maps.Point(0, 0)
               }
             });
           }
@@ -344,11 +399,14 @@ export default function InteractiveMap({
         }
       };
 
+      // Don't draw any route if pickup/destination aren't set yet — prevents USA pan
+      if (!pickup || !destination) return;
+
       // Get Route Directions from Google
       const directionsService = new google.maps.DirectionsService();
-      
-      const startLocation = pickup || "San Francisco Marina District, CA";
-      const endLocation = destination || "San Francisco City Hall, CA";
+
+      const startLocation = pickup;
+      const endLocation = destination;
 
       const geocoder = new google.maps.Geocoder();
 
@@ -411,19 +469,21 @@ export default function InteractiveMap({
 
                       placeCustomMarkers(startLatLng, endLatLng, map);
 
-                      // Draw pin markers for all passenger waypoint stops on the map!
+                      // Draw triangle milestone markers for all passenger waypoint stops on the map!
                       legs.slice(0, -1).forEach((leg: any, idx: number) => {
                         new google.maps.Marker({
                           position: leg.end_location,
                           map: map,
                           title: `Passenger Pickup #${idx + 1}`,
                           icon: {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            fillColor: "#3b82f6", // Royal Blue
+                            // Upward-pointing triangle (milestone)
+                            path: "M 0 -11 L 10 7 L -10 7 Z",
+                            fillColor: "#6366f1",
                             fillOpacity: 1,
                             strokeColor: "#ffffff",
-                            strokeWeight: 2,
-                            scale: 7
+                            strokeWeight: 1.5,
+                            scale: 1.1,
+                            anchor: new google.maps.Point(0, 0)
                           }
                         });
                       });
@@ -435,19 +495,19 @@ export default function InteractiveMap({
                 );
               }
             } else {
-              new google.maps.Marker({ position: officeCoords, map: map });
+              new google.maps.Marker({ position: { lat: 20.5937, lng: 78.9629 }, map: map });
             }
           });
         } else {
-          new google.maps.Marker({ position: officeCoords, map: map });
+          new google.maps.Marker({ position: { lat: 20.5937, lng: 78.9629 }, map: map });
         }
       });
 
-    } catch (e) {
-      console.error("Google maps setup error:", e);
-      setMapError(true);
-    }
-  }, [googleMapsLoaded, mapError, pickup, destination, passengerPickup]);
+  };
+
+  // Trigger initRoutes whenever pickup/destination/passengerPickup changes (after map is ready)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { initRoutes(); }, [googleMapsLoaded, pickup, destination, passengerPickup, waypoints]);
 
   // 3. Real-time GPS Car Tracking / Simulation (Only active for the Host Driver)
   useEffect(() => {
@@ -468,9 +528,14 @@ export default function InteractiveMap({
           const lng = position.coords.longitude;
           const currentLatLng = new google.maps.LatLng(lat, lng);
 
-          // Move car marker to actual live GPS position
+          // Move car marker to actual live GPS position and rotate to heading
           if (carMarkerRef.current) {
             carMarkerRef.current.setPosition(currentLatLng);
+            const heading = position.coords.heading;
+            if (heading !== null && !isNaN(heading)) {
+              const currentIcon = carMarkerRef.current.getIcon();
+              carMarkerRef.current.setIcon({ ...currentIcon, rotation: heading });
+            }
           }
           // Pan map to center on driver
           if (googleMapInstanceRef.current) {
@@ -614,18 +679,20 @@ export default function InteractiveMap({
         // Move existing marker
         passengerMarkersRef.current[pId].setPosition(latLng);
       } else {
-        // Create new orange passenger marker
+        // Create new human-silhouette passenger marker
         passengerMarkersRef.current[pId] = new google.maps.Marker({
           position: latLng,
           map: googleMapInstanceRef.current,
           title: `Passenger live location`,
           icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: "#f97316",   // Orange for passengers
+            // Human/person silhouette: head circle + body trapezoid
+            path: "M 0 -13 C -3.5 -13 -3.5 -8 0 -8 C 3.5 -8 3.5 -13 0 -13 Z M -5 -7 C -8 -7 -8 2 -5 2 L -2 2 L -2 10 L 2 10 L 2 2 L 5 2 C 8 2 8 -7 5 -7 Z",
+            fillColor: "#f97316",
             fillOpacity: 1,
             strokeColor: "#ffffff",
-            strokeWeight: 2.5,
-            scale: 9
+            strokeWeight: 1,
+            scale: 1.2,
+            anchor: new google.maps.Point(0, 10)
           }
         });
       }
@@ -636,12 +703,23 @@ export default function InteractiveMap({
     <div className="relative w-full h-[320px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-inner">
       
       {googleMapsLoaded && !mapError ? (
-        /* Real Google Map rendering layout */
-        <div ref={mapRef} className="w-full h-full absolute inset-0 z-0" />
+        /* Real Google Map — hidden until tiles load, then fades in smoothly */
+        <div
+          ref={mapRef}
+          className="w-full h-full absolute inset-0 z-0 transition-opacity duration-500"
+          style={{ opacity: mapReady ? 1 : 0 }}
+        />
       ) : (
-        /* Static backup layout if API fails */
+        /* Loading / error fallback */
         <div className="absolute inset-0 w-full h-full z-0 bg-slate-950 flex items-center justify-center text-slate-500 text-xs">
           Loading Google Maps Engine...
+        </div>
+      )}
+      {/* Show spinner while map tiles are loading */}
+      {googleMapsLoaded && !mapReady && !mapError && (
+        <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center bg-slate-900 gap-2">
+          <div className="h-8 w-8 rounded-full border-2 border-brand-green-500 border-t-transparent animate-spin" />
+          <span className="text-[10px] text-slate-400 font-medium">Detecting your location...</span>
         </div>
       )}
 

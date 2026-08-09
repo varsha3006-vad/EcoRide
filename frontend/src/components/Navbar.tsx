@@ -5,7 +5,7 @@ import { useAppState } from "@/context/StateContext";
 import { Bell, Shield, User, Leaf, Award, ChevronDown, Check, Trash } from "lucide-react";
 
 export default function Navbar() {
-  const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured } = useAppState();
+  const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured, syncError } = useAppState();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -16,23 +16,34 @@ export default function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         
         {/* Left: Brand Identity */}
-        <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-green-600 to-brand-blue-500 shadow-md animate-pulse-slow">
-            <Leaf className="h-5 w-5 text-white" />
+        <div className="flex items-center gap-3">
+          {/* L&T Technology Services Logo */}
+          <div className="flex items-center bg-white/70 dark:bg-white/90 p-1 rounded-lg shadow-sm border border-slate-100">
+            <img 
+              src="/logo.png" 
+              alt="L&T Technology Services" 
+              className="h-7 w-auto object-contain" 
+            />
           </div>
+
+          {/* Vertical Divider */}
+          <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800" />
+
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-1 sm:text-xl">
-              EcoRide <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-green-100 text-brand-green-700 dark:bg-brand-green-950/30 dark:text-brand-green-400 border border-brand-green-500/20">Enterprise</span>
+            <h1 className="text-sm font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-1 sm:text-base">
+              EcoRide <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-brand-green-100 text-brand-green-700 dark:bg-brand-green-950/30 dark:text-brand-green-400 border border-brand-green-500/20">Enterprise</span>
             </h1>
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Sustainable Corporate Carpooling</p>
+              <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Sustainable Corporate Carpooling</p>
               <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.2 text-[8px] font-bold ${
-                isSupabaseConfigured 
-                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" 
-                  : "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${isSupabaseConfigured ? "bg-emerald-500" : "bg-amber-500"}`} />
-                {isSupabaseConfigured ? "Sync Live" : "Sandbox (Local)"}
+                syncError
+                  ? "bg-rose-500/10 text-rose-500 border border-rose-500/20 animate-pulse"
+                  : isSupabaseConfigured 
+                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" 
+                    : "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+              }`} title={syncError || ""}>
+                <span className={`h-1.5 w-1.5 rounded-full ${syncError ? "bg-rose-500" : isSupabaseConfigured ? "bg-emerald-500" : "bg-amber-500"}`} />
+                {syncError ? `Sync Error: ${syncError.substring(0, 30)}...` : isSupabaseConfigured ? "Sync Live" : "Sandbox (Local)"}
               </span>
             </div>
           </div>
