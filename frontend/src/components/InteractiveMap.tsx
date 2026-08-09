@@ -47,6 +47,15 @@ export default function InteractiveMap({
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyBfIUY_3TlArLC4BRriogce52erVVY80EI";
   const hasDetectedRef = useRef(false);
 
+  const [isAutoCentering, setIsAutoCentering] = useState(true);
+  const programmaticActionRef = useRef(false);
+
+  useEffect(() => {
+    if (isDriving) {
+      setIsAutoCentering(true);
+    }
+  }, [isDriving]);
+
   // 1. Load Google Maps API Script
   useEffect(() => {
     if ((window as any).google && (window as any).google.maps) {
@@ -158,6 +167,16 @@ export default function InteractiveMap({
 
       // Fade map in only after tiles are fully painted — eliminates the blank flash
       google.maps.event.addListenerOnce(map, 'tilesloaded', () => setMapReady(true));
+
+      // User interaction listener to release auto-centering lock
+      map.addListener("dragstart", () => {
+        setIsAutoCentering(false);
+      });
+      map.addListener("zoom_changed", () => {
+        if (!programmaticActionRef.current) {
+          setIsAutoCentering(false);
+        }
+      });
 
       // Place a blue dot for the user's real current position
       if (isUserLocation) {
@@ -569,11 +588,15 @@ export default function InteractiveMap({
             }
           }
           // Pan map to center on driver and enforce drive zoom
-          if (googleMapInstanceRef.current) {
+          if (isAutoCentering && googleMapInstanceRef.current) {
+            programmaticActionRef.current = true;
             googleMapInstanceRef.current.panTo(currentLatLng);
             if (googleMapInstanceRef.current.getZoom() !== 17) {
               googleMapInstanceRef.current.setZoom(17);
             }
+            setTimeout(() => {
+              programmaticActionRef.current = false;
+            }, 100);
           }
 
           // Push new coordinates to shared Supabase state
@@ -661,11 +684,15 @@ export default function InteractiveMap({
           });
         }
 
-        if (googleMapInstanceRef.current) {
+        if (isAutoCentering && googleMapInstanceRef.current) {
+          programmaticActionRef.current = true;
           googleMapInstanceRef.current.panTo(newPos);
           if (googleMapInstanceRef.current.getZoom() !== 17) {
             googleMapInstanceRef.current.setZoom(17);
           }
+          setTimeout(() => {
+            programmaticActionRef.current = false;
+          }, 100);
         }
 
         // Push new simulated coordinates to shared Supabase state
@@ -678,7 +705,7 @@ export default function InteractiveMap({
 
       return () => clearInterval(interval);
     }
-  }, [isDriving, googleMapsLoaded, gpsMode, coordinatesPath, waypoints, destination, mapError, isHost, rideId]);
+  }, [isDriving, googleMapsLoaded, gpsMode, coordinatesPath, waypoints, destination, mapError, isHost, rideId, isAutoCentering]);
 
   // 4. Passenger-side Real-time Tracking (Polls host coordinates from Supabase state)
   useEffect(() => {
@@ -695,15 +722,19 @@ export default function InteractiveMap({
           carMarkerRef.current.setPosition(currentLatLng);
         }
         // Center map on driver and zoom in
-        if (googleMapInstanceRef.current) {
+        if (isAutoCentering && googleMapInstanceRef.current) {
+          programmaticActionRef.current = true;
           googleMapInstanceRef.current.panTo(currentLatLng);
           if (googleMapInstanceRef.current.getZoom() !== 17) {
             googleMapInstanceRef.current.setZoom(17);
           }
+          setTimeout(() => {
+            programmaticActionRef.current = false;
+          }, 100);
         }
       }
     }
-  }, [rides, googleMapsLoaded, isHost, rideId, mapError, isDriving]);
+  }, [rides, googleMapsLoaded, isHost, rideId, mapError, isDriving, isAutoCentering]);
 
   // 4.5 Passenger GPS Broadcasting — passengers broadcast live location to host's map
   useEffect(() => {
@@ -789,6 +820,29 @@ export default function InteractiveMap({
       </div>
 
       {/* Simulation Toggle Controls Removed as Real-time GPS is active */}
+
+      {/* Floating Recenter Button */}
+      {!isAutoCentering && isDriving && (
+        <button
+          onClick={() => {
+            setIsAutoCentering(true);
+            if (googleMapInstanceRef.current && carMarkerRef.current) {
+              const pos = carMarkerRef.current.getPosition();
+              if (pos) {
+                programmaticActionRef.current = true;
+                googleMapInstanceRef.current.panTo(pos);
+                googleMapInstanceRef.current.setZoom(17);
+                setTimeout(() => {
+                  programmaticActionRef.current = false;
+                }, 100);
+              }
+            }
+          }}
+          className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-brand-green-600 hover:bg-brand-green-700 text-white font-extrabold text-[10px] tracking-wider uppercase px-4 py-2 rounded-full shadow-lg border border-brand-green-500 hover:scale-105 transition-all cursor-pointer"
+        >
+          🎯 Recenter
+        </button>
+      )}
 
       {/* Bottom status bar */}
       <div className="mt-auto w-full bg-slate-950/90 backdrop-blur-md border-t border-slate-800/80 p-3 flex items-center justify-between z-10">
