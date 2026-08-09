@@ -76,6 +76,7 @@ export default function HomePage() {
     role,
     rides,
     requests,
+    employees,
     badges,
     leaderboard,
     createRide,
@@ -1434,7 +1435,28 @@ export default function HomePage() {
                                     <span>• Status: <strong className="text-brand-green-600">{trip.status}</strong></span>
                                     <span>• Role: {isHost ? "Host" : "Passenger"}</span>
                                     <span>• Vehicle: {trip.vehicleModel} ({trip.vehicleType})</span>
+                                    <span>• Seats: <strong>{trip.seatsAvailable} of {trip.seatsTotal} vacant</strong></span>
                                   </div>
+
+                                  {trip.passengers.length > 0 && (() => {
+                                    const passengerDetails = employees.filter((e: any) => trip.passengers.includes(e.id));
+                                    return (
+                                      <div className="mt-2 flex items-center flex-wrap gap-1.5 bg-slate-100/50 dark:bg-slate-900/40 px-2.5 py-1.5 rounded-xl border border-slate-200/30 dark:border-slate-800/20 w-fit animate-fade-in">
+                                        <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider">Passengers:</span>
+                                        <div className="flex items-center gap-2">
+                                          {passengerDetails.map((p: any) => (
+                                            <div key={p.id} className="flex items-center gap-1 text-[10px] font-bold text-slate-750 dark:text-slate-350">
+                                              <span>{p.avatar}</span>
+                                              <span>{p.name}</span>
+                                              {trip.boardedPassengers?.includes(p.id) && (
+                                                <span className="text-[8px] text-emerald-500 font-black ml-0.5" title="Boarded">✓</span>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 
