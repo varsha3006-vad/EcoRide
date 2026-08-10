@@ -1178,11 +1178,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabaseSync.set("requests", updatedRequests);
     }
 
-    // Trigger push notification to host
+    // Trigger push notification to host (Privacy Masked)
     triggerPushNotification(
       targetRide.hostId,
-      `Ride Join Request from ${currentUser.name} ✉️`,
-      `${currentUser.name} wants to join your ride to ${targetRide.destination}.`
+      `New Ride Join Request ✉️`,
+      `A colleague wants to join your ride to ${targetRide.destination}.`
     );
 
     logSecurityEvent("RIDE_JOIN_REQUEST", "INFO", `Requested to join ride ID: ${rideId} at pickup: ${pickup}`);
@@ -1298,18 +1298,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabaseSync.set("rides", updatedRides);
     }
 
-    // Trigger push notification to passenger
+    // Trigger push notification to passenger (Privacy Masked)
     if (accept) {
       triggerPushNotification(
         reqToRespond.requesterId,
         "Ride Request Approved! 🎉",
-        `${targetRide.hostName} accepted your ride request. Ready to commute!`
+        `Your ride request to ${targetRide.destination} was accepted. Ready to commute!`
       );
     } else {
       triggerPushNotification(
         reqToRespond.requesterId,
         "Ride Request Declined ❌",
-        `${targetRide.hostName} declined your join request.`
+        `Your ride request to ${targetRide.destination} was declined.`
       );
     }
 

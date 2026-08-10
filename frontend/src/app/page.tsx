@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useAppState } from "@/context/StateContext";
+import { useAppState, Ride, RideRequest } from "@/context/StateContext";
 import Navbar from "@/components/Navbar";
 import InteractiveMap from "@/components/InteractiveMap";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
@@ -68,6 +68,46 @@ const getLocalDateString = () => {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
+const getMaskedHostName = (ride: Ride, currentUserId: string) => {
+  if (ride.hostId === currentUserId || ride.status === "Started" || ride.status === "Completed") {
+    return ride.hostName;
+  }
+  return "Verified Colleague";
+};
+
+const getMaskedHostAvatar = (ride: Ride, currentUserId: string) => {
+  if (ride.hostId === currentUserId || ride.status === "Started" || ride.status === "Completed") {
+    return ride.hostAvatar;
+  }
+  return "🚗";
+};
+
+const getMaskedRequesterName = (req: RideRequest, currentUserId: string) => {
+  if (req.requesterId === currentUserId) {
+    return req.requesterName;
+  }
+  return "Colleague";
+};
+
+const getMaskedRequesterAvatar = (req: RideRequest, currentUserId: string) => {
+  if (req.requesterId === currentUserId) {
+    return req.requesterAvatar;
+  }
+  return "👤";
 };
 
 interface PassengerPinVerifyFormProps {
@@ -1323,10 +1363,10 @@ export default function HomePage() {
                           return (
                             <div key={ride.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/40 flex items-center justify-between gap-4 animate-fade-in">
                               <div className="flex items-center gap-3">
-                                <span className="text-2xl">{ride.hostAvatar}</span>
+                                <span className="text-2xl">{getMaskedHostAvatar(ride, currentUser.id)}</span>
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1">
-                                    {ride.hostName} <span className="text-[9px] text-slate-500 font-normal">({ride.hostDept})</span>
+                                    {getMaskedHostName(ride, currentUser.id)} <span className="text-[9px] text-slate-500 font-normal">({ride.hostDept})</span>
                                   </h4>
                                   <p className="text-[10px] text-slate-500 font-semibold">{ride.pickup} → {ride.destination}</p>
                                   <div className="flex items-center gap-2 mt-1">
@@ -1516,10 +1556,10 @@ export default function HomePage() {
                           return (
                             <div key={req.id} className="py-2.5 flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2">
-                                <span className="text-lg">{req.requesterAvatar}</span>
+                                <span className="text-lg">{getMaskedRequesterAvatar(req, currentUser.id)}</span>
                                 <div>
                                   <h5 className="text-[11px] font-bold text-slate-800 dark:text-white">
-                                    {req.requesterName} <span className="text-[9px] text-slate-500 font-normal">({req.requesterDept})</span>
+                                    {getMaskedRequesterName(req, currentUser.id)} <span className="text-[9px] text-slate-500 font-normal">({req.requesterDept})</span>
                                   </h5>
                                   <p className="text-[9px] text-slate-500">
                                     Wants to join: {ride?.pickup} → {ride?.destination}
@@ -1582,13 +1622,16 @@ export default function HomePage() {
                                       <div className="mt-2 flex flex-col gap-2 bg-slate-100/50 dark:bg-slate-900/40 px-2.5 py-2 rounded-xl border border-slate-200/30 dark:border-slate-800/20 w-full max-w-sm animate-fade-in">
                                         <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider block">Passengers & Boarding:</span>
                                         <div className="space-y-1.5">
-                                          {passengerDetails.map((p: any) => {
+                                          {passengerDetails.map((p: any, idx: number) => {
                                             const hasBoarded = trip.boardedPassengers?.includes(p.id);
+                                            const isSelf = p.id === currentUser.id;
+                                            const displayName = hasBoarded || isSelf ? p.name : `Colleague ${idx + 1}`;
+                                            const displayAvatar = hasBoarded || isSelf ? p.avatar : "👤";
                                             return (
                                               <div key={p.id} className="flex items-center justify-between gap-3 p-1.5 bg-white/40 dark:bg-slate-950/20 rounded-lg border border-slate-200/20 dark:border-slate-800/20">
                                                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-750 dark:text-slate-300">
-                                                  <span>{p.avatar}</span>
-                                                  <span>{p.name}</span>
+                                                  <span>{displayAvatar}</span>
+                                                  <span>{displayName}</span>
                                                   {hasBoarded && (
                                                     <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 text-[8px] font-extrabold">
                                                       ✓ Boarded
@@ -1643,18 +1686,54 @@ export default function HomePage() {
 
                                 {/* Open in Google Maps shortcut (available for all upcoming/active rides) */}
                                 <a
-                                  href={`https://www.google.com/maps/dir/?api=1${
-                                    trip.driverLat && trip.driverLng ? `&origin=${trip.driverLat},${trip.driverLng}` : ""
-                                  }&destination=${encodeURIComponent(trip.destination)}${
-                                    requests.filter(req => req.rideId === trip.id && req.status === "Accepted").map(req => req.pickup).length > 0
-                                      ? `&waypoints=${encodeURIComponent(requests.filter(req => req.rideId === trip.id && req.status === "Accepted").map(req => req.pickup).join('|'))}`
-                                      : ""
-                                  }&dir_action=navigate&travelmode=driving`}
+                                  href={(() => {
+                                    const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
+                                    const startLat = trip.driverLat;
+                                    const startLng = trip.driverLng;
+                                    
+                                    // Nearest-Neighbor proximity sort
+                                    let sortedReqs = [...approvedReqs];
+                                    if (startLat !== undefined && startLng !== undefined && approvedReqs.length > 1) {
+                                      const remaining = [...approvedReqs];
+                                      const sorted: typeof approvedReqs = [];
+                                      let currentLat = startLat;
+                                      let currentLng = startLng;
+                                      
+                                      while (remaining.length > 0) {
+                                        let minIndex = 0;
+                                        let minDistance = Infinity;
+                                        for (let i = 0; i < remaining.length; i++) {
+                                          const r = remaining[i];
+                                          if (r.pickupLat !== undefined && r.pickupLng !== undefined) {
+                                            const dist = getDistance(currentLat, currentLng, r.pickupLat, r.pickupLng);
+                                            if (dist < minDistance) {
+                                              minDistance = dist;
+                                              minIndex = i;
+                                            }
+                                          }
+                                        }
+                                        const nextReq = remaining.splice(minIndex, 1)[0];
+                                        sorted.push(nextReq);
+                                        if (nextReq.pickupLat !== undefined && nextReq.pickupLng !== undefined) {
+                                          currentLat = nextReq.pickupLat;
+                                          currentLng = nextReq.pickupLng;
+                                        }
+                                      }
+                                      sortedReqs = sorted;
+                                    }
+                                    
+                                    const originParam = trip.driverLat && trip.driverLng ? `&origin=${trip.driverLat},${trip.driverLng}` : "";
+                                    const waypointsParam = sortedReqs.length > 0 
+                                      ? `&waypoints=${encodeURIComponent(sortedReqs.map(r => r.pickup).join('|'))}` 
+                                      : "";
+                                    
+                                    return `https://www.google.com/maps/dir/?api=1${originParam}&destination=${encodeURIComponent(trip.destination)}${waypointsParam}&dir_action=navigate&travelmode=driving`;
+                                  })()}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1.5"
                                 >
-                                  <Navigation className="h-3 w-3 text-brand-blue-500" />
+                                  <Navigation className="h-3 w-3" />
                                   Google Maps
                                 </a>
 
@@ -1692,11 +1771,45 @@ export default function HomePage() {
 
                             {/* Ongoing Ride Map with Embedded / Native selection */}
                             {trip.status?.toLowerCase() === "started" && (() => {
-                              const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
-                              const passengerPickups = approvedReqs.map(req => req.pickup);
-                              const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${
-                                trip.driverLat && trip.driverLng ? `&origin=${trip.driverLat},${trip.driverLng}` : ""
-                              }&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&dir_action=navigate&travelmode=driving`;
+                               const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
+                               const startLat = trip.driverLat;
+                               const startLng = trip.driverLng;
+                               
+                               // Nearest-Neighbor proximity sort
+                               let sortedReqs = [...approvedReqs];
+                               if (startLat !== undefined && startLng !== undefined && approvedReqs.length > 1) {
+                                 const remaining = [...approvedReqs];
+                                 const sorted: typeof approvedReqs = [];
+                                 let currentLat = startLat;
+                                 let currentLng = startLng;
+                                 
+                                 while (remaining.length > 0) {
+                                   let minIndex = 0;
+                                   let minDistance = Infinity;
+                                   for (let i = 0; i < remaining.length; i++) {
+                                     const r = remaining[i];
+                                     if (r.pickupLat !== undefined && r.pickupLng !== undefined) {
+                                       const dist = getDistance(currentLat, currentLng, r.pickupLat, r.pickupLng);
+                                       if (dist < minDistance) {
+                                         minDistance = dist;
+                                         minIndex = i;
+                                       }
+                                     }
+                                   }
+                                   const nextReq = remaining.splice(minIndex, 1)[0];
+                                   sorted.push(nextReq);
+                                   if (nextReq.pickupLat !== undefined && nextReq.pickupLng !== undefined) {
+                                     currentLat = nextReq.pickupLat;
+                                     currentLng = nextReq.pickupLng;
+                                   }
+                                 }
+                                 sortedReqs = sorted;
+                               }
+                               
+                               const passengerPickups = sortedReqs.map(req => req.pickup);
+                               const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${
+                                 trip.driverLat && trip.driverLng ? `&origin=${trip.driverLat},${trip.driverLng}` : ""
+                               }&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&dir_action=navigate&travelmode=driving`;
 
                               return (
                                 <div className="mt-3 space-y-3">
@@ -1800,7 +1913,7 @@ export default function HomePage() {
                   </div>
 
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    You are requesting to join <strong>{joiningRide.hostName}</strong>'s carpool from <strong>{joiningRide.pickup}</strong> to <strong>{joiningRide.destination}</strong>.
+                    You are requesting to join <strong>{getMaskedHostName(joiningRide, currentUser.id)}</strong>'s carpool from <strong>{joiningRide.pickup}</strong> to <strong>{joiningRide.destination}</strong>.
                     Your pickup location must be within <strong>1.0 km</strong> of the driver's route path.
                   </p>
 
@@ -1869,7 +1982,7 @@ export default function HomePage() {
                     </div>
 
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      <strong>{reviewingRequest.requesterName}</strong> wants to join your carpool. Proposed pickup point:
+                      <strong>{getMaskedRequesterName(reviewingRequest, currentUser.id)}</strong> wants to join your carpool. Proposed pickup point:
                       <span className="block mt-1 font-semibold text-slate-700 dark:text-slate-350">📍 {reviewingRequest.pickup}</span>
                     </p>
 

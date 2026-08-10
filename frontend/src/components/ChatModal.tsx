@@ -60,7 +60,7 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
                 Ride to {activeRide?.destination || "Office"}
               </h3>
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                Host: {activeRide?.hostName} • {activeRide?.vehicleModel}
+                Host: {activeRide?.status === "Started" || activeRide?.status === "Completed" || activeRide?.hostId === currentUser.id ? activeRide?.hostName : "Verified Colleague"} • {activeRide?.vehicleModel}
               </p>
             </div>
           </div>
@@ -99,13 +99,13 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
                 <div key={msg.id} className={`flex items-start gap-2.5 ${isMe ? "justify-end" : "justify-start"}`}>
                   {!isMe && (
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-sm">
-                      {msg.senderAvatar}
+                      {activeRide?.status === "Started" || activeRide?.status === "Completed" ? msg.senderAvatar : "👤"}
                     </div>
                   )}
                   <div className="max-w-[75%]">
                     {!isMe && (
                       <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5 ml-1">
-                        {msg.senderName}
+                        {activeRide?.status === "Started" || activeRide?.status === "Completed" || msg.senderId === currentUser.id ? msg.senderName : msg.senderId === activeRide?.hostId ? "Verified Colleague (Driver)" : "Verified Colleague"}
                       </span>
                     )}
                     <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
