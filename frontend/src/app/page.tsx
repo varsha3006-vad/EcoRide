@@ -1981,6 +1981,7 @@ export default function HomePage() {
                     pickup={joiningRide.pickup}
                     destination={joiningRide.destination}
                     passengerPickup={passengerPickupInput}
+                    passengerDrop={passengerDropInput}
                   />
 
                   <div className="space-y-4">
@@ -2059,6 +2060,7 @@ export default function HomePage() {
                       pickup={ride.pickup}
                       destination={ride.destination}
                       passengerPickup={reviewingRequest.pickup}
+                      passengerDrop={reviewingRequest.dropPoint}
                     />
 
                     <div className="flex justify-between items-center border-t pt-3">

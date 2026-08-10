@@ -9,6 +9,7 @@ interface InteractiveMapProps {
   destination: string;
   isDriving?: boolean;
   passengerPickup?: string;
+  passengerDrop?: string;
   waypoints?: string[];
   onLocationDetected?: (address: string) => void;
   rideId?: string;
@@ -21,6 +22,7 @@ export default function InteractiveMap({
   destination, 
   isDriving = false, 
   passengerPickup, 
+  passengerDrop,
   waypoints = [],
   onLocationDetected,
   rideId,
@@ -246,7 +248,6 @@ export default function InteractiveMap({
             // GPS denied or timed out — use a neutral world view, no USA snap
             createMap({ lat: 20.5937, lng: 78.9629 }, 5, false); // India centroid
           }
-          // Continue with directions/routes after map is ready
           initRoutes();
         });
       } else {
@@ -271,324 +272,94 @@ export default function InteractiveMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleMapsLoaded, mapError]);
 
-  // Extracted route-drawing logic (called after map is created)
-  const initRoutes = () => {
-    if (!googleMapInstanceRef.current || !mapRef.current) return;
+  const initRoutes = async () => {
+    if (!googleMapInstanceRef.current || !pickup || !destination) return;
     const google = (window as any).google;
-    if (!google || !google.maps) return;
     const map = googleMapInstanceRef.current;
 
-      // Clear old directions renderer if it exists to avoid overlapping routes
-      if (directionsRendererRef.current) {
-        directionsRendererRef.current.setMap(null);
+    if (directionsRendererRef.current) directionsRendererRef.current.setMap(null);
+
+    const directionsRenderer = new google.maps.DirectionsRenderer({
+      map: map,
+      preserveViewport: !isAutoCentering,
+      suppressMarkers: true,
+      polylineOptions: { strokeColor: "#10b981", strokeOpacity: 0.8, strokeWeight: 6 }
+    });
+    directionsRendererRef.current = directionsRenderer;
+
+    const geocodeAddress = (address: string): Promise<any> => {
+      return new Promise((resolve) => {
+        new google.maps.Geocoder().geocode({ address }, (res: any, status: any) => {
+          resolve(status === "OK" ? res[0].geometry.location : null);
+        });
+      });
+    };
+
+    const startLatLng = await geocodeAddress(pickup);
+    const endLatLng = await geocodeAddress(destination);
+    if (!startLatLng || !endLatLng) return;
+
+    const passengerPickupLatLng = passengerPickup ? await geocodeAddress(passengerPickup) : null;
+    const passengerDropLatLng = passengerDrop ? await geocodeAddress(passengerDrop) : null;
+
+    clearAllMarkers();
+
+    const placeStaticMarkers = () => {
+      const markers = [
+        { pos: startLatLng, icon: google.maps.SymbolPath.CIRCLE, color: "#10b981", title: "Pickup" },
+        { pos: endLatLng, path: "M -1 12 L -1 -10 L 10 -10 L 10 -2 L -1 -2", color: "#0ea5e9", title: "Destination" }
+      ];
+      if (passengerPickupLatLng) {
+        markers.push({ pos: passengerPickupLatLng, icon: google.maps.SymbolPath.CIRCLE, color: "#3b82f6", title: "Proposed Pickup" });
       }
-
-      // Initialize Directions Renderer
-      const directionsRenderer = new google.maps.DirectionsRenderer({
-        map: map,
-        preserveViewport: isDriving,
-        suppressMarkers: true,
-        polylineOptions: {
-          strokeColor: "#10b981",
-          strokeOpacity: 0.8,
-          strokeWeight: 6
-        }
+      if (passengerDropLatLng) {
+        markers.push({ pos: passengerDropLatLng, icon: google.maps.SymbolPath.CIRCLE, color: "#a855f7", title: "Proposed Drop-off" });
+      }
+      markers.forEach(m => {
+        const marker = new google.maps.Marker({
+          position: m.pos, map: map,
+          title: m.title,
+          icon: { path: m.icon || m.path, fillColor: m.color, fillOpacity: 1, strokeColor: "#ffffff", strokeWeight: 2, scale: m.icon ? 8 : 1.3 }
+        });
+        markersRef.current.push(marker);
       });
-      directionsRendererRef.current = directionsRenderer;
-
-      const geocodeAddress = (address: string): Promise<any> => {
-        return new Promise((resolve) => {
-          const geocoderInstance = new google.maps.Geocoder();
-          geocoderInstance.geocode({ address }, (results: any, status: any) => {
-            if (status === "OK" && results[0]) {
-              resolve(results[0].geometry.location);
-            } else {
-              resolve(null);
-            }
-          });
-        });
-      };
-
-      const placeCustomMarkers = (startLatLng: any, endLatLng: any, mapInstance: any) => {
-        // Clear all previous markers & polylines to prevent static trail duplicates
-        clearAllMarkers();
-
-        // Pickup custom pin marker
-        const pickupMarker = new google.maps.Marker({
-          position: startLatLng,
-          map: mapInstance,
-          title: "Pickup",
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: "#10b981",
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 2,
-            scale: 8
-          }
-        });
-        markersRef.current.push(pickupMarker);
-
-        // Destination — flag post icon
-        const destMarker = new google.maps.Marker({
-          position: endLatLng,
-          map: mapInstance,
-          title: "Destination",
-          icon: {
-            // Flag with pole: pole is vertical line, flag is rectangle on top-right
-            path: "M -1 12 L -1 -10 L 10 -10 L 10 -2 L -1 -2",
-            fillColor: "#0ea5e9",
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 1.5,
-            scale: 1.3,
-            anchor: new google.maps.Point(-1, 12)
-          }
-        });
-        markersRef.current.push(destMarker);
-
-        // Proposed Passenger Pickup marker if provided (single preview)
-        if (passengerPickup) {
-          const geocoderInstance = new google.maps.Geocoder();
-          geocoderInstance.geocode({ address: passengerPickup }, (passengerRes: any, passengerStatus: any) => {
-            if (passengerStatus === google.maps.GeocoderStatus.OK && passengerRes[0]) {
-              const passengerLatLng = passengerRes[0].geometry.location;
-
-              const proposedMarker = new google.maps.Marker({
-                position: passengerLatLng,
-                map: mapInstance,
-                title: "Your Proposed Pickup",
-                icon: {
-                  path: google.maps.SymbolPath.CIRCLE,
-                  fillColor: "#3b82f6", // Royal Blue for passenger
-                  fillOpacity: 1,
-                  strokeColor: "#ffffff",
-                  strokeWeight: 2.5,
-                  scale: 8.5
-                }
-              });
-              markersRef.current.push(proposedMarker);
-
-              // Recalculate map bounds to encase driver startup, driver destination, and passenger pickup point
-              const bounds = new google.maps.LatLngBounds();
-              bounds.extend(startLatLng);
-              bounds.extend(endLatLng);
-              bounds.extend(passengerLatLng);
-              mapInstance.fitBounds(bounds);
-            }
-          });
-        }
-
-        // Car custom tracking marker — Red Car Emoji 🚗
-        const initialEmojiSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(
-          `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(90 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`
-        );
-        const carMarker = new google.maps.Marker({
-          position: startLatLng,
-          map: mapInstance,
-          title: "Carpool vehicle",
-          icon: {
-            url: initialEmojiSvg,
-            scaledSize: new google.maps.Size(32, 32),
-            anchor: new google.maps.Point(16, 16)
-          }
-        });
-        carMarkerRef.current = carMarker;
-      };
-
-      const drawGeodesicPath = async (startLatLng: any, endLatLng: any, mapInstance: any) => {
-        placeCustomMarkers(startLatLng, endLatLng, mapInstance);
-
-        // Geocode waypoints in parallel
-        const waypointLatLngs: any[] = [];
-        for (const wp of waypoints) {
-          const loc = await geocodeAddress(wp);
-          if (loc) {
-            waypointLatLngs.push(loc);
-            
-            // Draw triangle milestone marker for waypoint
-            const wpMarker = new google.maps.Marker({
-              position: loc,
-              map: mapInstance,
-              title: "Passenger Pickup",
-              icon: {
-                // Upward-pointing triangle (milestone)
-                path: "M 0 -11 L 10 7 L -10 7 Z",
-                fillColor: "#6366f1",
-                fillOpacity: 1,
-                strokeColor: "#ffffff",
-                strokeWeight: 1.5,
-                scale: 1.1,
-                anchor: new google.maps.Point(0, 0)
-              }
-            });
-            markersRef.current.push(wpMarker);
-          }
-        }
-
-        const pathPoints = [startLatLng, ...waypointLatLngs, endLatLng];
-
-        // Draw direct straight-line polyline through all points
-        const poly = new google.maps.Polyline({
-          path: pathPoints,
-          map: mapInstance,
-          strokeColor: "#10b981",
-          strokeOpacity: 0.8,
-          strokeWeight: 5
-        });
-        polylinesRef.current.push(poly);
-
-        // Fit bounds to fit all markers
-        const bounds = new google.maps.LatLngBounds();
-        pathPoints.forEach(pt => bounds.extend(pt));
-        mapInstance.fitBounds(bounds);
-
-        // Interpolate steps for the car marker animation segment-by-segment
-        const steps = 100;
-        const pathCoords: any[] = [];
-        for (let s = 0; s < pathPoints.length - 1; s++) {
-          const pStart = pathPoints[s];
-          const pEnd = pathPoints[s + 1];
-          const stepsPerSegment = Math.floor(steps / (pathPoints.length - 1));
-          for (let i = 0; i <= stepsPerSegment; i++) {
-            const fraction = i / stepsPerSegment;
-            const lat = pStart.lat() + (pEnd.lat() - pStart.lat()) * fraction;
-            const lng = pStart.lng() + (pEnd.lng() - pStart.lng()) * fraction;
-            pathCoords.push(new google.maps.LatLng(lat, lng));
-          }
-        }
-        setCoordinatesPath(pathCoords);
-
-        // Estimate Distance & ETA using spherical geometry
-        if (google.maps.geometry && google.maps.geometry.spherical) {
-          let totalMeters = 0;
-          for (let i = 0; i < pathPoints.length - 1; i++) {
-            totalMeters += google.maps.geometry.spherical.computeDistanceBetween(pathPoints[i], pathPoints[i+1]);
-          }
-          const distKm = totalMeters / 1000;
-          setDistanceStr(distKm.toFixed(1) + " km (Flight path)");
-          setEta(Math.max(5, Math.round(distKm * 1.2))); // ~1.2 mins per km
-        } else {
-          setDistanceStr("Coordinates Mapped");
-          setEta(20);
-        }
-      };
-
-      // Don't draw any route if pickup/destination aren't set yet — prevents USA pan
-      if (!pickup || !destination) return;
-
-      // Get Route Directions from Google
-      const directionsService = new google.maps.DirectionsService();
-
-      const startLocation = pickup;
-      const endLocation = destination;
-
-      const geocoder = new google.maps.Geocoder();
-
-      geocoder.geocode({ address: startLocation }, (startResults: any, startStatus: any) => {
-        if (startStatus === google.maps.GeocoderStatus.OK && startResults[0]) {
-          const startLatLng = startResults[0].geometry.location;
-
-          geocoder.geocode({ address: endLocation }, (endResults: any, endStatus: any) => {
-            if (endStatus === google.maps.GeocoderStatus.OK && endResults[0]) {
-              const endLatLng = endResults[0].geometry.location;
-
-              // Calculate spherical distance
-              let distanceKm = 0;
-              if (google.maps.geometry && google.maps.geometry.spherical) {
-                const distMeters = google.maps.geometry.spherical.computeDistanceBetween(startLatLng, endLatLng);
-                distanceKm = distMeters / 1000;
-              } else {
-                const dy = endLatLng.lat() - startLatLng.lat();
-                const dx = endLatLng.lng() - startLatLng.lng();
-                distanceKm = Math.sqrt(dx * dx + dy * dy) * 111.1;
-              }
-
-              // Proactively check if coordinates are extremely far (e.g. cross-continent / intercontinental point tests)
-              if (distanceKm > 500) {
-                console.log("Intercontinental coordinates detected (" + distanceKm.toFixed(0) + " km). Directly routing via geodesic flight path.");
-                drawGeodesicPath(startLatLng, endLatLng, map);
-              } else {
-                // Compile Google Waypoints stopovers
-                const googleWaypoints = waypoints.map((addr: string) => ({
-                  location: addr,
-                  stopover: true
-                }));
-
-                // Attempt optimized driving directions route
-                directionsService.route(
-                  {
-                    origin: startLatLng,
-                    destination: endLatLng,
-                    waypoints: googleWaypoints,
-                    optimizeWaypoints: true,
-                    travelMode: google.maps.TravelMode.DRIVING
-                  },
-                  (result: any, status: any) => {
-                    if (status === google.maps.DirectionsStatus.OK) {
-                      directionsRenderer.setDirections(result);
-                      const route = result.routes[0];
-                      setCoordinatesPath(route.overview_path);
-
-                      // Calculate combined total distance & duration across all waypoint legs!
-                      let totalDuration = 0;
-                      let totalDistance = 0;
-                      const legs = route.legs;
-                      legs.forEach((leg: any) => {
-                        totalDuration += leg.duration.value;
-                        totalDistance += leg.distance.value;
-                      });
-
-                      setEta(Math.round(totalDuration / 60));
-                      setDistanceStr((totalDistance / 1000).toFixed(1) + " km");
-
-                      placeCustomMarkers(startLatLng, endLatLng, map);
-
-                      // Draw triangle milestone markers for all passenger waypoint stops on the map!
-                      legs.slice(0, -1).forEach((leg: any, idx: number) => {
-                        const wpLegMarker = new google.maps.Marker({
-                          position: leg.end_location,
-                          map: map,
-                          title: `Passenger Pickup #${idx + 1}`,
-                          icon: {
-                            // Upward-pointing triangle (milestone)
-                            path: "M 0 -11 L 10 7 L -10 7 Z",
-                            fillColor: "#6366f1",
-                            fillOpacity: 1,
-                            strokeColor: "#ffffff",
-                            strokeWeight: 1.5,
-                            scale: 1.1,
-                            anchor: new google.maps.Point(0, 0)
-                          }
-                        });
-                        markersRef.current.push(wpLegMarker);
-                      });
-                    } else {
-                      console.warn("Driving directions with waypoints failed (status: " + status + "). Attempting geocoded fallback...");
-                      drawGeodesicPath(startLatLng, endLatLng, map);
-                    }
-                  }
-                );
-              }
-            } else {
-              new google.maps.Marker({ position: { lat: 20.5937, lng: 78.9629 }, map: map });
-            }
-          });
-        } else {
-          new google.maps.Marker({ position: { lat: 20.5937, lng: 78.9629 }, map: map });
-        }
+      
+      const carMarker = new google.maps.Marker({
+        position: startLatLng, map: map,
+        icon: { url: `data:image/svg+xml;utf8,` + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(90 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`), scaledSize: new google.maps.Size(32, 32), anchor: new google.maps.Point(16, 16) }
       });
+      carMarkerRef.current = carMarker;
+    };
 
+    const googleWaypoints = [...(passengerPickupLatLng ? [{location: passengerPickupLatLng, stopover: true}] : []), ...(passengerDropLatLng ? [{location: passengerDropLatLng, stopover: true}] : [])];
+    for (const wp of waypoints) {
+      const loc = await geocodeAddress(wp);
+      if (loc) googleWaypoints.push({ location: loc, stopover: true });
+    }
+
+    new google.maps.DirectionsService().route({
+      origin: startLatLng, destination: endLatLng, waypoints: googleWaypoints, optimizeWaypoints: true, travelMode: google.maps.TravelMode.DRIVING
+    }, (result: any, status: any) => {
+      if (status === google.maps.DirectionsStatus.OK) {
+        directionsRenderer.setDirections(result);
+        setCoordinatesPath(result.routes[0].overview_path);
+        placeStaticMarkers();
+        if (isAutoCentering) {
+          const bounds = new google.maps.LatLngBounds();
+          bounds.extend(startLatLng); bounds.extend(endLatLng);
+          if (passengerPickupLatLng) bounds.extend(passengerPickupLatLng);
+          if (passengerDropLatLng) bounds.extend(passengerDropLatLng);
+          map.fitBounds(bounds);
+        }
+      }
+    });
   };
 
-  // Trigger initRoutes whenever pickup/destination/passengerPickup changes (after map is ready)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { initRoutes(); }, [googleMapsLoaded, pickup, destination, passengerPickup, waypoints]);
+  const serializedWaypoints = JSON.stringify(waypoints);
+  useEffect(() => { initRoutes(); }, [googleMapsLoaded, pickup, destination, passengerPickup, passengerDrop, serializedWaypoints]);
 
-  // 3. Real-time GPS Car Tracking / Simulation (Only active for the Host Driver)
   useEffect(() => {
     if (!googleMapsLoaded || !isDriving || mapError || !isHost) return;
-
     const google = (window as any).google;
     if (!google || !google.maps) return;
 
