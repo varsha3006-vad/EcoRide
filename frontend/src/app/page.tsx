@@ -70,6 +70,60 @@ const getLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+interface PassengerPinVerifyFormProps {
+  rideId: string;
+  passengerId: string;
+  confirmBoarding: (rideId: string, passengerId: string, enteredPin: string) => { success: boolean; message: string };
+}
+
+const PassengerPinVerifyForm = ({ rideId, passengerId, confirmBoarding }: PassengerPinVerifyFormProps) => {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const handleVerify = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pin.trim()) return;
+
+    setIsVerifying(true);
+    setError(false);
+    
+    setTimeout(() => {
+      const res = confirmBoarding(rideId, passengerId, pin);
+      if (!res.success) {
+        setError(true);
+      }
+      setIsVerifying(false);
+    }, 450);
+  };
+
+  return (
+    <form onSubmit={handleVerify} className="flex items-center gap-1">
+      <input
+        type="text"
+        required
+        maxLength={4}
+        value={pin}
+        onChange={e => {
+          setPin(e.target.value.replace(/\D/g, ""));
+          setError(false);
+        }}
+        className={`w-12 px-1.5 py-0.5 rounded text-center text-xs font-bold bg-slate-950 border text-white outline-none focus:ring-1 focus:ring-brand-green-500 transition-all ${
+          error ? "border-rose-500 ring-rose-500/20" : "border-slate-800"
+        }`}
+        placeholder="PIN"
+      />
+      <button
+        type="submit"
+        disabled={isVerifying || pin.length < 4}
+        className="px-2 py-0.5 rounded bg-brand-green-600 hover:bg-brand-green-700 disabled:bg-slate-850 disabled:text-slate-500 text-white text-[9px] font-bold cursor-pointer transition-all"
+      >
+        {isVerifying ? "..." : "Verify"}
+      </button>
+    </form>
+  );
+};
+
 export default function HomePage() {
   const {
     currentUser,
@@ -161,32 +215,7 @@ export default function HomePage() {
   const [womenOnly, setWomenOnly] = useState(false);
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
-  const [confirmingBoardingId, setConfirmingBoardingId] = useState<string | null>(null);
 
-  const handleConfirmBoardingClick = (rideId: string) => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser. Boarding verification requires location services.");
-      return;
-    }
-
-    setConfirmingBoardingId(rideId);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude: lat, longitude: lng } = position.coords;
-        const res = confirmBoarding(rideId, currentUser.id, lat, lng);
-        if (!res.success) {
-          alert(res.message);
-        }
-        setConfirmingBoardingId(null);
-      },
-      (error) => {
-        console.error("Boarding location error:", error);
-        alert(`Could not verify your location: ${error.message || "Unknown error"}. Please ensure GPS location services are enabled.`);
-        setConfirmingBoardingId(null);
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
-  };
 
   // Reset form error when switching wizards
   useEffect(() => {
@@ -1441,18 +1470,33 @@ export default function HomePage() {
                                   {trip.passengers.length > 0 && (() => {
                                     const passengerDetails = employees.filter((e: any) => trip.passengers.includes(e.id));
                                     return (
-                                      <div className="mt-2 flex items-center flex-wrap gap-1.5 bg-slate-100/50 dark:bg-slate-900/40 px-2.5 py-1.5 rounded-xl border border-slate-200/30 dark:border-slate-800/20 w-fit animate-fade-in">
-                                        <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider">Passengers:</span>
-                                        <div className="flex items-center gap-2">
-                                          {passengerDetails.map((p: any) => (
-                                            <div key={p.id} className="flex items-center gap-1 text-[10px] font-bold text-slate-750 dark:text-slate-350">
-                                              <span>{p.avatar}</span>
-                                              <span>{p.name}</span>
-                                              {trip.boardedPassengers?.includes(p.id) && (
-                                                <span className="text-[8px] text-emerald-500 font-black ml-0.5" title="Boarded">✓</span>
-                                              )}
-                                            </div>
-                                          ))}
+                                      <div className="mt-2 flex flex-col gap-2 bg-slate-100/50 dark:bg-slate-900/40 px-2.5 py-2 rounded-xl border border-slate-200/30 dark:border-slate-800/20 w-full max-w-sm animate-fade-in">
+                                        <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider block">Passengers & Boarding:</span>
+                                        <div className="space-y-1.5">
+                                          {passengerDetails.map((p: any) => {
+                                            const hasBoarded = trip.boardedPassengers?.includes(p.id);
+                                            return (
+                                              <div key={p.id} className="flex items-center justify-between gap-3 p-1.5 bg-white/40 dark:bg-slate-950/20 rounded-lg border border-slate-200/20 dark:border-slate-800/20">
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-750 dark:text-slate-300">
+                                                  <span>{p.avatar}</span>
+                                                  <span>{p.name}</span>
+                                                  {hasBoarded && (
+                                                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 text-[8px] font-extrabold">
+                                                      ✓ Boarded
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                
+                                                {isHost && trip.status === "Started" && !hasBoarded && (
+                                                  <PassengerPinVerifyForm 
+                                                    rideId={trip.id} 
+                                                    passengerId={p.id} 
+                                                    confirmBoarding={confirmBoarding} 
+                                                  />
+                                                )}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       </div>
                                     );
@@ -1461,21 +1505,22 @@ export default function HomePage() {
                               </div>
 
                               <div className="flex items-center gap-2">
-                                {/* Passenger Action: Confirm Boarding */}
+                                {/* Passenger View: Boarding PIN display */}
                                 {!isHost && trip.status === "Started" && (() => {
                                   const hasBoarded = trip.boardedPassengers?.includes(currentUser.id);
-                                  return hasBoarded ? (
-                                    <span className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-200/20 flex items-center gap-1.5">
-                                      ✅ Boarded
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleConfirmBoardingClick(trip.id)}
-                                      disabled={confirmingBoardingId === trip.id}
-                                      className="px-2.5 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1.5"
-                                    >
-                                      {confirmingBoardingId === trip.id ? "Verifying..." : "Confirm Boarding"}
-                                    </button>
+                                  if (hasBoarded) {
+                                    return (
+                                      <span className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-200/20 flex items-center gap-1.5">
+                                        ✅ Boarded
+                                      </span>
+                                    );
+                                  }
+                                  
+                                  const myRequest = requests.find(r => r.rideId === trip.id && r.requesterId === currentUser.id && r.status === "Accepted");
+                                  return (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/40 rounded-lg text-slate-700 dark:text-slate-300 text-[10px] font-black">
+                                      🔑 PIN: <span className="text-brand-green-600 dark:text-brand-green-400 tracking-wider text-xs ml-0.5">{myRequest?.boardingPin || "----"}</span>
+                                    </div>
                                   );
                                 })()}
 

@@ -151,6 +151,7 @@ export interface RideRequest {
   pickupLng?: number;
   status: "Pending" | "Accepted" | "Rejected";
   timestamp: string;
+  boardingPin?: string;
 }
 
 export interface ChatMessage {
@@ -197,7 +198,7 @@ interface StateContextType {
   createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => void;
   requestJoinRide: (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number) => void;
   handleRequestResponse: (requestId: string, accept: boolean) => void;
-  confirmBoarding: (rideId: string, passengerId: string, passLat: number, passLng: number) => { success: boolean; message: string };
+  confirmBoarding: (rideId: string, passengerId: string, enteredPin: string) => { success: boolean; message: string };
   sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
   startRide: (rideId: string) => void;
   completeRide: (rideId: string, ratings: { safety: number; comfort: number; punctuality: number }) => void;
@@ -1109,10 +1110,15 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    // 1. Update requests status
+    // 1. Update requests status & generate boarding PIN on acceptance
+    const boardingPin = accept ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
     let updatedRequests = requests.map(req => {
       if (req.id === requestId) {
-        return { ...req, status: accept ? ("Accepted" as const) : ("Rejected" as const) };
+        return { 
+          ...req, 
+          status: accept ? ("Accepted" as const) : ("Rejected" as const),
+          boardingPin
+        };
       }
       return req;
     });
@@ -1452,7 +1458,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   addNotification({
                     id: `arr-${Date.now()}`,
                     title: "Your colleague has arrived! 🚗",
-                    message: `Your colleague ${ride.hostName} has arrived at your pickup location: ${req.pickup}. Open EcoRide to confirm boarding.`,
+                    message: `Your colleague ${ride.hostName} has arrived at your pickup location: ${req.pickup}. Open EcoRide to view your boarding PIN.`,
                     timestamp: "Just now",
                     type: "info",
                     read: false
@@ -1462,7 +1468,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     triggerPushNotification(
                       req.requesterId,
                       "Your colleague has arrived! 🚗",
-                      `Your colleague ${ride.hostName} is at your pickup location. Confirm boarding in the app.`
+                      `Your colleague ${ride.hostName} is at your pickup location. Open EcoRide to see your boarding PIN.`
                     );
                   } catch (e) {}
                 }
@@ -1533,18 +1539,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return R * c;
   };
 
-  // Confirm Boarding Action
-  const confirmBoarding = (rideId: string, passengerId: string, passLat: number, passLng: number) => {
+  // Confirm Boarding Action (Option B: Boarding PIN Exchange Verification)
+  const confirmBoarding = (rideId: string, passengerId: string, enteredPin: string) => {
     const ride = rides.find(r => r.id === rideId);
     if (!ride) return { success: false, message: "Ride not found." };
-    if (!ride.driverLat || !ride.driverLng) return { success: false, message: "Could not resolve colleague's location." };
 
-    const distance = getOrthoDistance(passLat, passLng, ride.driverLat, ride.driverLng);
-    if (distance > 0.15) { // 150 meters
-      return { 
-        success: false, 
-        message: `You must be near your colleague to confirm boarding. Current distance: ${(distance * 1000).toFixed(0)} meters (Max limit: 150m).`
-      };
+    // Find the accepted request for this passenger
+    const req = requests.find(r => r.rideId === rideId && r.requesterId === passengerId && r.status === "Accepted");
+    if (!req) return { success: false, message: "Passenger request record not found." };
+
+    if (req.boardingPin !== enteredPin.trim()) {
+      return { success: false, message: "Incorrect boarding PIN. Please check the code on your colleague's device." };
     }
 
     setRides(prev => {
@@ -1572,7 +1577,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     addNotification({
       id: `boarded-${Date.now()}`,
       title: "Welcome Aboard! 🚗",
-      message: `You have boarded ${ride.hostName}'s ride. Have a safe green commute!`,
+      message: `${req.requesterName} has boarded successfully. Have a safe green commute!`,
       timestamp: "Just now",
       type: "success",
       read: false
