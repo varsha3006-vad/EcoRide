@@ -482,6 +482,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSyncErrorExternal = setSyncError;
   }, []);
 
+  // Restore login session synchronously on mount to prevent login-screen flickers
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedIsLoggedIn = localStorage.getItem("ecoride_is_logged_in") === "true";
+      const savedUserId = localStorage.getItem("ecoride_logged_in_user_id");
+      if (savedIsLoggedIn && savedUserId) {
+        setIsLoggedIn(true);
+        setCurrentUserId(savedUserId);
+      }
+    }
+  }, []);
+
   // 1. Initial Load (Supabase has priority, falls back to localStorage)
   useEffect(() => {
     const initializeData = async () => {
@@ -566,15 +578,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setEmployees(finalEmployees);
       setRides(finalRides);
       setRequests(finalRequests);
-
-      if (typeof window !== "undefined") {
-        const savedIsLoggedIn = localStorage.getItem("ecoride_is_logged_in") === "true";
-        const savedUserId = localStorage.getItem("ecoride_logged_in_user_id");
-        if (savedIsLoggedIn && savedUserId) {
-          setIsLoggedIn(true);
-          setCurrentUserId(savedUserId);
-        }
-      }
 
       setIsLoaded(true);
     };
