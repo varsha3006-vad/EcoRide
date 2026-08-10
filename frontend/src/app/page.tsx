@@ -725,33 +725,7 @@ export default function HomePage() {
                 </p>
               )}
 
-              {/* Quick Login Pills (Alex, Chris, Bob, Dan, Elle) */}
-              <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-                <span className="text-[10px] text-slate-500 font-bold uppercase mr-1">Quick Tap:</span>
-                {[
-                  { name: "Alex", email: "alex@company.com" },
-                  { name: "Chris", email: "chris@company.com" },
-                  { name: "Bob", email: "bob@company.com" },
-                  { name: "Dan", email: "dan@company.com" },
-                  { name: "Elle", email: "elle@company.com" }
-                ].map(p => (
-                  <button
-                    key={p.email}
-                    type="button"
-                    onClick={() => {
-                      setEmailInput(p.email);
-                      setLoginError("");
-                    }}
-                    className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                      emailInput.toLowerCase().trim() === p.email
-                        ? "bg-brand-green-600 border-brand-green-500 text-white shadow-sm"
-                        : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
-                    }`}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
+
             </div>
 
             {otpSent ? (
