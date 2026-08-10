@@ -36,6 +36,25 @@ export default function InteractiveMap({
   const googleMapInstanceRef = useRef<any>(null);
   const carMarkerRef = useRef<any>(null);
   const directionsRendererRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const polylinesRef = useRef<any[]>([]);
+
+  const clearAllMarkers = () => {
+    markersRef.current.forEach(marker => {
+      if (marker) marker.setMap(null);
+    });
+    markersRef.current = [];
+    
+    polylinesRef.current.forEach(line => {
+      if (line) line.setMap(null);
+    });
+    polylinesRef.current = [];
+
+    if (carMarkerRef.current) {
+      carMarkerRef.current.setMap(null);
+      carMarkerRef.current = null;
+    }
+  };
   
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
   const [coordinatesPath, setCoordinatesPath] = useState<any[]>([]);
@@ -259,6 +278,11 @@ export default function InteractiveMap({
     if (!google || !google.maps) return;
     const map = googleMapInstanceRef.current;
 
+      // Clear old directions renderer if it exists to avoid overlapping routes
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null);
+      }
+
       // Initialize Directions Renderer
       const directionsRenderer = new google.maps.DirectionsRenderer({
         map: map,
@@ -286,8 +310,11 @@ export default function InteractiveMap({
       };
 
       const placeCustomMarkers = (startLatLng: any, endLatLng: any, mapInstance: any) => {
+        // Clear all previous markers & polylines to prevent static trail duplicates
+        clearAllMarkers();
+
         // Pickup custom pin marker
-        new google.maps.Marker({
+        const pickupMarker = new google.maps.Marker({
           position: startLatLng,
           map: mapInstance,
           title: "Pickup",
@@ -300,9 +327,10 @@ export default function InteractiveMap({
             scale: 8
           }
         });
+        markersRef.current.push(pickupMarker);
 
         // Destination — flag post icon
-        new google.maps.Marker({
+        const destMarker = new google.maps.Marker({
           position: endLatLng,
           map: mapInstance,
           title: "Destination",
@@ -317,6 +345,7 @@ export default function InteractiveMap({
             anchor: new google.maps.Point(-1, 12)
           }
         });
+        markersRef.current.push(destMarker);
 
         // Proposed Passenger Pickup marker if provided (single preview)
         if (passengerPickup) {
@@ -325,7 +354,7 @@ export default function InteractiveMap({
             if (passengerStatus === google.maps.GeocoderStatus.OK && passengerRes[0]) {
               const passengerLatLng = passengerRes[0].geometry.location;
 
-              new google.maps.Marker({
+              const proposedMarker = new google.maps.Marker({
                 position: passengerLatLng,
                 map: mapInstance,
                 title: "Your Proposed Pickup",
@@ -338,6 +367,7 @@ export default function InteractiveMap({
                   scale: 8.5
                 }
               });
+              markersRef.current.push(proposedMarker);
 
               // Recalculate map bounds to encase driver startup, driver destination, and passenger pickup point
               const bounds = new google.maps.LatLngBounds();
@@ -377,7 +407,7 @@ export default function InteractiveMap({
             waypointLatLngs.push(loc);
             
             // Draw triangle milestone marker for waypoint
-            new google.maps.Marker({
+            const wpMarker = new google.maps.Marker({
               position: loc,
               map: mapInstance,
               title: "Passenger Pickup",
@@ -392,19 +422,21 @@ export default function InteractiveMap({
                 anchor: new google.maps.Point(0, 0)
               }
             });
+            markersRef.current.push(wpMarker);
           }
         }
 
         const pathPoints = [startLatLng, ...waypointLatLngs, endLatLng];
 
         // Draw direct straight-line polyline through all points
-        new google.maps.Polyline({
+        const poly = new google.maps.Polyline({
           path: pathPoints,
           map: mapInstance,
           strokeColor: "#10b981",
           strokeOpacity: 0.8,
           strokeWeight: 5
         });
+        polylinesRef.current.push(poly);
 
         // Fit bounds to fit all markers
         const bounds = new google.maps.LatLngBounds();
@@ -514,7 +546,7 @@ export default function InteractiveMap({
 
                       // Draw triangle milestone markers for all passenger waypoint stops on the map!
                       legs.slice(0, -1).forEach((leg: any, idx: number) => {
-                        new google.maps.Marker({
+                        const wpLegMarker = new google.maps.Marker({
                           position: leg.end_location,
                           map: map,
                           title: `Passenger Pickup #${idx + 1}`,
@@ -529,6 +561,7 @@ export default function InteractiveMap({
                             anchor: new google.maps.Point(0, 0)
                           }
                         });
+                        markersRef.current.push(wpLegMarker);
                       });
                     } else {
                       console.warn("Driving directions with waypoints failed (status: " + status + "). Attempting geocoded fallback...");
@@ -565,89 +598,136 @@ export default function InteractiveMap({
         return;
       }
 
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          const currentLatLng = new google.maps.LatLng(lat, lng);
+      let lastUpdate = 0;
+      let lastLat = 0;
+      let lastLng = 0;
 
-          // Move car marker to actual live GPS position and rotate to heading
-          if (carMarkerRef.current) {
-            carMarkerRef.current.setPosition(currentLatLng);
-            const heading = position.coords.heading;
-            if (heading !== null && !isNaN(heading)) {
-              const adjustedRotation = (heading + 90) % 360;
-              const rotatedSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(
-                `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(${adjustedRotation} 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`
-              );
-              carMarkerRef.current.setIcon({
-                url: rotatedSvg,
-                scaledSize: new google.maps.Size(32, 32),
-                anchor: new google.maps.Point(16, 16)
-              });
-            }
+      const handlePosition = (position: any) => {
+        const now = Date.now();
+        // Throttle updates to once every 6 seconds to conserve battery and CPU
+        if (now - lastUpdate < 6000) return;
+
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        // Skip updates for minor GPS noise (less than 10 meters / 0.0001 deg deviation)
+        const dLat = Math.abs(lat - lastLat);
+        const dLng = Math.abs(lng - lastLng);
+        if (lastUpdate > 0 && dLat < 0.0001 && dLng < 0.0001) return;
+
+        lastUpdate = now;
+        lastLat = lat;
+        lastLng = lng;
+
+        const currentLatLng = new google.maps.LatLng(lat, lng);
+
+        // Move car marker to actual live GPS position and rotate to heading
+        if (carMarkerRef.current) {
+          carMarkerRef.current.setPosition(currentLatLng);
+          const heading = position.coords.heading;
+          if (heading !== null && !isNaN(heading)) {
+            const adjustedRotation = (heading + 90) % 360;
+            const rotatedSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(
+              `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(${adjustedRotation} 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`
+            );
+            carMarkerRef.current.setIcon({
+              url: rotatedSvg,
+              scaledSize: new google.maps.Size(32, 32),
+              anchor: new google.maps.Point(16, 16)
+            });
           }
-          // Pan map to center on driver and enforce drive zoom
-          if (isAutoCentering && googleMapInstanceRef.current) {
-            programmaticActionRef.current = true;
-            googleMapInstanceRef.current.panTo(currentLatLng);
-            if (googleMapInstanceRef.current.getZoom() !== 17) {
-              googleMapInstanceRef.current.setZoom(17);
-            }
-            setTimeout(() => {
-              programmaticActionRef.current = false;
-            }, 100);
-          }
-
-          // Push new coordinates to shared Supabase state
-          if (rideId) {
-            updateRideLocation(rideId, lat, lng);
-          }
-
-          // Recalculate directions from current live GPS coordinate to destination
-          const directionsService = new google.maps.DirectionsService();
-          const googleWaypoints = waypoints.map((addr: string) => ({
-            location: addr,
-            stopover: true
-          }));
-
-          directionsService.route(
-            {
-              origin: currentLatLng,
-              destination: destination || "San Francisco City Hall, CA",
-              waypoints: googleWaypoints,
-              optimizeWaypoints: false,
-              travelMode: google.maps.TravelMode.DRIVING
-            },
-            (result: any, status: any) => {
-              if (status === google.maps.DirectionsStatus.OK && directionsRendererRef.current) {
-                directionsRendererRef.current.setDirections(result);
-                
-                // Sum up remaining duration & distance
-                let totalDuration = 0;
-                let totalDistance = 0;
-                result.routes[0].legs.forEach((leg: any) => {
-                  totalDuration += leg.duration.value;
-                  totalDistance += leg.distance.value;
-                });
-                
-                setEta(Math.round(totalDuration / 60));
-                setDistanceStr((totalDistance / 1000).toFixed(1) + " km");
-              }
-            }
-          );
-        },
-        (error) => {
-          console.warn("Live GPS Tracking error:", error.message);
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 10000
         }
-      );
+        
+        // Pan map to center on driver
+        if (isAutoCentering && googleMapInstanceRef.current) {
+          programmaticActionRef.current = true;
+          googleMapInstanceRef.current.panTo(currentLatLng);
+          if (googleMapInstanceRef.current.getZoom() !== 17) {
+            googleMapInstanceRef.current.setZoom(17);
+          }
+          setTimeout(() => {
+            programmaticActionRef.current = false;
+          }, 100);
+        }
 
-      return () => navigator.geolocation.clearWatch(watchId);
+        // Push coordinates to shared state
+        if (rideId) {
+          updateRideLocation(rideId, lat, lng);
+        }
+
+        // Recalculate directions
+        const directionsService = new google.maps.DirectionsService();
+        const googleWaypoints = waypoints.map((addr: string) => ({
+          location: addr,
+          stopover: true
+        }));
+
+        directionsService.route(
+          {
+            origin: currentLatLng,
+            destination: destination || "San Francisco City Hall, CA",
+            waypoints: googleWaypoints,
+            optimizeWaypoints: false,
+            travelMode: google.maps.TravelMode.DRIVING
+          },
+          (result: any, status: any) => {
+            if (status === google.maps.DirectionsStatus.OK && directionsRendererRef.current) {
+              directionsRendererRef.current.setDirections(result);
+              let totalDuration = 0;
+              let totalDistance = 0;
+              result.routes[0].legs.forEach((leg: any) => {
+                totalDuration += leg.duration.value;
+                totalDistance += leg.distance.value;
+              });
+              setEta(Math.round(totalDuration / 60));
+              setDistanceStr((totalDistance / 1000).toFixed(1) + " km");
+            }
+          }
+        );
+      };
+
+      let watchId: number | null = null;
+      
+      const startWatching = () => {
+        if (watchId !== null) return;
+        watchId = navigator.geolocation.watchPosition(
+          handlePosition,
+          (error) => console.warn("Live GPS Tracking error:", error.message),
+          {
+            enableHighAccuracy: true,
+            maximumAge: 5000, // Allow system-cached location to avoid continuous GPS hardware wakes
+            timeout: 10000
+          }
+        );
+      };
+
+      const stopWatching = () => {
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+      };
+
+      // Start watching initially
+      startWatching();
+
+      // Conserve battery by pausing GPS updates when the tab is hidden
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          console.log("Tab backgrounded. Suspending host GPS watching to conserve battery.");
+          stopWatching();
+        } else {
+          console.log("Tab focused. Resuming host GPS watching.");
+          startWatching();
+        }
+      };
+
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      return () => {
+        stopWatching();
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
     } else {
       // Simulation Mode animation loop
       if (coordinatesPath.length === 0 || !carMarkerRef.current) return;
@@ -740,18 +820,64 @@ export default function InteractiveMap({
   useEffect(() => {
     if (isHost || !isDriving || !rideId || !passengerId || mapError || !navigator.geolocation) return;
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude: lat, longitude: lng } = position.coords;
-        if (rideId && passengerId) {
-          updatePassengerLocation(rideId, passengerId, lat, lng);
-        }
-      },
-      (err) => console.warn("Passenger GPS error:", err.message),
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
-    );
+    let lastUpdate = 0;
+    let lastLat = 0;
+    let lastLng = 0;
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    const handlePosition = (position: any) => {
+      const now = Date.now();
+      // Throttle passenger coordinates transmission to once every 10 seconds
+      if (now - lastUpdate < 10000) return;
+
+      const { latitude: lat, longitude: lng } = position.coords;
+      const dLat = Math.abs(lat - lastLat);
+      const dLng = Math.abs(lng - lastLng);
+      if (lastUpdate > 0 && dLat < 0.0001 && dLng < 0.0001) return;
+
+      lastUpdate = now;
+      lastLat = lat;
+      lastLng = lng;
+
+      if (rideId && passengerId) {
+        updatePassengerLocation(rideId, passengerId, lat, lng);
+      }
+    };
+
+    let watchId: number | null = null;
+    const startWatching = () => {
+      if (watchId !== null) return;
+      watchId = navigator.geolocation.watchPosition(
+        handlePosition,
+        (err) => console.warn("Passenger GPS error:", err.message),
+        // Use coarse location cell-triangulation/Wi-Fi positioning (enableHighAccuracy = false) to save massive power
+        { enableHighAccuracy: false, maximumAge: 15000, timeout: 15000 }
+      );
+    };
+
+    const stopWatching = () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+    };
+
+    startWatching();
+
+    // Conserve battery by pausing passenger GPS updates when the tab is hidden
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopWatching();
+      } else {
+        startWatching();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopWatching();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [isDriving, isHost, rideId, passengerId, mapError]);
 
   // 4.6 Host map: Show live orange markers for each accepted passenger's current GPS
@@ -763,7 +889,17 @@ export default function InteractiveMap({
     if (!google || !google.maps || !googleMapInstanceRef.current) return;
 
     const ride = rides.find(r => r.id === rideId);
-    if (!ride || !ride.passengerLocations) return;
+    if (!ride) return;
+
+    // Clear markers for passengers who are no longer broadcasting
+    Object.keys(passengerMarkersRef.current).forEach(pId => {
+      if (!ride.passengerLocations || !ride.passengerLocations[pId]) {
+        passengerMarkersRef.current[pId].setMap(null);
+        delete passengerMarkersRef.current[pId];
+      }
+    });
+
+    if (!ride.passengerLocations) return;
 
     Object.entries(ride.passengerLocations).forEach(([pId, coords]) => {
       const latLng = new google.maps.LatLng(coords.lat, coords.lng);
