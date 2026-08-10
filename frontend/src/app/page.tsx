@@ -145,7 +145,8 @@ export default function HomePage() {
     isLoggedIn,
     login,
     updateNotificationPrefs,
-    confirmBoarding
+    confirmBoarding,
+    auditLogs
   } = useAppState();
 
   // Helper to filter time options dynamically for future times only when scheduling for today
@@ -223,7 +224,7 @@ export default function HomePage() {
   }, [activeWizard]);
 
   // Admin filter states
-  const [adminActiveTab, setAdminActiveTab] = useState<"kpis" | "rides" | "employees">("kpis");
+  const [adminActiveTab, setAdminActiveTab] = useState<"kpis" | "rides" | "employees" | "audit">("kpis");
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementSent, setAnnouncementSent] = useState(false);
 
@@ -745,6 +746,14 @@ export default function HomePage() {
               >
                 Employee Compliance
               </button>
+              <button
+                onClick={() => setAdminActiveTab("audit")}
+                className={`pb-3 text-xs font-bold transition-all relative ${
+                  adminActiveTab === "audit" ? "text-brand-blue-600 dark:text-brand-blue-400 border-b-2 border-brand-blue-500" : "text-slate-500"
+                }`}
+              >
+                Security Audit Logs 🔒
+              </button>
             </div>
 
             {/* KPI Cards Panel */}
@@ -1015,6 +1024,106 @@ export default function HomePage() {
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Admin Security Audit Logs tab */}
+            {adminActiveTab === "audit" && (
+              <div className="glass-panel p-5 rounded-2xl space-y-4 animate-fade-in">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                      <Shield className="h-4 w-4 text-brand-green-500" /> Security Audit Log Console
+                    </h3>
+                    <p className="text-[10px] text-slate-500">
+                      Real-time immutable audit trail monitoring for SOC1 and SOC2 compliance verification.
+                    </p>
+                  </div>
+                  
+                  {/* Export and filter */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const headers = ["ID", "Timestamp", "User ID", "Email", "Action", "Severity", "Details"];
+                        const rows = auditLogs.map(log => [
+                          log.id,
+                          log.timestamp,
+                          log.userId,
+                          log.userEmail,
+                          log.action,
+                          log.severity,
+                          log.details
+                        ]);
+                        const csvContent = "data:text/csv;charset=utf-8," 
+                          + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", `ecoride_security_audit_logs_${Date.now()}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-lg bg-slate-105 hover:bg-slate-200 dark:bg-slate-80 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200/40 dark:border-slate-700/40"
+                    >
+                      <Download className="h-3 w-3" /> Export Logs CSV
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 font-semibold">
+                        <th className="py-2.5">Timestamp</th>
+                        <th className="py-2.5">User</th>
+                        <th className="py-2.5">Action Code</th>
+                        <th className="py-2.5">Severity</th>
+                        <th className="py-2.5">Event Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-105 dark:divide-slate-900 font-mono text-[10px] divide-slate-100 dark:divide-slate-900">
+                      {auditLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-500">
+                            No security audit logs recorded yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        auditLogs.map(log => {
+                          const severityColors = {
+                            INFO: "bg-blue-500/10 text-blue-500",
+                            WARNING: "bg-amber-500/10 text-amber-550 border border-amber-500/20 text-amber-500",
+                            CRITICAL: "bg-rose-500/10 text-rose-500 border border-rose-500/20 font-black animate-pulse"
+                          };
+                          return (
+                            <tr key={log.id} className="text-slate-700 dark:text-slate-350 hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                              <td className="py-2.5 whitespace-nowrap text-slate-450">
+                                {new Date(log.timestamp).toLocaleString()}
+                              </td>
+                              <td className="py-2.5">
+                                <div className="max-w-[120px] truncate" title={log.userEmail}>
+                                  {log.userEmail}
+                                </div>
+                              </td>
+                              <td className="py-2.5 font-bold text-slate-800 dark:text-slate-200">
+                                {log.action}
+                              </td>
+                              <td className="py-2.5">
+                                <span className={`px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-extrabold ${severityColors[log.severity]}`}>
+                                  {log.severity}
+                                </span>
+                              </td>
+                              <td className="py-2.5 text-slate-550 dark:text-slate-400 font-sans max-w-[280px] break-words">
+                                {log.details}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>

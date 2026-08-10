@@ -183,6 +183,16 @@ export interface Badge {
   color: string;
 }
 
+export interface SecurityAuditLog {
+  id: string;
+  timestamp: string;
+  userId: string;
+  userEmail: string;
+  action: string;
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  details: string;
+}
+
 interface StateContextType {
   employees: Employee[];
   currentUser: Employee;
@@ -193,6 +203,8 @@ interface StateContextType {
   requests: RideRequest[];
   messages: ChatMessage[];
   notifications: Notification[];
+  auditLogs: SecurityAuditLog[];
+  logSecurityEvent: (action: string, severity: "INFO" | "WARNING" | "CRITICAL", details: string, overrideUserId?: string, overrideEmail?: string) => void;
   badges: Badge[];
   leaderboard: Employee[];
   createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => void;
@@ -399,6 +411,110 @@ const parseRideDateTime = (dateStr?: string, timeStr?: string): Date | null => {
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [currentUserId, setCurrentUserId] = useState<string>("e-alex");
+  const [role, setRoleState] = useState<"Employee" | "Admin">("Employee");
+  const [rides, setRides] = useState<Ride[]>(INITIAL_RIDES);
+  const [requests, setRequests] = useState<RideRequest[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([
+    {
+      id: "n-1",
+      title: "Welcome to EcoRide 🌱",
+      message: "Track your corporate carbon savings, earn ESG credits, and claim commuting rewards with colleagues.",
+      timestamp: "Today, 12:00 PM",
+      type: "success",
+      read: false
+    }
+  ]);
+  const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
+  const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>([]);
+
+  const currentUserIdRef = useRef(currentUserId);
+  const ridesRef = useRef(rides);
+
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
+
+  useEffect(() => {
+    ridesRef.current = rides;
+  }, [rides]);
+
+  const logSecurityEvent = (
+    action: string, 
+    severity: "INFO" | "WARNING" | "CRITICAL", 
+    details: string,
+    overrideUserId?: string,
+    overrideEmail?: string
+  ) => {
+    const activeUserId = overrideUserId || currentUserIdRef.current;
+    const activeUser = employees.find(e => e.id === activeUserId);
+    const activeUserEmail = overrideEmail || activeUser?.email || "anonymous@company.com";
+    
+    const newLog: SecurityAuditLog = {
+      id: `log-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      timestamp: new Date().toISOString(),
+      userId: activeUserId,
+      userEmail: activeUserEmail,
+      action,
+      severity,
+      details
+    };
+    
+    setAuditLogs(prev => {
+      const updated = [newLog, ...prev];
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_audit_logs", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("audit_logs", updated);
+      }
+      return updated;
+    });
+  };
+
+  // Idle Session Timeout Observer (SOC2 Technical Control)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    let lastActivity = Date.now();
+    const resetActivity = () => {
+      lastActivity = Date.now();
+      localStorage.setItem("ecoride_last_activity", String(lastActivity));
+    };
+
+    window.addEventListener("mousedown", resetActivity);
+    window.addEventListener("keydown", resetActivity);
+    window.addEventListener("scroll", resetActivity);
+    window.addEventListener("touchstart", resetActivity);
+
+    const checkInterval = setInterval(() => {
+      const savedLast = Number(localStorage.getItem("ecoride_last_activity") || lastActivity);
+      const loggedIn = localStorage.getItem("ecoride_is_logged_in") === "true";
+      
+      if (loggedIn && (Date.now() - savedLast > 30 * 60 * 1000)) { // 30 minutes
+        logSecurityEvent("SESSION_TIMEOUT", "WARNING", "Session automatically terminated due to user inactivity (30m).");
+        logout();
+        
+        addNotification({
+          id: `n-timeout-${Date.now()}`,
+          title: "Session Expired 🔒",
+          message: "You have been logged out automatically due to 30 minutes of inactivity for SOC2 compliance security.",
+          timestamp: "Just now",
+          type: "warning",
+          read: false
+        });
+      }
+    }, 10000);
+
+    return () => {
+      window.removeEventListener("mousedown", resetActivity);
+      window.removeEventListener("keydown", resetActivity);
+      window.removeEventListener("scroll", resetActivity);
+      window.removeEventListener("touchstart", resetActivity);
+      clearInterval(checkInterval);
+    };
+  }, [isLoggedIn]);
 
   const login = (email: string): boolean => {
     const cleanEmail = email.trim().toLowerCase();
@@ -449,32 +565,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem("ecoride_is_logged_in", "true");
       localStorage.setItem("ecoride_logged_in_user_id", resolvedUserId);
     }
+    logSecurityEvent("USER_LOGIN", "INFO", `User successfully logged in. Mode: ${foundUser ? "Existing" : "Auto-Registration"}`, resolvedUserId, cleanEmail);
     return true;
   };
 
   const logout = () => {
+    logSecurityEvent("USER_LOGOUT", "INFO", "User manually terminated their session.");
     setIsLoggedIn(false);
     if (typeof window !== "undefined") {
       localStorage.removeItem("ecoride_is_logged_in");
       localStorage.removeItem("ecoride_logged_in_user_id");
     }
   };
-  const [currentUserId, setCurrentUserId] = useState<string>("e-alex");
-  const [role, setRoleState] = useState<"Employee" | "Admin">("Employee");
-  const [rides, setRides] = useState<Ride[]>(INITIAL_RIDES);
-  const [requests, setRequests] = useState<RideRequest[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "n-1",
-      title: "Welcome to EcoRide 🌱",
-      message: "Track your corporate carbon savings, earn ESG credits, and claim commuting rewards with colleagues.",
-      timestamp: "Today, 12:00 PM",
-      type: "success",
-      read: false
-    }
-  ]);
-  const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
+
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -586,16 +689,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     initializeData();
   }, []);
 
-  const currentUserIdRef = useRef(currentUserId);
-  const ridesRef = useRef(rides);
 
-  useEffect(() => {
-    currentUserIdRef.current = currentUserId;
-  }, [currentUserId]);
-
-  useEffect(() => {
-    ridesRef.current = rides;
-  }, [rides]);
 
   // 1.5. Local storage event listener — cross-tab synchronization in Sandbox Mode
   useEffect(() => {
@@ -1016,6 +1110,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabaseSync.set("rides", updatedRides);
     }
     
+    logSecurityEvent("RIDE_CREATE", "INFO", `Created ride ID: ${newRide.id} from ${newRide.pickup} to ${newRide.destination} (Seats: ${newRide.seatsTotal})`);
+
     // No upfront credits awarded for hosting alone. Credits earned on complete based on co-passengers.
     addNotification({
       id: `n-create-${Date.now()}`,
@@ -1088,6 +1184,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       `Ride Join Request from ${currentUser.name} ✉️`,
       `${currentUser.name} wants to join your ride to ${targetRide.destination}.`
     );
+
+    logSecurityEvent("RIDE_JOIN_REQUEST", "INFO", `Requested to join ride ID: ${rideId} at pickup: ${pickup}`);
   };
 
   // Respond to join request (Accept / Reject)
@@ -1214,6 +1312,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         `${targetRide.hostName} declined your join request.`
       );
     }
+
+    logSecurityEvent("RIDE_REQUEST_RESOLVED", "INFO", `Resolved join request ID: ${requestId} to: ${accept ? "Accepted" : "Rejected"} (Ride ID: ${reqToRespond.rideId})`);
   };
 
   // Send Message (Real-time and User-driven chat updates)
@@ -1603,6 +1703,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return updated;
     });
 
+    logSecurityEvent("ADMIN_RIDE_DELETE", "CRITICAL", `Administrator manually deleted ride ID: ${rideId}`);
+
     addNotification({
       id: `n-adm-del-${Date.now()}`,
       title: "Ride Moderated 🚫",
@@ -1619,6 +1721,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (emp.id !== employeeId) return emp;
       return { ...emp, is_active: false };
     }));
+
+    logSecurityEvent("ADMIN_USER_DEACTIVATE", "CRITICAL", `Administrator deactivated employee user ID: ${employeeId}`);
 
     addNotification({
       id: `n-adm-deac-${Date.now()}`,
@@ -1648,6 +1752,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       return updated;
     });
+
+    logSecurityEvent("PROFILE_UPDATE", "INFO", `Profile details updated: ${Object.keys(updatedDetails).join(", ")}`);
 
     addNotification({
       id: `n-prof-upd-${Date.now()}`,
@@ -1692,7 +1798,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updatePassengerLocation,
         updateNotificationPrefs,
         confirmBoarding,
-        updateProfile
+        updateProfile,
+        auditLogs,
+        logSecurityEvent
       }}
     >
       {children}
