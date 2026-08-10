@@ -149,6 +149,9 @@ export interface RideRequest {
   pickup: string;
   pickupLat?: number;
   pickupLng?: number;
+  dropPoint: string;
+  dropLat?: number;
+  dropLng?: number;
   status: "Pending" | "Accepted" | "Rejected";
   timestamp: string;
   boardingPin?: string;
@@ -208,7 +211,7 @@ interface StateContextType {
   badges: Badge[];
   leaderboard: Employee[];
   createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => void;
-  requestJoinRide: (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number) => void;
+  requestJoinRide: (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number, dropPoint?: string, dropLat?: number, dropLng?: number) => void;
   handleRequestResponse: (requestId: string, accept: boolean) => void;
   confirmBoarding: (rideId: string, passengerId: string, enteredPin: string) => { success: boolean; message: string };
   sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
@@ -1148,7 +1151,15 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Request to Join a Ride — write OUTSIDE setState callback
-  const requestJoinRide = (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number) => {
+  const requestJoinRide = (
+    rideId: string, 
+    pickup: string, 
+    pickupLat?: number, 
+    pickupLng?: number,
+    dropPoint?: string,
+    dropLat?: number,
+    dropLng?: number
+  ) => {
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
@@ -1163,6 +1174,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       pickup,
       pickupLat,
       pickupLng,
+      dropPoint: dropPoint || targetRide.destination,
+      dropLat,
+      dropLng,
       status: "Pending",
       timestamp: "Just now"
     };

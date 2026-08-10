@@ -110,6 +110,99 @@ const getMaskedRequesterAvatar = (req: RideRequest, currentUserId: string) => {
   return "👤";
 };
 
+const getOptimalWaypoints = (
+  trip: Ride,
+  requests: RideRequest[],
+  getDistanceFn: (lat1: number, lon1: number, lat2: number, lon2: number) => number
+): string[] => {
+  const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
+  const startLat = trip.driverLat;
+  const startLng = trip.driverLng;
+  
+  // 1. Sort pickups optimally
+  let sortedPickups = [...approvedReqs];
+  let lastPickupLat = startLat;
+  let lastPickupLng = startLng;
+  
+  if (startLat !== undefined && startLng !== undefined && approvedReqs.length > 0) {
+    const remaining = [...approvedReqs];
+    const sorted: typeof approvedReqs = [];
+    let currentLat = startLat;
+    let currentLng = startLng;
+    
+    while (remaining.length > 0) {
+      let minIndex = 0;
+      let minDistance = Infinity;
+      for (let i = 0; i < remaining.length; i++) {
+        const r = remaining[i];
+        if (r.pickupLat !== undefined && r.pickupLng !== undefined) {
+          const dist = getDistanceFn(currentLat, currentLng, r.pickupLat, r.pickupLng);
+          if (dist < minDistance) {
+            minDistance = dist;
+            minIndex = i;
+          }
+        }
+      }
+      const nextReq = remaining.splice(minIndex, 1)[0];
+      sorted.push(nextReq);
+      if (nextReq.pickupLat !== undefined && nextReq.pickupLng !== undefined) {
+        currentLat = nextReq.pickupLat;
+        currentLng = nextReq.pickupLng;
+        lastPickupLat = nextReq.pickupLat;
+        lastPickupLng = nextReq.pickupLng;
+      }
+    }
+    sortedPickups = sorted;
+  }
+  
+  // 2. Sort drop-offs optimally starting from the last pickup point
+  let sortedDrops = [...approvedReqs];
+  if (lastPickupLat !== undefined && lastPickupLng !== undefined && approvedReqs.length > 0) {
+    const remaining = [...approvedReqs];
+    const sorted: typeof approvedReqs = [];
+    let currentLat = lastPickupLat;
+    let currentLng = lastPickupLng;
+    
+    while (remaining.length > 0) {
+      let minIndex = 0;
+      let minDistance = Infinity;
+      for (let i = 0; i < remaining.length; i++) {
+        const r = remaining[i];
+        const lat = r.dropLat !== undefined ? r.dropLat : currentLat;
+        const lng = r.dropLng !== undefined ? r.dropLng : currentLng;
+        const dist = getDistanceFn(currentLat, currentLng, lat, lng);
+        if (dist < minDistance) {
+          minDistance = dist;
+          minIndex = i;
+        }
+      }
+      const nextReq = remaining.splice(minIndex, 1)[0];
+      sorted.push(nextReq);
+      if (nextReq.dropLat !== undefined && nextReq.dropLng !== undefined) {
+        currentLat = nextReq.dropLat;
+        currentLng = nextReq.dropLng;
+      }
+    }
+    sortedDrops = sorted;
+  }
+  
+  // 3. Build waypoints list
+  const pickupsList = sortedPickups.map(r => r.pickup);
+  const dropsList = sortedDrops
+    .map(r => r.dropPoint)
+    .filter(drop => drop !== trip.destination); // exclude final destination
+    
+  // Return unique waypoints in order: pickups first, then drops
+  const result: string[] = [];
+  pickupsList.forEach(p => {
+    if (!result.includes(p)) result.push(p);
+  });
+  dropsList.forEach(d => {
+    if (!result.includes(d)) result.push(d);
+  });
+  return result;
+};
+
 interface PassengerPinVerifyFormProps {
   rideId: string;
   passengerId: string;
@@ -271,10 +364,17 @@ export default function HomePage() {
   // Join ride custom pickup & vicinity verification states
   const [joiningRide, setJoiningRide] = useState<any | null>(null);
   const [passengerPickupInput, setPassengerPickupInput] = useState("");
+  const [passengerDropInput, setPassengerDropInput] = useState("");
   const [vicinityError, setVicinityError] = useState("");
   const [verifyingVicinity, setVerifyingVicinity] = useState(false);
   const [reviewingRequest, setReviewingRequest] = useState<any | null>(null);
   const [mapViewPreferences, setMapViewPreferences] = useState<Record<string, "embedded" | "native">>({});
+
+  useEffect(() => {
+    if (joiningRide) {
+      setPassengerDropInput(joiningRide.destination);
+    }
+  }, [joiningRide]);
 
   // PWA installation states
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -349,9 +449,10 @@ export default function HomePage() {
 
     const google = (window as any).google;
     if (!google || !google.maps) {
-      requestJoinRide(joiningRide.id, passengerPickupInput);
+      requestJoinRide(joiningRide.id, passengerPickupInput, undefined, undefined, passengerDropInput || joiningRide.destination);
       setJoiningRide(null);
       setPassengerPickupInput("");
+      setPassengerDropInput("");
       setVerifyingVicinity(false);
       return;
     }
@@ -367,75 +468,87 @@ export default function HomePage() {
 
       const passengerLatLng = passengerRes[0].geometry.location;
 
-      geocoder.geocode({ address: joiningRide.pickup }, (hostPickupRes: any, hostPickupStatus: any) => {
-        if (hostPickupStatus !== "OK" || !hostPickupRes[0]) {
-          requestJoinRide(joiningRide.id, passengerPickupInput);
-          setJoiningRide(null);
-          setPassengerPickupInput("");
-          setVerifyingVicinity(false);
-          return;
+      geocoder.geocode({ address: passengerDropInput || joiningRide.destination }, (dropRes: any, dropStatus: any) => {
+        let dropLat = undefined;
+        let dropLng = undefined;
+        if (dropStatus === "OK" && dropRes[0]) {
+          dropLat = dropRes[0].geometry.location.lat();
+          dropLng = dropRes[0].geometry.location.lng();
         }
 
-        const hostPickupLatLng = hostPickupRes[0].geometry.location;
-
-        geocoder.geocode({ address: joiningRide.destination }, (hostDestRes: any, hostDestStatus: any) => {
-          if (hostDestStatus !== "OK" || !hostDestRes[0]) {
-            requestJoinRide(joiningRide.id, passengerPickupInput);
+        geocoder.geocode({ address: joiningRide.pickup }, (hostPickupRes: any, hostPickupStatus: any) => {
+          if (hostPickupStatus !== "OK" || !hostPickupRes[0]) {
+            requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng);
             setJoiningRide(null);
             setPassengerPickupInput("");
+            setPassengerDropInput("");
             setVerifyingVicinity(false);
             return;
           }
 
-          const hostDestLatLng = hostDestRes[0].geometry.location;
+          const hostPickupLatLng = hostPickupRes[0].geometry.location;
 
-          const pDistance = (x: number, y: number, x1: number, y1: number, x2: number, y2: number) => {
-            const A = x - x1;
-            const B = y - y1;
-            const C = x2 - x1;
-            const D = y2 - y1;
-
-            const dot = A * C + B * D;
-            const len_sq = C * C + D * D;
-            let param = -1;
-            if (len_sq !== 0) param = dot / len_sq;
-
-            let xx, yy;
-            if (param < 0) {
-              xx = x1;
-              yy = y1;
-            } else if (param > 1) {
-              xx = x2;
-              yy = y2;
-            } else {
-              xx = x1 + param * C;
-              yy = y1 + param * D;
+          geocoder.geocode({ address: joiningRide.destination }, (hostDestRes: any, hostDestStatus: any) => {
+            if (hostDestStatus !== "OK" || !hostDestRes[0]) {
+              requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng);
+              setJoiningRide(null);
+              setPassengerPickupInput("");
+              setPassengerDropInput("");
+              setVerifyingVicinity(false);
+              return;
             }
 
-            const dx = x - xx;
-            const dy = y - yy;
-            
-            const dy_km = dy * 111.1;
-            const dx_km = dx * 111.1 * Math.cos(xx * Math.PI / 180);
-            
-            return Math.sqrt(dx_km * dx_km + dy_km * dy_km);
-          };
+            const hostDestLatLng = hostDestRes[0].geometry.location;
 
-          const distanceKm = pDistance(
-            passengerLatLng.lat(), passengerLatLng.lng(),
-            hostPickupLatLng.lat(), hostPickupLatLng.lng(),
-            hostDestLatLng.lat(), hostDestLatLng.lng()
-          );
+            const pDistance = (x: number, y: number, x1: number, y1: number, x2: number, y2: number) => {
+              const A = x - x1;
+              const B = y - y1;
+              const C = x2 - x1;
+              const D = y2 - y1;
 
-          if (distanceKm > 1.0) {
-            setVicinityError(`Your pickup is ${distanceKm.toFixed(2)} km away from the driver's direct route. Max limit: 1.0 km.`);
-            setVerifyingVicinity(false);
-          } else {
-            requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng());
-            setJoiningRide(null);
-            setPassengerPickupInput("");
-            setVerifyingVicinity(false);
-          }
+              const dot = A * C + B * D;
+              const len_sq = C * C + D * D;
+              let param = -1;
+              if (len_sq !== 0) param = dot / len_sq;
+
+              let xx, yy;
+              if (param < 0) {
+                xx = x1;
+                yy = y1;
+              } else if (param > 1) {
+                xx = x2;
+                yy = y2;
+              } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+              }
+
+              const dx = x - xx;
+              const dy = y - yy;
+              
+              const dy_km = dy * 111.1;
+              const dx_km = dx * 111.1 * Math.cos(xx * Math.PI / 180);
+              
+              return Math.sqrt(dx_km * dx_km + dy_km * dy_km);
+            };
+
+            const distanceKm = pDistance(
+              passengerLatLng.lat(), passengerLatLng.lng(),
+              hostPickupLatLng.lat(), hostPickupLatLng.lng(),
+              hostDestLatLng.lat(), hostDestLatLng.lng()
+            );
+
+            if (distanceKm > 1.0) {
+              setVicinityError(`Your pickup is ${distanceKm.toFixed(2)} km away from the driver's direct route. Max limit: 1.0 km.`);
+              setVerifyingVicinity(false);
+            } else {
+              requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng);
+              setJoiningRide(null);
+              setPassengerPickupInput("");
+              setPassengerDropInput("");
+              setVerifyingVicinity(false);
+            }
+          });
         });
       });
     });
@@ -1564,9 +1677,14 @@ export default function HomePage() {
                                   <p className="text-[9px] text-slate-500">
                                     Wants to join: {ride?.pickup} → {ride?.destination}
                                   </p>
-                                  <span className="text-[8px] bg-brand-blue-50 text-brand-blue-700 dark:bg-brand-blue-950/30 dark:text-brand-blue-400 px-1 py-0.2 rounded font-bold mt-1 inline-block">
-                                    📍 Pickup: {req.pickup}
-                                  </span>
+                                  <div className="flex flex-wrap gap-1.5 mt-1">
+                                    <span className="text-[8px] bg-brand-blue-50 text-brand-blue-700 dark:bg-brand-blue-950/30 dark:text-brand-blue-400 px-1.5 py-0.5 rounded font-bold">
+                                      📍 Pickup: {req.pickup}
+                                    </span>
+                                    <span className="text-[8px] bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 px-1.5 py-0.5 rounded font-bold">
+                                      🏁 Drop-off: {req.dropPoint || ride?.destination}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                               <div className="flex gap-1.5">
@@ -1627,15 +1745,24 @@ export default function HomePage() {
                                             const isSelf = p.id === currentUser.id;
                                             const displayName = hasBoarded || isSelf ? p.name : `Colleague ${idx + 1}`;
                                             const displayAvatar = hasBoarded || isSelf ? p.avatar : "👤";
+                                            const pReq = requests.find(r => r.rideId === trip.id && r.requesterId === p.id && r.status === "Accepted");
                                             return (
                                               <div key={p.id} className="flex items-center justify-between gap-3 p-1.5 bg-white/40 dark:bg-slate-950/20 rounded-lg border border-slate-200/20 dark:border-slate-800/20">
-                                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-750 dark:text-slate-300">
-                                                  <span>{displayAvatar}</span>
-                                                  <span>{displayName}</span>
-                                                  {hasBoarded && (
-                                                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 text-[8px] font-extrabold">
-                                                      ✓ Boarded
-                                                    </span>
+                                                <div className="flex flex-col gap-0.5 text-slate-750 dark:text-slate-300">
+                                                  <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                                                    <span>{displayAvatar}</span>
+                                                    <span>{displayName}</span>
+                                                    {hasBoarded && (
+                                                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 text-[8px] font-extrabold">
+                                                        ✓ Boarded
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  {pReq && (
+                                                    <div className="text-[8px] text-slate-500 dark:text-slate-400 font-semibold space-y-0.5 pl-5">
+                                                      <p>📍 Pickup: <span className="font-bold">{pReq.pickup}</span></p>
+                                                      <p>🏁 Drop-off: <span className="font-bold">{pReq.dropPoint}</span></p>
+                                                    </div>
                                                   )}
                                                 </div>
                                                 
@@ -1687,44 +1814,10 @@ export default function HomePage() {
                                 {/* Open in Google Maps shortcut (available for all upcoming/active rides) */}
                                 <a
                                   href={(() => {
-                                    const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
-                                    const startLat = trip.driverLat;
-                                    const startLng = trip.driverLng;
-                                    
-                                    // Nearest-Neighbor proximity sort
-                                    let sortedReqs = [...approvedReqs];
-                                    if (startLat !== undefined && startLng !== undefined && approvedReqs.length > 1) {
-                                      const remaining = [...approvedReqs];
-                                      const sorted: typeof approvedReqs = [];
-                                      let currentLat = startLat;
-                                      let currentLng = startLng;
-                                      
-                                      while (remaining.length > 0) {
-                                        let minIndex = 0;
-                                        let minDistance = Infinity;
-                                        for (let i = 0; i < remaining.length; i++) {
-                                          const r = remaining[i];
-                                          if (r.pickupLat !== undefined && r.pickupLng !== undefined) {
-                                            const dist = getDistance(currentLat, currentLng, r.pickupLat, r.pickupLng);
-                                            if (dist < minDistance) {
-                                              minDistance = dist;
-                                              minIndex = i;
-                                            }
-                                          }
-                                        }
-                                        const nextReq = remaining.splice(minIndex, 1)[0];
-                                        sorted.push(nextReq);
-                                        if (nextReq.pickupLat !== undefined && nextReq.pickupLng !== undefined) {
-                                          currentLat = nextReq.pickupLat;
-                                          currentLng = nextReq.pickupLng;
-                                        }
-                                      }
-                                      sortedReqs = sorted;
-                                    }
-                                    
+                                    const waypoints = getOptimalWaypoints(trip, requests, getDistance);
                                     const originParam = trip.driverLat && trip.driverLng ? `&origin=${trip.driverLat},${trip.driverLng}` : "";
-                                    const waypointsParam = sortedReqs.length > 0 
-                                      ? `&waypoints=${encodeURIComponent(sortedReqs.map(r => r.pickup).join('|'))}` 
+                                    const waypointsParam = waypoints.length > 0 
+                                      ? `&waypoints=${encodeURIComponent(waypoints.join('|'))}` 
                                       : "";
                                     
                                     return `https://www.google.com/maps/dir/?api=1${originParam}&destination=${encodeURIComponent(trip.destination)}${waypointsParam}&dir_action=navigate&travelmode=driving`;
@@ -1771,42 +1864,7 @@ export default function HomePage() {
 
                             {/* Ongoing Ride Map with Embedded / Native selection */}
                             {trip.status?.toLowerCase() === "started" && (() => {
-                               const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
-                               const startLat = trip.driverLat;
-                               const startLng = trip.driverLng;
-                               
-                               // Nearest-Neighbor proximity sort
-                               let sortedReqs = [...approvedReqs];
-                               if (startLat !== undefined && startLng !== undefined && approvedReqs.length > 1) {
-                                 const remaining = [...approvedReqs];
-                                 const sorted: typeof approvedReqs = [];
-                                 let currentLat = startLat;
-                                 let currentLng = startLng;
-                                 
-                                 while (remaining.length > 0) {
-                                   let minIndex = 0;
-                                   let minDistance = Infinity;
-                                   for (let i = 0; i < remaining.length; i++) {
-                                     const r = remaining[i];
-                                     if (r.pickupLat !== undefined && r.pickupLng !== undefined) {
-                                       const dist = getDistance(currentLat, currentLng, r.pickupLat, r.pickupLng);
-                                       if (dist < minDistance) {
-                                         minDistance = dist;
-                                         minIndex = i;
-                                       }
-                                     }
-                                   }
-                                   const nextReq = remaining.splice(minIndex, 1)[0];
-                                   sorted.push(nextReq);
-                                   if (nextReq.pickupLat !== undefined && nextReq.pickupLng !== undefined) {
-                                     currentLat = nextReq.pickupLat;
-                                     currentLng = nextReq.pickupLng;
-                                   }
-                                 }
-                                 sortedReqs = sorted;
-                               }
-                               
-                               const passengerPickups = sortedReqs.map(req => req.pickup);
+                               const passengerPickups = getOptimalWaypoints(trip, requests, getDistance);
                                const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${
                                  trip.driverLat && trip.driverLng ? `&origin=${trip.driverLat},${trip.driverLng}` : ""
                                }&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&dir_action=navigate&travelmode=driving`;
@@ -1898,15 +1956,16 @@ export default function HomePage() {
                 <div className="glass-panel max-w-md w-full p-6 rounded-3xl border-2 border-brand-blue-500/20 bg-white dark:bg-slate-950 animate-scale-up space-y-4 shadow-2xl">
                   <div className="flex items-center justify-between border-b pb-3">
                     <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm sm:text-base">
-                      🤝 Confirm Pickup Point
+                      🤝 Confirm Commute Points
                     </h3>
                     <button
                       onClick={() => {
                         setJoiningRide(null);
                         setPassengerPickupInput("");
+                        setPassengerDropInput("");
                         setVicinityError("");
                       }}
-                      className="p-1 text-slate-400 hover:bg-slate-100 rounded-lg cursor-pointer"
+                      className="p-1 text-slate-400 hover:bg-slate-150 rounded-lg cursor-pointer"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1933,6 +1992,14 @@ export default function HomePage() {
                       required
                     />
 
+                    <AddressAutocomplete
+                      value={passengerDropInput}
+                      onChange={setPassengerDropInput}
+                      placeholder="Enter your exact drop-off location..."
+                      label="Your Drop-off Location"
+                      required
+                    />
+
                     {vicinityError && (
                       <p className="text-[10px] font-semibold text-rose-500 flex items-center gap-1">
                         ⚠️ {vicinityError}
@@ -1945,6 +2012,7 @@ export default function HomePage() {
                         onClick={() => {
                           setJoiningRide(null);
                           setPassengerPickupInput("");
+                          setPassengerDropInput("");
                           setVicinityError("");
                         }}
                         className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
@@ -1953,7 +2021,7 @@ export default function HomePage() {
                       </button>
                       <button
                         onClick={handleJoinSubmit}
-                        disabled={verifyingVicinity || !passengerPickupInput}
+                        disabled={verifyingVicinity || !passengerPickupInput || !passengerDropInput}
                         className="px-4 py-2 rounded-xl bg-brand-blue-600 hover:bg-brand-blue-700 disabled:bg-slate-350 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
                       >
                         {verifyingVicinity ? "Verifying Route..." : "Verify & Join"}
