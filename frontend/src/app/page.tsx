@@ -1986,8 +1986,9 @@ export default function HomePage() {
                                           {passengerDetails.map((p: any, idx: number) => {
                                             const hasBoarded = trip.boardedPassengers?.includes(p.id);
                                             const isSelf = p.id === currentUser.id;
-                                            const displayName = hasBoarded || isSelf ? p.name : `Colleague ${idx + 1}`;
-                                            const displayAvatar = hasBoarded || isSelf ? p.avatar : "👤";
+                                            const canSeeDetails = isHost || isSelf || trip.passengers.includes(currentUser.id);
+                                            const displayName = canSeeDetails ? p.name : `Colleague ${idx + 1}`;
+                                            const displayAvatar = canSeeDetails ? p.avatar : "👤";
                                             const pReq = requests.find(r => r.rideId === trip.id && r.requesterId === p.id && r.status === "Accepted");
                                             return (
                                               <div key={p.id} className="flex items-center justify-between gap-3 p-1.5 bg-white/40 dark:bg-slate-950/20 rounded-lg border border-slate-200/20 dark:border-slate-800/20">
@@ -2000,7 +2001,7 @@ export default function HomePage() {
                                                         ✓ Boarded
                                                       </span>
                                                     )}
-                                                    {p.phone && (
+                                                    {canSeeDetails && p.phone && (
                                                       <a
                                                         href={`tel:${p.phone}`}
                                                         className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-brand-blue-600 dark:bg-slate-800 dark:hover:bg-slate-700 transition-all flex items-center justify-center cursor-pointer"
