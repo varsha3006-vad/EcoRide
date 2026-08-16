@@ -334,6 +334,50 @@ const StateContext = createContext<StateContextType | undefined>(undefined);
 // Core Test Personas (The 5 real users replacing the dummy ones)
 const INITIAL_EMPLOYEES: Employee[] = [
   {
+    id: "eeeee111-e111-e111-e111-eeeeeeeeeeee",
+    name: "Rahul",
+    email: "rahul@company.com",
+    avatar: "👨‍💻",
+    department: "Engineering",
+    designation: "Principal Architect",
+    office: "Building B",
+    phone: "9687605862",
+    vehicle: {
+      model: "Tesla Model S",
+      type: "Electric",
+      capacity: 4,
+      plateNumber: "CA-770EV"
+    },
+    esgScore: 85,
+    carbonSaved: 120.40,
+    credits: 640,
+    rank: 1,
+    badgeIds: [],
+    gender: "Male"
+  },
+  {
+    id: "eeeee222-e222-e222-e222-eeeeeeeeeeee",
+    name: "Shail",
+    email: "shail@company.com",
+    avatar: "👨‍🎨",
+    department: "Product Design",
+    designation: "Lead Designer",
+    office: "Building C",
+    phone: "9731848848",
+    vehicle: {
+      model: "Toyota Prius",
+      type: "Hybrid",
+      capacity: 4,
+      plateNumber: "CA-102HY"
+    },
+    esgScore: 80,
+    carbonSaved: 75.20,
+    credits: 410,
+    rank: 2,
+    badgeIds: [],
+    gender: "Male"
+  },
+  {
     id: "e-alex",
     name: "Alex",
     email: "alex@company.com",
@@ -446,16 +490,17 @@ const INITIAL_EMPLOYEES: Employee[] = [
     department: "Human Resources",
     designation: "HR Director",
     office: "Building A",
+    phone: "9687605863",
     vehicle: {
       model: "Tesla Model Y",
       type: "Electric",
       capacity: 4,
       plateNumber: "CA-889XG"
     },
-    esgScore: 0,
-    carbonSaved: 0,
-    credits: 0,
-    rank: 1,
+    esgScore: 92,
+    carbonSaved: 95.50,
+    credits: 510,
+    rank: 3,
     badgeIds: [],
     gender: "Female"
   }

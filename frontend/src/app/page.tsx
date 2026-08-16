@@ -40,7 +40,8 @@ import {
   ArrowLeft,
   Map,
   Zap,
-  Navigation
+  Navigation,
+  Phone
 } from "lucide-react";
 
 const generate15MinTimeOptions = () => {
@@ -1957,6 +1958,25 @@ export default function HomePage() {
                                     )}
                                   </div>
 
+                                  {!isHost && (() => {
+                                    const hostEmployee = employees.find(e => e.id === trip.hostId);
+                                    if (!hostEmployee) return null;
+                                    return (
+                                      <div className="mt-2 text-[9px] text-slate-650 dark:text-slate-350 font-bold flex items-center gap-2 bg-slate-100/40 dark:bg-slate-900/30 px-2 py-1 rounded-lg border border-slate-200/20 dark:border-slate-800/10 w-fit">
+                                        <span>Host: {hostEmployee.avatar} {hostEmployee.name} ({hostEmployee.department})</span>
+                                        {hostEmployee.phone && (
+                                          <a
+                                            href={`tel:${hostEmployee.phone}`}
+                                            className="px-2 py-0.5 rounded bg-brand-blue-500/10 hover:bg-brand-blue-500/20 text-brand-blue-600 dark:text-brand-blue-400 text-[8px] font-extrabold flex items-center gap-1 transition-all cursor-pointer"
+                                            title={`Call ${hostEmployee.name}`}
+                                          >
+                                            <Phone className="h-2 w-2" /> Call Host
+                                          </a>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+
                                   {trip.passengers.length > 0 && (() => {
                                     const passengerDetails = employees.filter((e: any) => trip.passengers.includes(e.id));
                                     return (
@@ -1979,6 +1999,15 @@ export default function HomePage() {
                                                       <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 text-[8px] font-extrabold">
                                                         ✓ Boarded
                                                       </span>
+                                                    )}
+                                                    {p.phone && (
+                                                      <a
+                                                        href={`tel:${p.phone}`}
+                                                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-brand-blue-600 dark:bg-slate-800 dark:hover:bg-slate-700 transition-all flex items-center justify-center cursor-pointer"
+                                                        title={`Call ${p.name}`}
+                                                      >
+                                                        <Phone className="h-2.5 w-2.5" />
+                                                      </a>
                                                     )}
                                                   </div>
                                                   {pReq && (
