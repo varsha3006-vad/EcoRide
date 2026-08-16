@@ -413,41 +413,25 @@ export default function HomePage() {
         setCalculatingDeviations(false);
         return;
       }
+      if (!pDropLatLng) {
+        alert("Could not geocode your drop-off address. Please try another address.");
+        setCalculatingDeviations(false);
+        return;
+      }
 
-      const pLat = pPickupLatLng.lat();
-      const pLng = pPickupLatLng.lng();
+      const pPickupLat = pPickupLatLng.lat();
+      const pPickupLng = pPickupLatLng.lng();
+      const pDropLat = pDropLatLng.lat();
+      const pDropLng = pDropLatLng.lng();
 
       const newDeviations: Record<string, number> = {};
 
-      const pDistance = (x: number, y: number, x1: number, y1: number, x2: number, y2: number) => {
-        const A = x - x1;
-        const B = y - y1;
-        const C = x2 - x1;
-        const D = y2 - y1;
-
-        const dot = A * C + B * D;
-        const len_sq = C * C + D * D;
-        let param = -1;
-        if (len_sq !== 0) param = dot / len_sq;
-
-        let xx, yy;
-        if (param < 0) {
-          xx = x1;
-          yy = y1;
-        } else if (param > 1) {
-          xx = x2;
-          yy = y2;
-        } else {
-          xx = x1 + param * C;
-          yy = y1 + param * D;
-        }
-
-        const dx = x - xx;
-        const dy = y - yy;
-        
+      const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+        const dy = lat1 - lat2;
+        const dx = lng1 - lng2;
+        const latMid = (lat1 + lat2) / 2;
         const dy_km = dy * 111.1;
-        const dx_km = dx * 111.1 * Math.cos(xx * Math.PI / 180);
-        
+        const dx_km = dx * 111.1 * Math.cos(latMid * Math.PI / 180);
         return Math.sqrt(dx_km * dx_km + dy_km * dy_km);
       };
 
@@ -466,11 +450,24 @@ export default function HomePage() {
           const rDestLatLng = await getLatLng(ride.destination);
 
           if (rPickupLatLng && rDestLatLng) {
-            const dev = pDistance(
-              pLat, pLng,
+            const dHostToPassengerPickup = getDistance(
+              rPickupLatLng.lat(), rPickupLatLng.lng(),
+              pPickupLat, pPickupLng
+            );
+            const dPassengerPickupToDrop = getDistance(
+              pPickupLat, pPickupLng,
+              pDropLat, pDropLng
+            );
+            const dPassengerDropToHostDest = getDistance(
+              pDropLat, pDropLng,
+              rDestLatLng.lat(), rDestLatLng.lng()
+            );
+            const dHostPickupToDest = getDistance(
               rPickupLatLng.lat(), rPickupLatLng.lng(),
               rDestLatLng.lat(), rDestLatLng.lng()
             );
+            const detourDistance = dHostToPassengerPickup + dPassengerPickupToDrop + dPassengerDropToHostDest;
+            const dev = Math.max(0, detourDistance - dHostPickupToDest);
             newDeviations[ride.id] = dev;
           } else {
             // Mock deviation based on string length similarity as a smart fallback if geocoding fails
@@ -635,45 +632,42 @@ export default function HomePage() {
 
             const hostDestLatLng = hostDestRes[0].geometry.location;
 
-            const pDistance = (x: number, y: number, x1: number, y1: number, x2: number, y2: number) => {
-              const A = x - x1;
-              const B = y - y1;
-              const C = x2 - x1;
-              const D = y2 - y1;
+             const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+               const dy = lat1 - lat2;
+               const dx = lng1 - lng2;
+               const latMid = (lat1 + lat2) / 2;
+               const dy_km = dy * 111.1;
+               const dx_km = dx * 111.1 * Math.cos(latMid * Math.PI / 180);
+               return Math.sqrt(dx_km * dx_km + dy_km * dy_km);
+             };
 
-              const dot = A * C + B * D;
-              const len_sq = C * C + D * D;
-              let param = -1;
-              if (len_sq !== 0) param = dot / len_sq;
+             const dHostToPassengerPickup = getDistance(
+               hostPickupLatLng.lat(), hostPickupLatLng.lng(),
+               passengerLatLng.lat(), passengerLatLng.lng()
+             );
 
-              let xx, yy;
-              if (param < 0) {
-                xx = x1;
-                yy = y1;
-              } else if (param > 1) {
-                xx = x2;
-                yy = y2;
-              } else {
-                xx = x1 + param * C;
-                yy = y1 + param * D;
-              }
+             const effectiveDropLat = dropLat !== undefined ? dropLat : hostDestLatLng.lat();
+             const effectiveDropLng = dropLng !== undefined ? dropLng : hostDestLatLng.lng();
 
-              const dx = x - xx;
-              const dy = y - yy;
-              
-              const dy_km = dy * 111.1;
-              const dx_km = dx * 111.1 * Math.cos(xx * Math.PI / 180);
-              
-              return Math.sqrt(dx_km * dx_km + dy_km * dy_km);
-            };
+             const dPassengerPickupToDrop = getDistance(
+               passengerLatLng.lat(), passengerLatLng.lng(),
+               effectiveDropLat, effectiveDropLng
+             );
 
-            const distanceKm = pDistance(
-              passengerLatLng.lat(), passengerLatLng.lng(),
-              hostPickupLatLng.lat(), hostPickupLatLng.lng(),
-              hostDestLatLng.lat(), hostDestLatLng.lng()
-            );
+             const dPassengerDropToHostDest = getDistance(
+               effectiveDropLat, effectiveDropLng,
+               hostDestLatLng.lat(), hostDestLatLng.lng()
+             );
 
-            requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng, distanceKm);
+             const dHostPickupToDest = getDistance(
+               hostPickupLatLng.lat(), hostPickupLatLng.lng(),
+               hostDestLatLng.lat(), hostDestLatLng.lng()
+             );
+
+             const detourDistance = dHostToPassengerPickup + dPassengerPickupToDrop + dPassengerDropToHostDest;
+             const deviationKm = Math.max(0, detourDistance - dHostPickupToDest);
+
+             requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng, deviationKm);
             setJoiningRide(null);
             setPassengerPickupInput("");
             setPassengerDropInput("");
@@ -1649,7 +1643,7 @@ export default function HomePage() {
                           No rides matching search filters. Try updating your criteria.
                         </div>
                       ) : (
-                        filteredRides.map(ride => {
+                        filteredRides.map((ride, idx) => {
                           const myRequest = requests.find(req => req.rideId === ride.id && req.requesterId === currentUser.id);
                           return (
                             <div key={ride.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/40 flex items-center justify-between gap-4 animate-fade-in">
@@ -1689,6 +1683,13 @@ export default function HomePage() {
                                         ↪ Route Match: {calculatedDeviations[ride.id].toFixed(2)} km deviation
                                       </span>
                                     )}
+                                    {Object.keys(calculatedDeviations).length > 0 &&
+                                      calculatedDeviations[ride.id] !== undefined &&
+                                      filteredRides.filter(r => calculatedDeviations[r.id] !== undefined)[0]?.id === ride.id && (
+                                        <span className="text-[9px] bg-amber-500 text-white dark:bg-amber-600 px-1.5 py-0.5 rounded font-black animate-pulse flex items-center gap-1 shadow-sm">
+                                          Best Match (Min Detour) 👍
+                                        </span>
+                                      )}
                                   </div>
                                 </div>
                               </div>
