@@ -242,6 +242,7 @@ export interface RideRequest {
   status: "Pending" | "Accepted" | "Rejected";
   timestamp: string;
   boardingPin?: string;
+  deviationKm?: number;
 }
 
 export interface ChatMessage {
@@ -298,8 +299,9 @@ interface StateContextType {
   badges: Badge[];
   leaderboard: Employee[];
   createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => void;
-  requestJoinRide: (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number, dropPoint?: string, dropLat?: number, dropLng?: number) => void;
+  requestJoinRide: (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number, dropPoint?: string, dropLat?: number, dropLng?: number, deviationKm?: number) => void;
   handleRequestResponse: (requestId: string, accept: boolean) => void;
+  checkRideOverlap: (newDate: string | undefined, newTime: string, userId?: string) => { hasOverlap: boolean; overlappingRide?: Ride };
   confirmBoarding: (rideId: string, passengerId: string, enteredPin: string) => { success: boolean; message: string };
   sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
   startRide: (rideId: string) => void;
@@ -1273,11 +1275,45 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     playNotificationSound();
   };
 
+  const checkRideOverlap = (
+    newDate: string | undefined,
+    newTime: string,
+    userId: string = currentUser.id
+  ): { hasOverlap: boolean; overlappingRide?: Ride } => {
+    const newDateTime = parseRideDateTime(newDate, newTime);
+    if (!newDateTime) return { hasOverlap: false };
+
+    for (const ride of ridesRef.current) {
+      if (ride.status === "Completed" || ride.status === "Cancelled") continue;
+
+      const isUserInvolved = ride.hostId === userId || (ride.passengers && ride.passengers.includes(userId));
+      if (!isUserInvolved) continue;
+
+      const existingDateTime = parseRideDateTime(ride.rideDate, ride.departureTime);
+      if (!existingDateTime) continue;
+
+      const diffMs = Math.abs(newDateTime.getTime() - existingDateTime.getTime());
+      const twoHoursMs = 2 * 60 * 60 * 1000;
+
+      if (diffMs < twoHoursMs) {
+        return { hasOverlap: true, overlappingRide: ride };
+      }
+    }
+    return { hasOverlap: false };
+  };
+
   // Create Ride — write OUTSIDE setState callback to avoid race condition
-  const createRide = (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers"> & { womenOnly?: boolean }) => {
-    const hasActive = ridesRef.current.some(r => r.hostId === currentUser.id && (r.status === "Published" || r.status === "Started"));
-    if (hasActive) {
-      console.warn("User already has an active ride hosted or started.");
+  const createRide = (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => {
+    const overlapResult = checkRideOverlap(rideData.rideDate, rideData.departureTime);
+    if (overlapResult.hasOverlap) {
+      addNotification({
+        id: `n-overlap-${Date.now()}`,
+        title: "Scheduling Overlap ⚠️",
+        message: `You cannot host this ride because it overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${overlapResult.overlappingRide?.rideDate}).`,
+        timestamp: "Just now",
+        type: "warning",
+        read: false
+      });
       return;
     }
 
@@ -1351,10 +1387,24 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     pickupLng?: number,
     dropPoint?: string,
     dropLat?: number,
-    dropLng?: number
+    dropLng?: number,
+    deviationKm?: number
   ) => {
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
+
+    const overlapResult = checkRideOverlap(targetRide.rideDate, targetRide.departureTime);
+    if (overlapResult.hasOverlap) {
+      addNotification({
+        id: `n-overlap-${Date.now()}`,
+        title: "Scheduling Overlap ⚠️",
+        message: `You cannot join this ride because it overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${overlapResult.overlappingRide?.rideDate}).`,
+        timestamp: "Just now",
+        type: "warning",
+        read: false
+      });
+      return;
+    }
 
     const newRequest: RideRequest = {
       id: `req-${Date.now()}`,
@@ -1371,7 +1421,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dropLat,
       dropLng,
       status: "Pending",
-      timestamp: "Just now"
+      timestamp: "Just now",
+      deviationKm
     };
 
     const updatedRequests = [newRequest, ...requests];
@@ -1402,6 +1453,21 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const targetRide = rides.find(r => r.id === reqToRespond.rideId);
     if (!targetRide) return;
+
+    if (accept) {
+      const overlapResult = checkRideOverlap(targetRide.rideDate, targetRide.departureTime, reqToRespond.requesterId);
+      if (overlapResult.hasOverlap) {
+        addNotification({
+          id: `n-overlap-requester-${Date.now()}`,
+          title: "Overlap Detected ⚠️",
+          message: `Cannot approve request. ${reqToRespond.requesterName} already has an overlapping scheduled ride.`,
+          timestamp: "Just now",
+          type: "warning",
+          read: false
+        });
+        return;
+      }
+    }
 
     if (accept && targetRide.seatsAvailable <= 0) {
       addNotification({
@@ -1989,6 +2055,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         createRide,
         requestJoinRide,
         handleRequestResponse,
+        checkRideOverlap,
         sendMessage,
         startRide,
         completeRide,

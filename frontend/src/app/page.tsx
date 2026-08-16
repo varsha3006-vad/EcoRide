@@ -110,6 +110,15 @@ const getMaskedRequesterAvatar = (req: RideRequest, currentUserId: string) => {
   return "👤";
 };
 
+const formatRideDate = (dateStr?: string) => {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const [year, month, day] = parts;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
 const getOptimalWaypoints = (
   trip: Ride,
   requests: RideRequest[],
@@ -272,6 +281,7 @@ export default function HomePage() {
     createRide,
     requestJoinRide,
     handleRequestResponse,
+    checkRideOverlap,
     sendMessage,
     startRide,
     completeRide,
@@ -450,9 +460,16 @@ export default function HomePage() {
     setVerifyingVicinity(true);
     setVicinityError("");
 
+    const overlapResult = checkRideOverlap(joiningRide.rideDate, joiningRide.departureTime, currentUser.id);
+    if (overlapResult.hasOverlap) {
+      setVicinityError(`Scheduling Overlap: This ride overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${formatRideDate(overlapResult.overlappingRide?.rideDate)}).`);
+      setVerifyingVicinity(false);
+      return;
+    }
+
     const google = (window as any).google;
     if (!google || !google.maps) {
-      requestJoinRide(joiningRide.id, passengerPickupInput, undefined, undefined, passengerDropInput || joiningRide.destination);
+      requestJoinRide(joiningRide.id, passengerPickupInput, undefined, undefined, passengerDropInput || joiningRide.destination, undefined, undefined, undefined);
       setJoiningRide(null);
       setPassengerPickupInput("");
       setPassengerDropInput("");
@@ -481,7 +498,7 @@ export default function HomePage() {
 
         geocoder.geocode({ address: joiningRide.pickup }, (hostPickupRes: any, hostPickupStatus: any) => {
           if (hostPickupStatus !== "OK" || !hostPickupRes[0]) {
-            requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng);
+            requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng, undefined);
             setJoiningRide(null);
             setPassengerPickupInput("");
             setPassengerDropInput("");
@@ -493,7 +510,7 @@ export default function HomePage() {
 
           geocoder.geocode({ address: joiningRide.destination }, (hostDestRes: any, hostDestStatus: any) => {
             if (hostDestStatus !== "OK" || !hostDestRes[0]) {
-              requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng);
+              requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng, undefined);
               setJoiningRide(null);
               setPassengerPickupInput("");
               setPassengerDropInput("");
@@ -541,16 +558,11 @@ export default function HomePage() {
               hostDestLatLng.lat(), hostDestLatLng.lng()
             );
 
-            if (distanceKm > 1.0) {
-              setVicinityError(`Your pickup is ${distanceKm.toFixed(2)} km away from the driver's direct route. Max limit: 1.0 km.`);
-              setVerifyingVicinity(false);
-            } else {
-              requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng);
-              setJoiningRide(null);
-              setPassengerPickupInput("");
-              setPassengerDropInput("");
-              setVerifyingVicinity(false);
-            }
+            requestJoinRide(joiningRide.id, passengerPickupInput, passengerLatLng.lat(), passengerLatLng.lng(), passengerDropInput || joiningRide.destination, dropLat, dropLng, distanceKm);
+            setJoiningRide(null);
+            setPassengerPickupInput("");
+            setPassengerDropInput("");
+            setVerifyingVicinity(false);
           });
         });
       });
@@ -588,6 +600,12 @@ export default function HomePage() {
 
     if (selectedDateTime < now) {
       setFormError("Departure time cannot be in the past. Please choose a future date and time.");
+      return;
+    }
+
+    const overlapResult = checkRideOverlap(rideDate, time, currentUser.id);
+    if (overlapResult.hasOverlap) {
+      setFormError(`Scheduling Overlap: This ride overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${formatRideDate(overlapResult.overlappingRide?.rideDate)}).`);
       return;
     }
 
@@ -1460,6 +1478,11 @@ export default function HomePage() {
                                   </h4>
                                   <p className="text-[10px] text-slate-500 font-semibold">{ride.pickup} → {ride.destination}</p>
                                   <div className="flex items-center gap-2 mt-1">
+                                    {ride.rideDate && (
+                                      <span className="text-[9px] bg-white dark:bg-slate-800 border px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1">
+                                        <Calendar className="h-2.5 w-2.5 text-slate-400" /> {formatRideDate(ride.rideDate)}
+                                      </span>
+                                    )}
                                     {ride.status === "Started" ? (
                                       <span className="text-[9px] bg-rose-500 text-white dark:bg-rose-600 px-1.5 py-0.5 rounded font-bold animate-pulse flex items-center gap-1">
                                         <span className="h-1.5 w-1.5 rounded-full bg-white block animate-ping"></span>
@@ -1570,27 +1593,17 @@ export default function HomePage() {
                   <div
                     role="button"
                     onClick={() => {
-                      if (hasActiveHostedRide) {
-                        alert("You already have an active ride hosted or started. Please cancel or complete it before offering a new ride.");
-                        return;
-                      }
                       setActiveWizard("host");
                     }}
-                    className={`group relative flex items-center justify-between p-6 rounded-3xl bg-gradient-to-tr text-white shadow-xl transition-all cursor-pointer overflow-hidden ${
-                      hasActiveHostedRide
-                        ? "from-slate-700 to-slate-650 opacity-60 hover:opacity-75"
-                        : "from-brand-green-600 to-brand-green-500 hover:brightness-105"
-                    }`}
+                    className="group relative flex items-center justify-between p-6 rounded-3xl bg-gradient-to-tr from-brand-green-600 to-brand-green-500 text-white shadow-xl hover:brightness-105 transition-all cursor-pointer overflow-hidden"
                   >
                     <div className="z-10 text-left">
                       <span className="inline-block bg-white/20 text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full mb-1.5">
-                        {hasActiveHostedRide ? "Active Ride Ongoing" : "Host Commuters"}
+                        Host Commuters
                       </span>
                       <h3 className="text-lg font-extrabold tracking-tight">Offer a Ride</h3>
                       <p className="text-[11px] text-brand-green-50 mt-1 max-w-[220px] leading-relaxed">
-                        {hasActiveHostedRide
-                          ? "You are currently hosting an active/started ride. Complete or cancel it first."
-                          : "Share your route, reduce corporate congestion, and earn ESG credits."}
+                        Share your route, reduce corporate congestion, and earn ESG credits.
                       </p>
                     </div>
                     <div className="z-10 bg-white/10 p-3 rounded-2xl group-hover:scale-110 transition-transform">
@@ -1661,10 +1674,21 @@ export default function HomePage() {
                                     <span className="text-[8px] bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 px-1.5 py-0.5 rounded font-bold">
                                       🏁 Drop-off: {req.dropPoint || ride?.destination}
                                     </span>
+                                    {req.deviationKm !== undefined && (
+                                      <span className="text-[8px] bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-405 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold">
+                                        ↪ Deviation: {req.deviationKm.toFixed(2)} km
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
                               <div className="flex gap-1.5">
+                                <button
+                                  onClick={() => setReviewingRequest(req)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-[9px] font-bold flex items-center gap-0.5 cursor-pointer"
+                                >
+                                  Review Path
+                                </button>
                                 <button
                                   onClick={() => handleRequestResponse(req.id, true)}
                                   className="px-2.5 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[9px] font-bold flex items-center gap-0.5 cursor-pointer"
@@ -1702,6 +1726,11 @@ export default function HomePage() {
                                     {trip.pickup} → {trip.destination}
                                   </h4>
                                   <div className="flex flex-wrap gap-2 mt-1 text-[9px] text-slate-500 font-semibold">
+                                    {trip.rideDate && (
+                                      <span className="flex items-center gap-0.5">
+                                        <Calendar className="h-3 w-3 text-slate-400" /> {formatRideDate(trip.rideDate)}
+                                      </span>
+                                    )}
                                     <span className="flex items-center gap-0.5">
                                       <Clock className="h-3 w-3" /> {trip.departureTime}
                                     </span>
@@ -2030,6 +2059,11 @@ export default function HomePage() {
                     <p className="text-xs text-slate-500 leading-relaxed">
                       <strong>{getMaskedRequesterName(reviewingRequest, currentUser.id)}</strong> wants to join your carpool. Proposed pickup point:
                       <span className="block mt-1 font-semibold text-slate-700 dark:text-slate-350">📍 {reviewingRequest.pickup}</span>
+                      {reviewingRequest.deviationKm !== undefined && (
+                        <span className="block mt-1.5 font-bold text-amber-600 dark:text-amber-400">
+                          ↪ Route Deviation: {reviewingRequest.deviationKm.toFixed(2)} km
+                        </span>
+                      )}
                     </p>
 
                     {/* Interactive Google Map preview */}
