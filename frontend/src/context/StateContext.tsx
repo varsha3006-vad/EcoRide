@@ -858,6 +858,33 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
+      // Merge and enforce correct mock profiles (phone numbers, names, vehicles, etc.) from INITIAL_EMPLOYEES
+      finalEmployees = finalEmployees.map((emp: Employee) => {
+        const initEmp = INITIAL_EMPLOYEES.find(i => i.id === emp.id);
+        if (initEmp) {
+          return {
+            ...emp,
+            name: initEmp.name,
+            email: initEmp.email,
+            avatar: initEmp.avatar,
+            phone: initEmp.phone,
+            vehicle: initEmp.vehicle,
+            gender: initEmp.gender,
+            department: initEmp.department,
+            designation: initEmp.designation,
+            office: initEmp.office
+          };
+        }
+        return emp;
+      });
+
+      // Ensure any new mock personas (like Leo) that are missing from cache are added
+      INITIAL_EMPLOYEES.forEach(initEmp => {
+        if (!finalEmployees.some((e: Employee) => e.id === initEmp.id)) {
+          finalEmployees.push(initEmp);
+        }
+      });
+
       // Self-healing migration to reset ESG scores and history
       if (typeof window !== "undefined") {
         const hasReset = localStorage.getItem("ecoride_esg_reset_v3");
