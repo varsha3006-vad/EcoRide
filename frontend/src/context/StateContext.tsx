@@ -341,7 +341,7 @@ const INITIAL_EMPLOYEES: Employee[] = [
     department: "Engineering",
     designation: "Principal Architect",
     office: "Building B",
-    phone: "9687605862",
+    phone: "+919687605862",
     vehicle: {
       model: "Tesla Model S",
       type: "Electric",
@@ -363,7 +363,7 @@ const INITIAL_EMPLOYEES: Employee[] = [
     department: "Product Design",
     designation: "Lead Designer",
     office: "Building C",
-    phone: "9731848848",
+    phone: "+919731848848",
     vehicle: {
       model: "Toyota Prius",
       type: "Hybrid",
@@ -374,6 +374,28 @@ const INITIAL_EMPLOYEES: Employee[] = [
     carbonSaved: 75.20,
     credits: 410,
     rank: 2,
+    badgeIds: [],
+    gender: "Male"
+  },
+  {
+    id: "eeeee333-e333-e333-e333-eeeeeeeeeeee",
+    name: "Leo",
+    email: "leo@company.com",
+    avatar: "👨‍💼",
+    department: "Operations",
+    designation: "Ops Coordinator",
+    office: "Building B",
+    phone: "+919036005050",
+    vehicle: {
+      model: "Honda Accord",
+      type: "Hybrid",
+      capacity: 5,
+      plateNumber: "CA-338OP"
+    },
+    esgScore: 78,
+    carbonSaved: 45.10,
+    credits: 320,
+    rank: 3,
     badgeIds: [],
     gender: "Male"
   },
@@ -490,7 +512,7 @@ const INITIAL_EMPLOYEES: Employee[] = [
     department: "Human Resources",
     designation: "HR Director",
     office: "Building A",
-    phone: "9687605863",
+    phone: "+919687605863",
     vehicle: {
       model: "Tesla Model Y",
       type: "Electric",

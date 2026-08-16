@@ -136,17 +136,17 @@ export async function GET() {
         "esgScore", "carbonSaved", "credits", "rank", "badgeIds", "gender", "isHost", "registeredAt"
       ) VALUES
       (
-        'eeeee111-e111-e111-e111-eeeeeeeeeeee', 'Rahul', 'rahul@company.com', '👨‍💻', 'Engineering', 'Principal Architect', 'Building B', '9687605862', 
+        'eeeee111-e111-e111-e111-eeeeeeeeeeee', 'Rahul', 'rahul@company.com', '👨‍💻', 'Engineering', 'Principal Architect', 'Building B', '+919687605862', 
         '{"model": "Tesla Model S", "type": "Electric", "capacity": 4, "plateNumber": "CA-770EV"}'::jsonb, 
         85, 120.40, 640, 1, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
-        'eeeee222-e222-e222-e222-eeeeeeeeeeee', 'Shail', 'shail@company.com', '👨‍🎨', 'Product Design', 'Lead Designer', 'Building C', '9731848848', 
+        'eeeee222-e222-e222-e222-eeeeeeeeeeee', 'Shail', 'shail@company.com', '👨‍🎨', 'Product Design', 'Lead Designer', 'Building C', '+919731848848', 
         '{"model": "Toyota Prius", "type": "Hybrid", "capacity": 4, "plateNumber": "CA-102HY"}'::jsonb, 
         80, 75.20, 410, 2, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
-        'eeeee333-e333-e333-e333-eeeeeeeeeeee', 'Leo', 'leo@company.com', '👨‍💼', 'Operations', 'Ops Coordinator', 'Building B', '555-0300', 
+        'eeeee333-e333-e333-e333-eeeeeeeeeeee', 'Leo', 'leo@company.com', '👨‍💼', 'Operations', 'Ops Coordinator', 'Building B', '+919036005050', 
         '{"model": "Honda Accord", "type": "Hybrid", "capacity": 5, "plateNumber": "CA-338OP"}'::jsonb, 
         78, 45.10, 320, 3, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
@@ -156,7 +156,7 @@ export async function GET() {
         88, 160.80, 780, 4, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
-        'eeeee555-e555-e555-e555-eeeeeeeeeeee', 'Varsha', 'varsha@company.com', '👩‍💼', 'Human Resources', 'HR Director', 'Building A', '9687605863', 
+        'eeeee555-e555-e555-e555-eeeeeeeeeeee', 'Varsha', 'varsha@company.com', '👩‍💼', 'Human Resources', 'HR Director', 'Building A', '+919687605863', 
         '{"model": "Tesla Model Y", "type": "Electric", "capacity": 4, "plateNumber": "CA-889XG"}'::jsonb, 
         92, 95.50, 510, 5, '{}', 'Female', true, '2026-08-08T10:00:00Z'
       ),
