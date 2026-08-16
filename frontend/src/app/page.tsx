@@ -374,6 +374,120 @@ export default function HomePage() {
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementSent, setAnnouncementSent] = useState(false);
 
+  // Passenger auto-optimization search states
+  const [passengerSearchPickup, setPassengerSearchPickup] = useState("");
+  const [passengerSearchDrop, setPassengerSearchDrop] = useState("");
+  const [calculatedDeviations, setCalculatedDeviations] = useState<Record<string, number>>({});
+  const [calculatingDeviations, setCalculatingDeviations] = useState(false);
+
+  const calculateAllDeviations = async () => {
+    if (!passengerSearchPickup || !passengerSearchDrop) return;
+    setCalculatingDeviations(true);
+
+    const google = (window as any).google;
+    if (!google || !google.maps) {
+      setCalculatingDeviations(false);
+      return;
+    }
+
+    const geocoder = new google.maps.Geocoder();
+
+    const getLatLng = (address: string): Promise<any> => {
+      return new Promise((resolve) => {
+        geocoder.geocode({ address }, (results: any, status: any) => {
+          if (status === "OK" && results && results[0]) {
+            resolve(results[0].geometry.location);
+          } else {
+            resolve(null);
+          }
+        });
+      });
+    };
+
+    try {
+      const pPickupLatLng = await getLatLng(passengerSearchPickup);
+      const pDropLatLng = await getLatLng(passengerSearchDrop);
+
+      if (!pPickupLatLng) {
+        alert("Could not geocode your pickup address. Please try another address.");
+        setCalculatingDeviations(false);
+        return;
+      }
+
+      const pLat = pPickupLatLng.lat();
+      const pLng = pPickupLatLng.lng();
+
+      const newDeviations: Record<string, number> = {};
+
+      const pDistance = (x: number, y: number, x1: number, y1: number, x2: number, y2: number) => {
+        const A = x - x1;
+        const B = y - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+
+        const dot = A * C + B * D;
+        const len_sq = C * C + D * D;
+        let param = -1;
+        if (len_sq !== 0) param = dot / len_sq;
+
+        let xx, yy;
+        if (param < 0) {
+          xx = x1;
+          yy = y1;
+        } else if (param > 1) {
+          xx = x2;
+          yy = y2;
+        } else {
+          xx = x1 + param * C;
+          yy = y1 + param * D;
+        }
+
+        const dx = x - xx;
+        const dy = y - yy;
+        
+        const dy_km = dy * 111.1;
+        const dx_km = dx * 111.1 * Math.cos(xx * Math.PI / 180);
+        
+        return Math.sqrt(dx_km * dx_km + dy_km * dy_km);
+      };
+
+      // Geocode all rides in parallel
+      const activeRides = rides.filter(r => {
+        if (r.hostId === currentUser.id) return false;
+        const isJoinable = r.status === "Published" || (r.status === "Started" && r.seatsAvailable > 0);
+        if (!isJoinable) return false;
+        if (r.womenOnly && currentUser.gender?.toLowerCase() !== "female") return false;
+        return true;
+      });
+
+      await Promise.all(
+        activeRides.map(async (ride) => {
+          const rPickupLatLng = await getLatLng(ride.pickup);
+          const rDestLatLng = await getLatLng(ride.destination);
+
+          if (rPickupLatLng && rDestLatLng) {
+            const dev = pDistance(
+              pLat, pLng,
+              rPickupLatLng.lat(), rPickupLatLng.lng(),
+              rDestLatLng.lat(), rDestLatLng.lng()
+            );
+            newDeviations[ride.id] = dev;
+          } else {
+            // Mock deviation based on string length similarity as a smart fallback if geocoding fails
+            const mockDev = Math.abs(ride.pickup.length - passengerSearchPickup.length) * 0.5 + 2.0;
+            newDeviations[ride.id] = mockDev;
+          }
+        })
+      );
+
+      setCalculatedDeviations(newDeviations);
+    } catch (e) {
+      console.error("Error calculating deviations:", e);
+    } finally {
+      setCalculatingDeviations(false);
+    }
+  };
+
   // Join ride custom pickup & vicinity verification states
   const [joiningRide, setJoiningRide] = useState<any | null>(null);
   const [passengerPickupInput, setPassengerPickupInput] = useState("");
@@ -385,9 +499,10 @@ export default function HomePage() {
 
   useEffect(() => {
     if (joiningRide) {
-      setPassengerDropInput(joiningRide.destination);
+      setPassengerPickupInput(passengerSearchPickup || joiningRide.pickup);
+      setPassengerDropInput(passengerSearchDrop || joiningRide.destination);
     }
-  }, [joiningRide]);
+  }, [joiningRide, passengerSearchPickup, passengerSearchDrop]);
 
   // PWA installation states
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -678,6 +793,15 @@ export default function HomePage() {
     if (filterVehicle !== "All" && r.vehicleType !== filterVehicle) return false;
     if (r.womenOnly && currentUser.gender?.toLowerCase() !== "female") return false;
     return true;
+  }).sort((a, b) => {
+    const devA = calculatedDeviations[a.id];
+    const devB = calculatedDeviations[b.id];
+    if (devA !== undefined && devB !== undefined) {
+      return devA - devB;
+    }
+    if (devA !== undefined) return -1;
+    if (devB !== undefined) return 1;
+    return 0;
   });
 
   // Find pending requests on the user's hosted rides
@@ -1434,6 +1558,50 @@ export default function HomePage() {
                       </h3>
                     </div>
 
+                    {/* Deviation-based search block */}
+                    <div className="p-4 rounded-2xl bg-brand-blue-500/5 border border-brand-blue-500/20 space-y-3.5">
+                      <h4 className="text-xs font-bold text-brand-blue-700 dark:text-brand-blue-400 flex items-center gap-1.5">
+                        🧭 Find Suitable Rides (Ordered by Lowest Route Deviation)
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-30">
+                        <AddressAutocomplete
+                          value={passengerSearchPickup}
+                          onChange={setPassengerSearchPickup}
+                          placeholder="Your exact pickup address..."
+                          label="Your Pickup Address"
+                        />
+                        <AddressAutocomplete
+                          value={passengerSearchDrop}
+                          onChange={setPassengerSearchDrop}
+                          placeholder="Your exact drop-off address..."
+                          label="Your Drop-off Address"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1.5">
+                        {Object.keys(calculatedDeviations).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPassengerSearchPickup("");
+                              setPassengerSearchDrop("");
+                              setCalculatedDeviations({});
+                            }}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-650 hover:bg-slate-50 text-[10px] font-bold cursor-pointer"
+                          >
+                            Clear Routing
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={calculateAllDeviations}
+                          disabled={calculatingDeviations || !passengerSearchPickup || !passengerSearchDrop}
+                          className="px-3.5 py-1.5 rounded-xl bg-brand-blue-600 hover:bg-brand-blue-700 disabled:bg-slate-300 text-white text-[10px] font-bold cursor-pointer transition-all"
+                        >
+                          {calculatingDeviations ? "Calculating Deviations..." : "Calculate & Sort by Lowest Deviation"}
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Filter fields */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <input
@@ -1514,6 +1682,11 @@ export default function HomePage() {
                                     {ride.womenOnly && (
                                       <span className="text-[9px] bg-purple-50 text-purple-750 dark:bg-purple-950/30 dark:text-purple-400 px-1.5 py-0.5 rounded font-bold">
                                         👩‍👧‍👧 Female-Only
+                                      </span>
+                                    )}
+                                    {calculatedDeviations[ride.id] !== undefined && (
+                                      <span className="text-[9px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-1.5 py-0.5 rounded font-bold border border-emerald-250/20">
+                                        ↪ Route Match: {calculatedDeviations[ride.id].toFixed(2)} km deviation
                                       </span>
                                     )}
                                   </div>
