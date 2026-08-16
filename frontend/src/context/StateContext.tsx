@@ -309,7 +309,7 @@ interface StateContextType {
   createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => void;
   requestJoinRide: (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number, dropPoint?: string, dropLat?: number, dropLng?: number, deviationKm?: number) => void;
   handleRequestResponse: (requestId: string, accept: boolean) => void;
-  checkRideOverlap: (newDate: string | undefined, newTime: string, userId?: string) => { hasOverlap: boolean; overlappingRide?: Ride };
+  checkRideOverlap: (newDate: string | undefined, newTime: string, userId?: string, excludeRideId?: string) => { hasOverlap: boolean; overlappingRide?: Ride };
   confirmBoarding: (rideId: string, passengerId: string, enteredPin: string) => { success: boolean; message: string };
   sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
   startRide: (rideId: string) => void;
@@ -1374,16 +1374,21 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const checkRideOverlap = (
     newDate: string | undefined,
     newTime: string,
-    userId: string = currentUser.id
+    userId?: string,
+    excludeRideId?: string
   ): { hasOverlap: boolean; overlappingRide?: Ride } => {
+    const targetUserId = userId || currentUserIdRef.current;
     const newDateTime = parseRideDateTime(newDate, newTime);
     if (!newDateTime) return { hasOverlap: false };
 
     // 1. Check hosted/confirmed rides
     for (const ride of ridesRef.current) {
-      if (ride.status === "Completed" || ride.status === "Cancelled") continue;
+      if (excludeRideId && ride.id === excludeRideId) continue;
+      
+      const statusLower = ride.status?.toLowerCase();
+      if (statusLower === "completed" || statusLower === "cancelled") continue;
 
-      const isUserInvolved = ride.hostId === userId || (ride.passengers && ride.passengers.includes(userId));
+      const isUserInvolved = ride.hostId === targetUserId || (ride.passengers && ride.passengers.includes(targetUserId));
       if (!isUserInvolved) continue;
 
       const existingDateTime = parseRideDateTime(ride.rideDate, ride.departureTime);
@@ -1399,15 +1404,21 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 2. Check pending or accepted requests to join
     for (const req of requestsRef.current) {
-      if (req.requesterId === userId && (req.status === "Pending" || req.status === "Accepted")) {
+      if (excludeRideId && req.rideId === excludeRideId) continue;
+      
+      const reqStatusLower = req.status?.toLowerCase();
+      if (req.requesterId === targetUserId && (reqStatusLower === "pending" || reqStatusLower === "accepted")) {
         const ride = ridesRef.current.find(r => r.id === req.rideId);
-        if (ride && ride.status !== "Completed" && ride.status !== "Cancelled") {
-          const existingDateTime = parseRideDateTime(ride.rideDate, ride.departureTime);
-          if (existingDateTime) {
-            const diffMs = Math.abs(newDateTime.getTime() - existingDateTime.getTime());
-            const twoHoursMs = 2 * 60 * 60 * 1000;
-            if (diffMs < twoHoursMs) {
-              return { hasOverlap: true, overlappingRide: ride };
+        if (ride) {
+          const rideStatusLower = ride.status?.toLowerCase();
+          if (rideStatusLower !== "completed" && rideStatusLower !== "cancelled") {
+            const existingDateTime = parseRideDateTime(ride.rideDate, ride.departureTime);
+            if (existingDateTime) {
+              const diffMs = Math.abs(newDateTime.getTime() - existingDateTime.getTime());
+              const twoHoursMs = 2 * 60 * 60 * 1000;
+              if (diffMs < twoHoursMs) {
+                return { hasOverlap: true, overlappingRide: ride };
+              }
             }
           }
         }
