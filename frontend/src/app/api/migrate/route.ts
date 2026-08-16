@@ -98,7 +98,8 @@ export async function GET() {
         "dropLng" NUMERIC,
         "status" TEXT NOT NULL,
         "timestamp" TEXT NOT NULL,
-        "boardingPin" TEXT
+        "boardingPin" TEXT,
+        "deviationKm" NUMERIC
       );
 
       -- 4. Messages Table

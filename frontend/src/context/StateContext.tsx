@@ -105,8 +105,16 @@ const supabaseSync = {
           return !old || JSON.stringify(old) !== JSON.stringify(r);
         });
         if (changed.length > 0) {
-          const { error } = await supabase.from("ecoride_requests").upsert(changed);
-          if (error) throw error;
+          try {
+            const { error } = await supabase.from("ecoride_requests").upsert(changed);
+            if (error) throw error;
+          } catch (upsertErr) {
+            console.warn("Failed to upsert requests with deviationKm, retrying without it:", upsertErr);
+            // Strip deviationKm and retry to avoid query failure if table is not migrated yet
+            const strippedChanged = changed.map(({ deviationKm, ...rest }) => rest);
+            const { error } = await supabase.from("ecoride_requests").upsert(strippedChanged);
+            if (error) throw error;
+          }
         }
         lastRequests = value;
         return;
@@ -413,6 +421,27 @@ const INITIAL_EMPLOYEES: Employee[] = [
     id: "e-elle",
     name: "Elle",
     email: "elle@company.com",
+    avatar: "👩‍💼",
+    department: "Human Resources",
+    designation: "HR Director",
+    office: "Building A",
+    vehicle: {
+      model: "Tesla Model Y",
+      type: "Electric",
+      capacity: 4,
+      plateNumber: "CA-889XG"
+    },
+    esgScore: 0,
+    carbonSaved: 0,
+    credits: 0,
+    rank: 1,
+    badgeIds: [],
+    gender: "Female"
+  },
+  {
+    id: "eeeee555-e555-e555-e555-eeeeeeeeeeee",
+    name: "Varsha",
+    email: "varsha@company.com",
     avatar: "👩‍💼",
     department: "Human Resources",
     designation: "HR Director",
@@ -1393,6 +1422,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
+    if (targetRide.womenOnly && currentUser.gender?.toLowerCase() !== "female") {
+      addNotification({
+        id: `n-gender-restrict-${Date.now()}`,
+        title: "Joining Blocked ⚠️",
+        message: "This ride is designated as Female-Only by the host.",
+        timestamp: "Just now",
+        type: "warning",
+        read: false
+      });
+      return;
+    }
+
     const overlapResult = checkRideOverlap(targetRide.rideDate, targetRide.departureTime);
     if (overlapResult.hasOverlap) {
       addNotification({
@@ -1427,6 +1468,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const updatedRequests = [newRequest, ...requests];
     setRequests(updatedRequests);
+    requestsRef.current = updatedRequests;
 
     if (typeof window !== "undefined") {
       localStorage.setItem("ecoride_requests", JSON.stringify(updatedRequests));
@@ -1556,6 +1598,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     setRequests(updatedRequests);
+    requestsRef.current = updatedRequests;
     if (typeof window !== "undefined") {
       localStorage.setItem("ecoride_requests", JSON.stringify(updatedRequests));
     }
@@ -1564,6 +1607,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     setRides(updatedRides);
+    ridesRef.current = updatedRides;
     if (typeof window !== "undefined") {
       localStorage.setItem("ecoride_rides", JSON.stringify(updatedRides));
     }

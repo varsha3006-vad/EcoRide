@@ -676,6 +676,7 @@ export default function HomePage() {
     if (searchDest && !r.destination.toLowerCase().includes(searchDest.toLowerCase())) return false;
     if (filterDept !== "All" && r.hostDept !== filterDept) return false;
     if (filterVehicle !== "All" && r.vehicleType !== filterVehicle) return false;
+    if (r.womenOnly && currentUser.gender?.toLowerCase() !== "female") return false;
     return true;
   });
 
@@ -1381,10 +1382,24 @@ export default function HomePage() {
                           >
                             <option value="Electric">Electric Vehicle (EV Bonus)</option>
                             <option value="Hybrid">Hybrid Vehicle</option>
-                            <option value="ICE (Gasoline)">Gasoline / ICE</option>
                           </select>
                         </div>
                       </div>
+
+                      {currentUser?.gender?.toLowerCase() === "female" && (
+                        <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800/40">
+                          <input
+                            type="checkbox"
+                            id="womenOnly"
+                            checked={womenOnly}
+                            onChange={e => setWomenOnly(e.target.checked)}
+                            className="rounded border-slate-200 dark:border-slate-800 text-brand-green-600 focus:ring-brand-green-500 h-4 w-4 cursor-pointer"
+                          />
+                          <label htmlFor="womenOnly" className="text-xs font-bold text-slate-700 dark:text-slate-350 cursor-pointer">
+                            👩‍👧‍👧 Female-Only Ride (Only female colleagues can join)
+                          </label>
+                        </div>
+                      )}
 
                       {formError && (
                         <p className="text-[10px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/30 px-3.5 py-2.5 rounded-2xl text-center">
@@ -1496,6 +1511,11 @@ export default function HomePage() {
                                     <span className="text-[9px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 px-1.5 py-0.5 rounded font-medium">
                                       🌱 {ride.co2Saved} kg CO₂ saved
                                     </span>
+                                    {ride.womenOnly && (
+                                      <span className="text-[9px] bg-purple-50 text-purple-750 dark:bg-purple-950/30 dark:text-purple-400 px-1.5 py-0.5 rounded font-bold">
+                                        👩‍👧‍👧 Female-Only
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -1738,6 +1758,9 @@ export default function HomePage() {
                                     <span>• Role: {isHost ? "Host" : "Passenger"}</span>
                                     <span>• Vehicle: {trip.vehicleModel} ({trip.vehicleType})</span>
                                     <span>• Seats: <strong>{trip.seatsAvailable} of {trip.seatsTotal} vacant</strong></span>
+                                    {trip.womenOnly && (
+                                      <span className="text-purple-600 dark:text-purple-400 font-bold">• 👩‍👧‍👧 Female-Only</span>
+                                    )}
                                   </div>
 
                                   {trip.passengers.length > 0 && (() => {
