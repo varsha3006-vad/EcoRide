@@ -1312,6 +1312,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newDateTime = parseRideDateTime(newDate, newTime);
     if (!newDateTime) return { hasOverlap: false };
 
+    // 1. Check hosted/confirmed rides
     for (const ride of ridesRef.current) {
       if (ride.status === "Completed" || ride.status === "Cancelled") continue;
 
@@ -1328,6 +1329,24 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return { hasOverlap: true, overlappingRide: ride };
       }
     }
+
+    // 2. Check pending or accepted requests to join
+    for (const req of requestsRef.current) {
+      if (req.requesterId === userId && (req.status === "Pending" || req.status === "Accepted")) {
+        const ride = ridesRef.current.find(r => r.id === req.rideId);
+        if (ride && ride.status !== "Completed" && ride.status !== "Cancelled") {
+          const existingDateTime = parseRideDateTime(ride.rideDate, ride.departureTime);
+          if (existingDateTime) {
+            const diffMs = Math.abs(newDateTime.getTime() - existingDateTime.getTime());
+            const twoHoursMs = 2 * 60 * 60 * 1000;
+            if (diffMs < twoHoursMs) {
+              return { hasOverlap: true, overlappingRide: ride };
+            }
+          }
+        }
+      }
+    }
+
     return { hasOverlap: false };
   };
 

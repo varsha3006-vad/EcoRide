@@ -1530,22 +1530,42 @@ export default function HomePage() {
                                     <span className="inline-block text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border border-emerald-200/30">
                                       Confirmed
                                     </span>
-                                  ) : (
+                                  ) : (() => {
+                                    const overlap = checkRideOverlap(ride.rideDate, ride.departureTime, currentUser.id);
+                                    if (overlap.hasOverlap) {
+                                      return (
+                                        <span className="inline-block text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-200/20" title={`Overlaps with your ride to ${overlap.overlappingRide?.destination} at ${overlap.overlappingRide?.departureTime}`}>
+                                          Overlap ⚠️
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <button
+                                        onClick={() => setJoiningRide(ride)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-[10px] font-bold transition-all cursor-pointer"
+                                      >
+                                        Join Ride
+                                      </button>
+                                    );
+                                  })()
+                                ) : (() => {
+                                  const overlap = checkRideOverlap(ride.rideDate, ride.departureTime, currentUser.id);
+                                  if (overlap.hasOverlap) {
+                                    return (
+                                      <span className="inline-block text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-200/20" title={`Overlaps with your ride to ${overlap.overlappingRide?.destination} at ${overlap.overlappingRide?.departureTime}`}>
+                                        Overlap ⚠️
+                                      </span>
+                                    );
+                                  }
+                                  return (
                                     <button
                                       onClick={() => setJoiningRide(ride)}
                                       className="px-2.5 py-1.5 rounded-lg bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-[10px] font-bold transition-all cursor-pointer"
                                     >
                                       Join Ride
                                     </button>
-                                  )
-                                ) : (
-                                  <button
-                                    onClick={() => setJoiningRide(ride)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-[10px] font-bold transition-all cursor-pointer"
-                                  >
-                                    Join Ride
-                                  </button>
-                                )}
+                                  );
+                                })()}
                               </div>
                             </div>
                           );
