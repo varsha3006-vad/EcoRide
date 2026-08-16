@@ -57,20 +57,35 @@ export default function AddressAutocomplete({
 
   // Initialize service once Google Maps scripts are loaded
   useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
     const initService = () => {
       const google = (window as any).google;
       if (google && google.maps && google.maps.places) {
         autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+        return true;
       }
+      return false;
     };
 
-    initService();
-    
+    if (initService()) return;
+
+    // Load script if not present
+    const scriptId = "google-maps-api-loader";
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+
+    if (!script && apiKey) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey.trim()}&libraries=geometry,places`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
     // Check periodically for asynchronous loader mounts
     const interval = setInterval(() => {
-      const google = (window as any).google;
-      if (google && google.maps && google.maps.places) {
-        initService();
+      if (initService()) {
         clearInterval(interval);
       }
     }, 500);
