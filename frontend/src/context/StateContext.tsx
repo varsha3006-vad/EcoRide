@@ -12,65 +12,152 @@ const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
 
 let setSyncErrorExternal: ((err: string | null) => void) | null = null;
 
+let lastEmployees: any[] = [];
+let lastRides: any[] = [];
+let lastRequests: any[] = [];
+let lastMessages: any[] = [];
+
 const supabaseSync = {
   get: async (key: string) => {
     if (!supabase) return null;
     try {
+      if (key === "employees") {
+        const { data, error } = await supabase.from("ecoride_employees").select("*");
+        if (error) throw error;
+        lastEmployees = data || [];
+        return data;
+      }
+      if (key === "rides") {
+        const { data, error } = await supabase.from("ecoride_rides").select("*");
+        if (error) throw error;
+        lastRides = data || [];
+        return data;
+      }
+      if (key === "requests") {
+        const { data, error } = await supabase.from("ecoride_requests").select("*");
+        if (error) throw error;
+        lastRequests = data || [];
+        return data;
+      }
+      if (key === "messages" || key.startsWith("messages_")) {
+        const rideId = key.startsWith("messages_") ? key.replace("messages_", "") : null;
+        let query = supabase.from("ecoride_messages").select("*");
+        if (rideId) {
+          query = query.eq("rideId", rideId);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        if (data) {
+          const otherMsgs = lastMessages.filter((m: any) => rideId ? m.rideId !== rideId : false);
+          lastMessages = [...otherMsgs, ...data];
+        }
+        return data;
+      }
+      if (key === "audit_logs") {
+        const { data, error } = await supabase.from("ecoride_audit_logs").select("*");
+        if (error) throw error;
+        return data;
+      }
+
+      // Fallback
       const { data, error } = await supabase
         .from("ecoride_state")
         .select("value")
         .eq("key", key)
         .maybeSingle();
-
-      if (error) {
-        console.warn("Supabase load error:", error);
-        if (setSyncErrorExternal) setSyncErrorExternal(`Load error (${key}): ${error.message} (${error.code})`);
-        return null;
-      }
-      if (setSyncErrorExternal) setSyncErrorExternal(null);
+      if (error) throw error;
       return data ? data.value : null;
     } catch (e: any) {
-      console.warn("Supabase load exception:", e);
-      if (setSyncErrorExternal) setSyncErrorExternal(`Load exception (${key}): ${e.message}`);
+      console.warn(`Supabase load error for key ${key}:`, e);
       return null;
     }
   },
   set: async (key: string, value: any) => {
     if (!supabase) return;
     try {
+      if (key === "employees" && Array.isArray(value)) {
+        const changed = value.filter(r => {
+          const old = lastEmployees.find(o => o.id === r.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(r);
+        });
+        if (changed.length > 0) {
+          const { error } = await supabase.from("ecoride_employees").upsert(changed);
+          if (error) throw error;
+        }
+        lastEmployees = value;
+        return;
+      }
+      if (key === "rides" && Array.isArray(value)) {
+        const changed = value.filter(r => {
+          const old = lastRides.find(o => o.id === r.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(r);
+        });
+        if (changed.length > 0) {
+          const { error } = await supabase.from("ecoride_rides").upsert(changed);
+          if (error) throw error;
+        }
+        lastRides = value;
+        return;
+      }
+      if (key === "requests" && Array.isArray(value)) {
+        const changed = value.filter(r => {
+          const old = lastRequests.find(o => o.id === r.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(r);
+        });
+        if (changed.length > 0) {
+          const { error } = await supabase.from("ecoride_requests").upsert(changed);
+          if (error) throw error;
+        }
+        lastRequests = value;
+        return;
+      }
+      if ((key === "messages" || key.startsWith("messages_")) && Array.isArray(value)) {
+        const changed = value.filter(r => {
+          const old = lastMessages.find(o => o.id === r.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(r);
+        });
+        if (changed.length > 0) {
+          const { error } = await supabase.from("ecoride_messages").upsert(changed);
+          if (error) throw error;
+        }
+        lastMessages = value;
+        return;
+      }
+      if (key === "audit_logs" && Array.isArray(value)) {
+        const { error } = await supabase.from("ecoride_audit_logs").upsert(value);
+        if (error) throw error;
+        return;
+      }
+
+      // Fallback
       const { error } = await supabase
         .from("ecoride_state")
         .upsert(
           { key, value, updated_at: new Date().toISOString() },
           { onConflict: "key" }
         );
-      if (error) {
-        console.warn("Supabase save error:", error);
-        if (setSyncErrorExternal) setSyncErrorExternal(`Save error (${key}): ${error.message} (${error.code})`);
-      } else {
-        if (setSyncErrorExternal) setSyncErrorExternal(null);
-      }
+      if (error) throw error;
     } catch (e: any) {
-      console.warn("Supabase save exception:", e);
-      if (setSyncErrorExternal) setSyncErrorExternal(`Save exception (${key}): ${e.message}`);
+      console.warn(`Supabase save error for key ${key}:`, e);
     }
   },
   delete: async (key: string) => {
     if (!supabase) return;
     try {
+      if (key.startsWith("messages_")) {
+        const rideId = key.replace("messages_", "");
+        const { error } = await supabase.from("ecoride_messages").delete().eq("rideId", rideId);
+        if (error) throw error;
+        lastMessages = lastMessages.filter(m => m.rideId !== rideId);
+        return;
+      }
       const { error } = await supabase
         .from("ecoride_state")
         .delete()
         .eq("key", key);
-      if (error) {
-        console.warn("Supabase delete error:", error);
-        if (setSyncErrorExternal) setSyncErrorExternal(`Delete error (${key}): ${error.message} (${error.code})`);
-      } else {
-        if (setSyncErrorExternal) setSyncErrorExternal(null);
-      }
+      if (error) throw error;
     } catch (e: any) {
-      console.warn("Supabase delete exception:", e);
-      if (setSyncErrorExternal) setSyncErrorExternal(`Delete exception (${key}): ${e.message}`);
+      console.warn(`Supabase delete error for key ${key}:`, e);
     }
   }
 };
@@ -434,6 +521,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const currentUserIdRef = useRef(currentUserId);
   const ridesRef = useRef(rides);
+  const requestsRef = useRef(requests);
+  const employeesRef = useRef(employees);
+  const messagesRef = useRef(messages);
 
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
@@ -442,6 +532,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     ridesRef.current = rides;
   }, [rides]);
+
+  useEffect(() => {
+    requestsRef.current = requests;
+  }, [requests]);
+
+  useEffect(() => {
+    employeesRef.current = employees;
+  }, [employees]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const logSecurityEvent = (
     action: string, 
@@ -558,9 +660,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         badgeIds: [],
         gender: "Other"
       };
-      setEmployees(prev => [...prev, newEmp]);
+      const updatedEmps = [...employees, newEmp];
+      setEmployees(updatedEmps);
+      employeesRef.current = updatedEmps;
+      lastEmployees = updatedEmps;
       setCurrentUserId(newEmp.id);
       resolvedUserId = newEmp.id;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_employees", JSON.stringify(updatedEmps));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("employees", updatedEmps);
+      }
     }
     
     setIsLoggedIn(true);
@@ -726,29 +837,108 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (key === "rides") {
         setRides(value);
         ridesRef.current = value;
+        lastRides = value;
       } else if (key === "requests") {
         setRequests(value);
+        lastRequests = value;
       } else if (key.startsWith("messages_")) {
         const rId = key.replace("messages_", "");
         setMessages(prev => {
           const otherMsgs = prev.filter((m: ChatMessage) => m.rideId !== rId);
-          return [...otherMsgs, ...value].sort((a: ChatMessage, b: ChatMessage) => a.id.localeCompare(b.id));
+          const updated = [...otherMsgs, ...value].sort((a: ChatMessage, b: ChatMessage) => a.id.localeCompare(b.id));
+          lastMessages = updated;
+          return updated;
         });
       }
     };
 
-    // --- Supabase Realtime WebSocket subscription ---
-    // Instant push: fires immediately when any row in ecoride_state changes
-    const channel = supabase
-      .channel("ecoride-realtime")
-      .on(
-        "postgres_changes" as any,
-        { event: "*", schema: "public", table: "ecoride_state" },
-        (payload: any) => {
-          const row = payload.new;
-          if (row?.key && row?.value) applyRow(row.key, row.value);
+    // --- Supabase Realtime WebSocket subscriptions on normalized tables ---
+    const channelRides = supabase
+      .channel("rides-realtime")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "ecoride_rides" }, (payload: any) => {
+        if (payload.eventType === "INSERT") {
+          setRides(prev => {
+            const updated = [payload.new, ...prev.filter(r => r.id !== payload.new.id)];
+            ridesRef.current = updated;
+            lastRides = updated;
+            return updated;
+          });
+        } else if (payload.eventType === "UPDATE") {
+          setRides(prev => {
+            const updated = prev.map(r => r.id === payload.new.id ? payload.new : r);
+            ridesRef.current = updated;
+            lastRides = updated;
+            return updated;
+          });
+        } else if (payload.eventType === "DELETE") {
+          setRides(prev => {
+            const updated = prev.filter(r => r.id !== payload.old.id);
+            ridesRef.current = updated;
+            lastRides = updated;
+            return updated;
+          });
         }
-      )
+      })
+      .subscribe();
+
+    const channelRequests = supabase
+      .channel("requests-realtime")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "ecoride_requests" }, (payload: any) => {
+        if (payload.eventType === "INSERT") {
+          setRequests(prev => {
+            const updated = [payload.new, ...prev.filter(r => r.id !== payload.new.id)];
+            requestsRef.current = updated;
+            lastRequests = updated;
+            return updated;
+          });
+        } else if (payload.eventType === "UPDATE") {
+          setRequests(prev => {
+            const updated = prev.map(r => r.id === payload.new.id ? payload.new : r);
+            requestsRef.current = updated;
+            lastRequests = updated;
+            return updated;
+          });
+        } else if (payload.eventType === "DELETE") {
+          setRequests(prev => {
+            const updated = prev.filter(r => r.id !== payload.old.id);
+            requestsRef.current = updated;
+            lastRequests = updated;
+            return updated;
+          });
+        }
+      })
+      .subscribe();
+
+    const channelEmployees = supabase
+      .channel("employees-realtime")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "ecoride_employees" }, (payload: any) => {
+        if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+          setEmployees(prev => {
+            const updated = prev.map(r => r.id === payload.new.id ? payload.new : r);
+            if (!prev.some(r => r.id === payload.new.id)) {
+              updated.push(payload.new);
+            }
+            employeesRef.current = updated;
+            lastEmployees = updated;
+            return updated;
+          });
+        }
+      })
+      .subscribe();
+
+    const channelMessages = supabase
+      .channel("messages-realtime")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "ecoride_messages" }, (payload: any) => {
+        if (payload.eventType === "INSERT") {
+          setMessages(prev => {
+            const updated = [...prev.filter(m => m.id !== payload.new.id), payload.new]
+              .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+            messagesRef.current = updated;
+            lastMessages = updated;
+            return updated;
+          });
+        }
+      })
       .subscribe();
 
     // --- Fallback polling ---
@@ -781,7 +971,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     pollDatabase();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channelRides);
+      supabase.removeChannel(channelRequests);
+      supabase.removeChannel(channelEmployees);
+      supabase.removeChannel(channelMessages);
       clearInterval(interval);
     };
   }, []);

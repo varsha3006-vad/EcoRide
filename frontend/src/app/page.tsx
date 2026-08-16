@@ -116,16 +116,19 @@ const getOptimalWaypoints = (
   getDistanceFn: (lat1: number, lon1: number, lat2: number, lon2: number) => number
 ): string[] => {
   const approvedReqs = requests.filter(req => req.rideId === trip.id && req.status === "Accepted");
+  const boarded = trip.boardedPassengers || [];
+  const unboardedReqs = approvedReqs.filter(req => !boarded.includes(req.requesterId));
+
   const startLat = trip.driverLat;
   const startLng = trip.driverLng;
   
-  // 1. Sort pickups optimally
-  let sortedPickups = [...approvedReqs];
+  // 1. Sort pickups optimally (only for unboarded passengers)
+  let sortedPickups = [...unboardedReqs];
   let lastPickupLat = startLat;
   let lastPickupLng = startLng;
   
-  if (startLat !== undefined && startLng !== undefined && approvedReqs.length > 0) {
-    const remaining = [...approvedReqs];
+  if (startLat !== undefined && startLng !== undefined && unboardedReqs.length > 0) {
+    const remaining = [...unboardedReqs];
     const sorted: typeof approvedReqs = [];
     let currentLat = startLat;
     let currentLng = startLng;

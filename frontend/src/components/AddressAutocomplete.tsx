@@ -114,7 +114,7 @@ export default function AddressAutocomplete({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full z-20">
+    <div ref={containerRef} className={`relative w-full transition-all ${isOpen ? "z-40" : "z-20"}`}>
       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
         {label}
       </label>
