@@ -197,6 +197,8 @@ export interface Employee {
     chat: boolean;
     leaderboard: boolean;
   };
+  isHost?: boolean;
+  registeredAt?: string;
 }
 
 export interface Ride {
@@ -2234,10 +2236,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setEmployees(prev => {
       const updated = prev.map(emp => {
         if (emp.id === currentUserId) {
-          return { ...emp, ...updatedDetails };
+          const merged = { ...emp, ...updatedDetails };
+          // Dynamically compute isHost based on vehicle presence
+          merged.isHost = !!(merged.vehicle && merged.vehicle.model);
+          return merged;
         }
         return emp;
       });
+
+      // Synchronously update the refs and global tracker to prevent sync timing anomalies
+      employeesRef.current = updated;
+      lastEmployees = updated;
 
       if (typeof window !== "undefined") {
         localStorage.setItem("ecoride_employees", JSON.stringify(updated));
