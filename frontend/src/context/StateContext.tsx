@@ -581,6 +581,26 @@ const getLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const normalizePgArray = (arr: any): string[] => {
+  if (Array.isArray(arr)) return arr;
+  if (typeof arr === "string") {
+    if (arr.startsWith("{") && arr.endsWith("}")) {
+      const content = arr.slice(1, -1).trim();
+      return content ? content.split(",").map(s => s.trim().replace(/^"|"$/g, '')) : [];
+    }
+  }
+  return [];
+};
+
+const normalizeRide = (ride: any): Ride => {
+  if (!ride) return ride;
+  return {
+    ...ride,
+    passengers: normalizePgArray(ride.passengers),
+    boardedPassengers: normalizePgArray(ride.boardedPassengers)
+  };
+};
+
 const parseRideDateTime = (dateStr?: string, timeStr?: string): Date | null => {
   if (!timeStr) return null;
   const todayStr = getLocalDateString();
@@ -919,7 +939,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       setEmployees(finalEmployees);
-      setRides(finalRides);
+      setRides(finalRides.map(normalizeRide));
       setRequests(finalRequests);
 
       setIsLoaded(true);
@@ -936,8 +956,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (e.key === "ecoride_rides" && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          setRides(parsed);
-          ridesRef.current = parsed;
+          const normalized = parsed.map(normalizeRide);
+          setRides(normalized);
+          ridesRef.current = normalized;
         } catch (err) {}
       }
       if (e.key === "ecoride_requests" && e.newValue) {
@@ -960,9 +981,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const applyRow = (key: string, value: any) => {
       if (!key || !value) return;
       if (key === "rides") {
-        setRides(value);
-        ridesRef.current = value;
-        lastRides = value;
+        const normalized = value.map(normalizeRide);
+        setRides(normalized);
+        ridesRef.current = normalized;
+        lastRides = normalized;
       } else if (key === "requests") {
         setRequests(value);
         lastRequests = value;
@@ -983,14 +1005,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .on("postgres_changes" as any, { event: "*", schema: "public", table: "ecoride_rides" }, (payload: any) => {
         if (payload.eventType === "INSERT") {
           setRides(prev => {
-            const updated = [payload.new, ...prev.filter(r => r.id !== payload.new.id)];
+            const updated = [normalizeRide(payload.new), ...prev.filter(r => r.id !== payload.new.id)];
             ridesRef.current = updated;
             lastRides = updated;
             return updated;
           });
         } else if (payload.eventType === "UPDATE") {
           setRides(prev => {
-            const updated = prev.map(r => r.id === payload.new.id ? payload.new : r);
+            const updated = prev.map(r => r.id === payload.new.id ? normalizeRide(payload.new) : r);
             ridesRef.current = updated;
             lastRides = updated;
             return updated;

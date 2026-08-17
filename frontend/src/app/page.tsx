@@ -1977,16 +1977,29 @@ export default function HomePage() {
                                     );
                                   })()}
 
-                                  {trip.passengers.length > 0 && (() => {
-                                    const passengerDetails = employees.filter((e: any) => trip.passengers.includes(e.id));
+                                  {(() => {
+                                    const passengersRaw = trip.passengers as any;
+                                    const passengersArray = Array.isArray(passengersRaw)
+                                      ? passengersRaw
+                                      : (typeof passengersRaw === "string" && passengersRaw.startsWith("{")
+                                        ? passengersRaw.slice(1, -1).split(",").map((s: string) => s.trim().replace(/^"|"$/g, ''))
+                                        : []);
+                                    if (passengersArray.length === 0) return null;
+                                    const passengerDetails = employees.filter((e: any) => passengersArray.includes(e.id));
                                     return (
                                       <div className="mt-2 flex flex-col gap-2 bg-slate-100/50 dark:bg-slate-900/40 px-2.5 py-2 rounded-xl border border-slate-200/30 dark:border-slate-800/20 w-full max-w-sm animate-fade-in">
                                         <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider block">Passengers & Boarding:</span>
                                         <div className="space-y-1.5">
                                           {passengerDetails.map((p: any, idx: number) => {
-                                            const hasBoarded = trip.boardedPassengers?.includes(p.id);
+                                            const boardedRaw = trip.boardedPassengers as any;
+                                            const boardedArray = Array.isArray(boardedRaw)
+                                              ? boardedRaw
+                                              : (typeof boardedRaw === "string" && boardedRaw.startsWith("{")
+                                                ? boardedRaw.slice(1, -1).split(",").map((s: string) => s.trim().replace(/^"|"$/g, ''))
+                                                : []);
+                                            const hasBoarded = boardedArray.includes(p.id);
                                             const isSelf = p.id === currentUser.id;
-                                            const canSeeDetails = isHost || isSelf || trip.passengers.includes(currentUser.id);
+                                            const canSeeDetails = isHost || isSelf || passengersArray.includes(currentUser.id);
                                             const displayName = canSeeDetails ? p.name : `Colleague ${idx + 1}`;
                                             const displayAvatar = canSeeDetails ? p.avatar : "👤";
                                             const pReq = requests.find(r => r.rideId === trip.id && r.requesterId === p.id && r.status === "Accepted");
