@@ -2113,8 +2113,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   // Trigger notification
                   addNotification({
                     id: `arr-${Date.now()}`,
-                    title: "Your colleague has arrived! 🚗",
-                    message: `Your colleague ${ride.hostName} has arrived at your pickup location: ${req.pickup}. Open EcoRide to view your boarding PIN.`,
+                    title: "Colleague Arrived 🚗",
+                    message: "Your colleague has arrived to pick up location, Please share your PIN to onboard the ride",
                     timestamp: "Just now",
                     type: "info",
                     read: false
@@ -2123,8 +2123,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   try {
                     triggerPushNotification(
                       req.requesterId,
-                      "Your colleague has arrived! 🚗",
-                      `Your colleague ${ride.hostName} is at your pickup location. Open EcoRide to see your boarding PIN.`
+                      "Colleague Arrived 🚗",
+                      "Your colleague has arrived to pick up location, Please share your PIN to onboard the ride"
                     );
                   } catch (e) {}
                 }
