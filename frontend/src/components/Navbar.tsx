@@ -17,6 +17,22 @@ export default function Navbar() {
     }
   }, [activeCity]);
 
+  const notificationRef = React.useRef<HTMLDivElement>(null);
+  const profileRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const clickOutside = (e: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", clickOutside);
+    return () => document.removeEventListener("mousedown", clickOutside);
+  }, []);
+
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [cityPredictions, setCityPredictions] = useState<any[]>([]);
   const autocompleteServiceRef = React.useRef<any>(null);
@@ -309,12 +325,11 @@ export default function Navbar() {
           </div>
 
           {/* Notification Bell */}
-          <div className="relative">
+          <div ref={notificationRef} className="relative">
             <button
               onClick={() => {
                 setShowNotifications(!showNotifications);
                 setShowProfileMenu(false);
-                if (!showNotifications) markNotificationsRead();
               }}
               className="relative flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200/40 dark:border-slate-700/40 text-slate-600 dark:text-slate-300 cursor-pointer"
             >
@@ -347,8 +362,10 @@ export default function Navbar() {
                     notifications.map(notif => (
                       <div
                         key={notif.id}
-                        className={`p-4 transition-colors ${
-                          notif.read ? "bg-white dark:bg-slate-950" : "bg-slate-50/70 dark:bg-slate-900/30"
+                        className={`p-4 transition-colors border-l-4 ${
+                          notif.read 
+                            ? "bg-white dark:bg-slate-950 border-transparent" 
+                            : "bg-emerald-500/5 dark:bg-emerald-950/10 border-emerald-500"
                         }`}
                       >
                         <div className="flex items-start gap-2.5">
@@ -359,7 +376,12 @@ export default function Navbar() {
                             {notif.type === "request" && "✉️"}
                           </span>
                           <div className="flex-1">
-                            <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200">{notif.title}</h4>
+                            <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                              {notif.title}
+                              {!notif.read && (
+                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 ml-1.5 align-middle" />
+                              )}
+                            </h4>
                             <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">{notif.message}</p>
                             <span className="text-[10px] text-slate-400 mt-1 block">{notif.timestamp}</span>
                           </div>
@@ -373,7 +395,7 @@ export default function Navbar() {
           </div>
 
           {/* User Profile */}
-          <div className="relative">
+          <div ref={profileRef} className="relative">
             <button
               onClick={() => {
                 setShowProfileMenu(!showProfileMenu);
