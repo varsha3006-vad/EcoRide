@@ -973,6 +973,48 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
+      // Load and sync existing global announcements from Supabase
+      let loadedAnnouncements: any[] | null = null;
+      if (SUPABASE_URL && SUPABASE_ANON_KEY && supabase) {
+        try {
+          const { data, error } = await supabase
+            .from("ecoride_announcements")
+            .select("*");
+          if (!error && data) {
+            loadedAnnouncements = data;
+          }
+        } catch (e) {
+          console.warn("Failed to load initial announcements:", e);
+        }
+      }
+
+      if (loadedAnnouncements && loadedAnnouncements.length > 0) {
+        let readList: string[] = [];
+        if (typeof window !== "undefined") {
+          try {
+            readList = JSON.parse(localStorage.getItem("ecoride_read_announcements") || "[]");
+          } catch (e) {}
+        }
+        
+        const anns = loadedAnnouncements;
+        setNotifications(prev => {
+          const updated = [...prev];
+          anns.forEach((ann: any) => {
+            if (!updated.some(n => n.id === ann.id)) {
+              updated.push({
+                id: ann.id,
+                title: ann.title,
+                message: ann.message,
+                timestamp: ann.timestamp,
+                type: "info",
+                read: readList.includes(ann.id)
+              });
+            }
+          });
+          return updated;
+        });
+      }
+
       setEmployees(finalEmployees);
       setRides(finalRides.map(normalizeRide));
       setRequests(finalRequests);
@@ -2205,6 +2247,20 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (id && n.id !== id) return n;
       return { ...n, read: true };
     }));
+
+    if (id && id.startsWith("ann-")) {
+      if (typeof window !== "undefined") {
+        try {
+          const readList = JSON.parse(localStorage.getItem("ecoride_read_announcements") || "[]");
+          if (!readList.includes(id)) {
+            readList.push(id);
+            localStorage.setItem("ecoride_read_announcements", JSON.stringify(readList));
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
   };
 
   // Admin Delete Ride
