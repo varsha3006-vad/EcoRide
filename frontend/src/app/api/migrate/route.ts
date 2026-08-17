@@ -136,6 +136,11 @@ export async function GET() {
         "esgScore", "carbonSaved", "credits", "rank", "badgeIds", "gender", "isHost", "registeredAt"
       ) VALUES
       (
+        'eeeee999-e999-e999-e999-eeeeeeeeeeee', 'System Admin', 'admin@company.com', '🛡️', 'Security & Compliance', 'System Administrator', 'Building A', '+919000000000', 
+        NULL, 
+        100, 0.0, 1000, 1, '{}', 'Male', false, '2026-08-08T10:00:00Z'
+      ),
+      (
         'eeeee111-e111-e111-e111-eeeeeeeeeeee', 'Rahul', 'rahul@company.com', '👨‍💻', 'Engineering', 'Principal Architect', 'Building B', '+919687605862', 
         '{"model": "Tesla Model S", "type": "Electric", "capacity": 4, "plateNumber": "CA-770EV"}'::jsonb, 
         85, 120.40, 640, 1, '{}', 'Male', true, '2026-08-08T10:00:00Z'

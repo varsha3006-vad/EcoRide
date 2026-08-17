@@ -934,6 +934,21 @@ export default function HomePage() {
                 </button>
               </div>
             )}
+
+            {/* System Admin Portal Entry */}
+            <div className="pt-4 border-t border-slate-900/60">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmailInput("admin@company.com");
+                  login("admin@company.com");
+                }}
+                className="w-full py-3.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-850 hover:border-brand-blue-500/30 hover:text-white text-slate-400 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Shield className="h-4 w-4 text-brand-blue-500" />
+                Executive Admin Login (admin@company.com)
+              </button>
+            </div>
           </div>
         </div>
 

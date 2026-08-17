@@ -55,30 +55,33 @@ export default function Navbar() {
 
 
           {/* Role Switcher - Compacted padding/sizes on mobile */}
-          <div className="flex items-center rounded-xl bg-slate-100 p-0.5 sm:p-1 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50 flex-shrink-0">
-            <button
-              onClick={() => setRole("Employee")}
-              className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                role === "Employee"
-                  ? "bg-white text-brand-green-600 shadow-sm dark:bg-slate-900 dark:text-brand-green-400"
-                  : "text-slate-650 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-              }`}
-            >
-              <User className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
-              <span className="hidden sm:inline">Employee</span>
-            </button>
-            <button
-              onClick={() => setRole("Admin")}
-              className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                role === "Admin"
-                  ? "bg-white text-brand-blue-600 shadow-sm dark:bg-slate-900 dark:text-brand-blue-400"
-                  : "text-slate-650 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-              }`}
-            >
-              <Shield className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
-              <span className="hidden sm:inline">Admin</span>
-            </button>
-          </div>
+          {/* Role Switcher - Rendered ONLY for admin@company.com */}
+          {currentUser && currentUser.email.toLowerCase() === "admin@company.com" && (
+            <div className="flex items-center rounded-xl bg-slate-100 p-0.5 sm:p-1 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50 flex-shrink-0">
+              <button
+                onClick={() => setRole("Employee")}
+                className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  role === "Employee"
+                    ? "bg-white text-brand-green-600 shadow-sm dark:bg-slate-900 dark:text-brand-green-400"
+                    : "text-slate-650 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                <User className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+                <span className="hidden sm:inline">Employee</span>
+              </button>
+              <button
+                onClick={() => setRole("Admin")}
+                className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  role === "Admin"
+                    ? "bg-white text-brand-blue-600 shadow-sm dark:bg-slate-900 dark:text-brand-blue-400"
+                    : "text-slate-650 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                <Shield className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+                <span className="hidden sm:inline">Admin</span>
+              </button>
+            </div>
+          )}
 
           {/* Quick Metrics (Credits) */}
           <div className="hidden items-center gap-1.5 rounded-xl bg-brand-green-50 px-3 py-1.5 text-xs font-semibold text-brand-green-700 dark:bg-brand-green-950/20 dark:text-brand-green-400 border border-brand-green-500/10 md:flex">

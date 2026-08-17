@@ -334,6 +334,22 @@ const StateContext = createContext<StateContextType | undefined>(undefined);
 // Core Test Personas (The 5 real users replacing the dummy ones)
 const INITIAL_EMPLOYEES: Employee[] = [
   {
+    id: "eeeee999-e999-e999-e999-eeeeeeeeeeee",
+    name: "System Admin",
+    email: "admin@company.com",
+    avatar: "🛡️",
+    department: "Security & Compliance",
+    designation: "System Administrator",
+    office: "Building A",
+    phone: "+919000000000",
+    esgScore: 100,
+    carbonSaved: 0,
+    credits: 1000,
+    rank: 1,
+    badgeIds: [],
+    gender: "Male"
+  },
+  {
     id: "eeeee111-e111-e111-e111-eeeeeeeeeeee",
     name: "Rahul",
     email: "rahul@company.com",
@@ -793,6 +809,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     
     setIsLoggedIn(true);
+    if (cleanEmail === "admin@company.com") {
+      setRoleState("Admin");
+    } else {
+      setRoleState("Employee");
+    }
     if (typeof window !== "undefined") {
       localStorage.setItem("ecoride_is_logged_in", "true");
       localStorage.setItem("ecoride_logged_in_user_id", resolvedUserId);
@@ -804,6 +825,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const logout = () => {
     logSecurityEvent("USER_LOGOUT", "INFO", "User manually terminated their session.");
     setIsLoggedIn(false);
+    setRoleState("Employee");
     if (typeof window !== "undefined") {
       localStorage.removeItem("ecoride_is_logged_in");
       localStorage.removeItem("ecoride_logged_in_user_id");
@@ -826,6 +848,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (savedIsLoggedIn && savedUserId) {
         setIsLoggedIn(true);
         setCurrentUserId(savedUserId);
+        if (savedUserId === "eeeee999-e999-e999-e999-eeeeeeeeeeee") {
+          setRoleState("Admin");
+        } else {
+          setRoleState("Employee");
+        }
       }
     }
   }, []);
