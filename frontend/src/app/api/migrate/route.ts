@@ -78,7 +78,8 @@ export async function GET() {
         "driverLat" NUMERIC,
         "driverLng" NUMERIC,
         "passengerLocations" JSONB DEFAULT '{}'::jsonb,
-        "boardedPassengers" TEXT[] DEFAULT '{}'
+        "boardedPassengers" TEXT[] DEFAULT '{}',
+        "city" TEXT
       );
 
       -- 3. Ride Requests Table

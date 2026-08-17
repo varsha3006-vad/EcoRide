@@ -231,6 +231,7 @@ export interface Ride {
   driverLng?: number;
   passengerLocations?: Record<string, { lat: number; lng: number }>; // passengerId -> live coords
   boardedPassengers?: string[]; // list of passengerIds who have confirmed boarding
+  city?: string;
 }
 
 export interface RideRequest {
@@ -327,6 +328,8 @@ interface StateContextType {
   updatePassengerLocation: (rideId: string, passengerId: string, lat: number, lng: number) => void;
   updateNotificationPrefs: (prefs: { rides: boolean; chat: boolean; leaderboard: boolean }) => void;
   updateProfile: (updatedDetails: Partial<Employee>) => void;
+  activeCity: string;
+  setActiveCity: (city: string) => void;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -652,6 +655,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   ]);
   const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>([]);
+  const [activeCity, setActiveCity] = useState<string>("Bangalore");
 
   const currentUserIdRef = useRef(currentUserId);
   const ridesRef = useRef(rides);
@@ -1528,7 +1532,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       hostDept: currentUser.department,
       hostRating: 4.8,
       status: "Published",
-      passengers: []
+      passengers: [],
+      city: rideData.city || activeCity
     };
 
     // Use ref for current rides to avoid stale closure
@@ -2291,7 +2296,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         confirmBoarding,
         updateProfile,
         auditLogs,
-        logSecurityEvent
+        logSecurityEvent,
+        activeCity,
+        setActiveCity
       }}
     >
       {children}

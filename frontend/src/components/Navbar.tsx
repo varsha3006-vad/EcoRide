@@ -2,10 +2,10 @@
 
 import React, { useState } from "react";
 import { useAppState } from "@/context/StateContext";
-import { Bell, Shield, User, Leaf, Award, ChevronDown, Check, Trash } from "lucide-react";
+import { Bell, Shield, User, Leaf, Award, ChevronDown, Check, Trash, MapPin } from "lucide-react";
 
 export default function Navbar() {
-  const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured, syncError } = useAppState();
+  const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured, syncError, activeCity, setActiveCity } = useAppState();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -82,6 +82,26 @@ export default function Navbar() {
               </button>
             </div>
           )}
+
+          {/* City Geofence Selector */}
+          <div className="relative flex-shrink-0">
+            <select
+              value={activeCity}
+              onChange={e => setActiveCity(e.target.value)}
+              className="flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50 text-slate-750 dark:text-slate-300 focus:border-brand-green-500 outline-none cursor-pointer transition-all appearance-none pr-8 relative"
+              style={{
+                backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236b7280\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'/%3E%3C/svg%3E")',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 8px center',
+                backgroundSize: '12px'
+              }}
+            >
+              <option value="Bangalore">📍 Bangalore</option>
+              <option value="Mumbai">📍 Mumbai</option>
+              <option value="Delhi NCR">📍 Delhi NCR</option>
+              <option value="Pune">📍 Pune</option>
+            </select>
+          </div>
 
           {/* Quick Metrics (Credits) */}
           <div className="hidden items-center gap-1.5 rounded-xl bg-brand-green-50 px-3 py-1.5 text-xs font-semibold text-brand-green-700 dark:bg-brand-green-950/20 dark:text-brand-green-400 border border-brand-green-500/10 md:flex">

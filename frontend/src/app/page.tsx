@@ -293,7 +293,9 @@ export default function HomePage() {
     login,
     updateNotificationPrefs,
     confirmBoarding,
-    auditLogs
+    auditLogs,
+    activeCity,
+    setActiveCity
   } = useAppState();
 
   // Helper to filter time options dynamically for future times only when scheduling for today
@@ -369,6 +371,45 @@ export default function HomePage() {
   useEffect(() => {
     setFormError("");
   }, [activeWizard]);
+
+  // Auto-detect browser location city on mount
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const win = window as any;
+
+        if (win.google && win.google.maps && win.google.maps.Geocoder) {
+          const geocoder = new win.google.maps.Geocoder();
+          geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
+            if (status === "OK" && results && results[0]) {
+              const cityComp = results[0].address_components.find((comp: any) => 
+                comp.types.includes("locality") || comp.types.includes("administrative_area_level_2")
+              );
+              if (cityComp) {
+                const detectedCity = cityComp.long_name;
+                if (detectedCity.toLowerCase().includes("bengaluru") || detectedCity.toLowerCase().includes("bangalore")) {
+                  setActiveCity("Bangalore");
+                } else if (detectedCity.toLowerCase().includes("mumbai") || detectedCity.toLowerCase().includes("bombay")) {
+                  setActiveCity("Mumbai");
+                } else if (detectedCity.toLowerCase().includes("delhi") || detectedCity.toLowerCase().includes("gurgaon") || detectedCity.toLowerCase().includes("noida") || detectedCity.toLowerCase().includes("ncr")) {
+                  setActiveCity("Delhi NCR");
+                } else if (detectedCity.toLowerCase().includes("pune")) {
+                  setActiveCity("Pune");
+                }
+              }
+            }
+          });
+        }
+      },
+      error => {
+        console.warn("Geolocation not permitted or failed. Using default city Bangalore.", error);
+      }
+    );
+  }, [currentUser, setActiveCity]);
 
   // Admin filter states
   const [adminActiveTab, setAdminActiveTab] = useState<"kpis" | "rides" | "employees" | "audit">("kpis");
@@ -782,6 +823,14 @@ export default function HomePage() {
     if (r.hostId === currentUser.id) return false; // Hide own rides
     const isJoinable = r.status === "Published" || (r.status === "Started" && r.seatsAvailable > 0);
     if (!isJoinable) return false;
+
+    // City Geofencing: Only show rides in the user's active city
+    const rideCity = r.city || "";
+    const isSameCity = rideCity.toLowerCase() === activeCity.toLowerCase() ||
+      r.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||
+      r.destination.toLowerCase().includes(activeCity.toLowerCase());
+    if (!isSameCity) return false;
+
     if (searchPickup && !r.pickup.toLowerCase().includes(searchPickup.toLowerCase())) return false;
     if (searchDest && !r.destination.toLowerCase().includes(searchDest.toLowerCase())) return false;
     if (filterDept !== "All" && r.hostDept !== filterDept) return false;
