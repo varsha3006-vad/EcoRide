@@ -1186,29 +1186,52 @@ export default function HomePage() {
     <div className="flex-1 flex flex-col min-h-screen">
       <Navbar />
 
-      {/* Global Announcements Live Alert Banner */}
+      {/* Global Announcements Live Scrolling Banner */}
       {(() => {
-        const latestAnn = notifications
-          .filter((n: any) => !n.read && n.id.startsWith("ann-"))
-          .sort((a: any, b: any) => b.id.localeCompare(a.id))[0];
-          
+        const recentAnnouncements = notifications
+          .filter((n: any) => n.id.startsWith("ann-"))
+          .map((n: any) => {
+            let timeMs = 0;
+            try {
+              timeMs = new Date(n.timestamp).getTime();
+            } catch (e) {}
+            if (isNaN(timeMs) || timeMs === 0) {
+              const idPart = n.id.replace("ann-", "");
+              const parsed = parseInt(idPart);
+              if (!isNaN(parsed)) timeMs = parsed;
+            }
+            return { ...n, timeMs };
+          })
+          .filter((n: any) => {
+            const ageMs = Date.now() - n.timeMs;
+            return ageMs > 0 && ageMs < 24 * 60 * 60 * 1000; // 24 hours
+          })
+          .sort((a: any, b: any) => b.timeMs - a.timeMs);
+
+        const latestAnn = recentAnnouncements[0];
         if (!latestAnn) return null;
-        
+
         return (
-          <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs font-bold px-4 py-3 shadow-md flex items-center justify-between gap-4 animate-slide-down border-b border-orange-500/20 relative z-30">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-sm">📢</span>
-              <p className="truncate">
-                <span className="font-extrabold uppercase tracking-wider text-[9px] bg-white/20 px-1.5 py-0.5 rounded mr-1.5">System Alert</span>
-                {latestAnn.message}
-              </p>
+          <div className="bg-emerald-600 dark:bg-emerald-700 text-white py-2.5 shadow-sm relative z-30 overflow-hidden border-b border-emerald-500/10 flex items-center select-none">
+            <style>{`
+              @keyframes marquee-scroll {
+                0% { transform: translateX(100%); }
+                100% { transform: translateX(-100%); }
+              }
+              .custom-marquee-text {
+                animation: marquee-scroll 25s linear infinite;
+              }
+            `}</style>
+            <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
+              <span className="text-[9px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded flex-shrink-0 relative z-10">
+                📢 SYSTEM BULLETIN
+              </span>
+              <div className="relative flex-1 overflow-hidden h-4 flex items-center">
+                <div className="custom-marquee-text whitespace-nowrap text-xs font-black absolute pl-[100%]">
+                  {latestAnn.message} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 🌱 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {latestAnn.message} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 🌱 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {latestAnn.message}
+                </div>
+              </div>
             </div>
-            <button
-              onClick={() => markNotificationsRead(latestAnn.id)}
-              className="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/15 hover:border-white/30 text-[9px] font-black uppercase transition-all flex items-center justify-center cursor-pointer flex-shrink-0"
-            >
-              Dismiss
-            </button>
           </div>
         );
       })()}
