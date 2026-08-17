@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useAppState } from "@/context/StateContext";
-import { Bell, Shield, User, Leaf, Award, ChevronDown, Check, Trash, MapPin } from "lucide-react";
+import { Bell, Shield, User, Leaf, Award, ChevronDown, Check, Trash, MapPin, Loader2, Navigation } from "lucide-react";
 
 export default function Navbar() {
   const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured, syncError, activeCity, setActiveCity } = useAppState();
@@ -16,6 +16,90 @@ export default function Navbar() {
       setCustomCityValue(activeCity);
     }
   }, [activeCity]);
+
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
+  const [cityPredictions, setCityPredictions] = useState<any[]>([]);
+  const autocompleteServiceRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    const initService = () => {
+      const google = (window as any).google;
+      if (google && google.maps && google.maps.places) {
+        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+        return true;
+      }
+      return false;
+    };
+
+    if (initService()) return;
+
+    const interval = setInterval(() => {
+      if (initService()) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const triggerGpsDetection = () => {
+    if (!navigator.geolocation) return;
+    setIsDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const google = (window as any).google;
+        
+        if (google && google.maps && google.maps.Geocoder) {
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
+            setIsDetectingGps(false);
+            if (status === "OK" && results && results[0]) {
+              const cityComp = results[0].address_components.find((comp: any) => 
+                comp.types.includes("locality") || comp.types.includes("administrative_area_level_2")
+              );
+              if (cityComp) {
+                const detectedCity = cityComp.long_name;
+                setActiveCity(detectedCity);
+                setCustomCityValue("");
+                setCityPredictions([]);
+                setShowCityPopup(false);
+              }
+            }
+          });
+        } else {
+          setIsDetectingGps(false);
+        }
+      },
+      (err) => {
+        console.warn("GPS Detection failed:", err);
+        setIsDetectingGps(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  const handleCityInputChange = (val: string) => {
+    setCustomCityValue(val);
+    if (!val.trim()) {
+      setCityPredictions([]);
+      return;
+    }
+
+    if (autocompleteServiceRef.current) {
+      autocompleteServiceRef.current.getPlacePredictions({
+        input: val,
+        types: ["(cities)"]
+      }, (results: any, status: any) => {
+        if (status === "OK" && results) {
+          setCityPredictions(results);
+        } else {
+          setCityPredictions([]);
+        }
+      });
+    }
+  };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -106,7 +190,10 @@ export default function Navbar() {
               <>
                 <div 
                   className="fixed inset-0 z-20" 
-                  onClick={() => setShowCityPopup(false)}
+                  onClick={() => {
+                    setShowCityPopup(false);
+                    setCityPredictions([]);
+                  }}
                 />
                 <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-xl p-3 z-30 animate-fade-in space-y-2.5">
                   <div className="space-y-1">
@@ -117,6 +204,7 @@ export default function Navbar() {
                         onClick={() => {
                           setActiveCity(city);
                           setCustomCityValue("");
+                          setCityPredictions([]);
                           setShowCityPopup(false);
                         }}
                         className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
@@ -131,25 +219,68 @@ export default function Navbar() {
                     ))}
                   </div>
 
-                  <div className="border-t border-slate-150 dark:border-slate-900 pt-2.5 px-1 space-y-1.5">
+                  <div className="border-t border-slate-150 dark:border-slate-900 pt-2 px-1">
+                    <button
+                      onClick={triggerGpsDetection}
+                      disabled={isDetectingGps}
+                      className="w-full text-left px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer text-brand-green-600 dark:text-brand-green-400 bg-brand-green-500/5 hover:bg-brand-green-500/10 border border-brand-green-500/10 disabled:opacity-60"
+                    >
+                      {isDetectingGps ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Detecting GPS...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Navigation className="h-3 w-3 rotate-45 text-brand-green-500" />
+                          <span>Detect My Location</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="border-t border-slate-150 dark:border-slate-900 pt-2.5 px-1 space-y-1.5 relative">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Or Enter Manually</p>
                     <input
                       type="text"
                       value={customCityValue}
-                      onChange={e => {
-                        setCustomCityValue(e.target.value);
-                        if (e.target.value.trim()) {
-                          setActiveCity(e.target.value.trim());
-                        }
-                      }}
+                      onChange={e => handleCityInputChange(e.target.value)}
                       onKeyDown={e => {
                         if (e.key === "Enter") {
+                          if (customCityValue.trim()) {
+                            setActiveCity(customCityValue.trim());
+                          }
                           setShowCityPopup(false);
+                          setCityPredictions([]);
                         }
                       }}
                       placeholder="e.g. Chennai, Kolkata..."
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-850 dark:text-slate-150 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-green-500"
                     />
+
+                    {/* Auto-suggest list predictions drawer */}
+                    {cityPredictions.length > 0 && (
+                      <div className="absolute left-1 right-1 mt-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl shadow-2xl z-40 max-h-36 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-900/60 animate-fade-in">
+                        {cityPredictions.map((pred: any) => {
+                          const mainText = pred.structured_formatting?.main_text || pred.description;
+                          return (
+                            <button
+                              key={pred.place_id}
+                              onClick={() => {
+                                setActiveCity(mainText);
+                                setCustomCityValue(mainText);
+                                setCityPredictions([]);
+                                setShowCityPopup(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-900/80 cursor-pointer transition-colors block truncate"
+                              title={pred.description}
+                            >
+                              📍 {pred.description}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </>

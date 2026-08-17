@@ -385,41 +385,63 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === "undefined" || !navigator.geolocation) return;
 
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const win = window as any;
+    let checkInterval: NodeJS.Timeout;
 
-        if (win.google && win.google.maps && win.google.maps.Geocoder) {
-          const geocoder = new win.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
-            if (status === "OK" && results && results[0]) {
-              const cityComp = results[0].address_components.find((comp: any) => 
-                comp.types.includes("locality") || comp.types.includes("administrative_area_level_2")
-              );
-              if (cityComp) {
-                const detectedCity = cityComp.long_name;
-                if (detectedCity.toLowerCase().includes("bengaluru") || detectedCity.toLowerCase().includes("bangalore")) {
-                  setActiveCity("Bangalore");
-                } else if (detectedCity.toLowerCase().includes("mumbai") || detectedCity.toLowerCase().includes("bombay")) {
-                  setActiveCity("Mumbai");
-                } else if (detectedCity.toLowerCase().includes("delhi") || detectedCity.toLowerCase().includes("gurgaon") || detectedCity.toLowerCase().includes("noida") || detectedCity.toLowerCase().includes("ncr")) {
-                  setActiveCity("Delhi NCR");
-                } else if (detectedCity.toLowerCase().includes("pune")) {
-                  setActiveCity("Pune");
-                } else {
-                  setActiveCity(detectedCity);
+    const runGeocode = () => {
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const win = window as any;
+
+          if (win.google && win.google.maps && win.google.maps.Geocoder) {
+            if (checkInterval) clearInterval(checkInterval);
+            const geocoder = new win.google.maps.Geocoder();
+            geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
+              if (status === "OK" && results && results[0]) {
+                const cityComp = results[0].address_components.find((comp: any) => 
+                  comp.types.includes("locality") || comp.types.includes("administrative_area_level_2")
+                );
+                if (cityComp) {
+                  const detectedCity = cityComp.long_name;
+                  if (detectedCity.toLowerCase().includes("bengaluru") || detectedCity.toLowerCase().includes("bangalore")) {
+                    setActiveCity("Bangalore");
+                  } else if (detectedCity.toLowerCase().includes("mumbai") || detectedCity.toLowerCase().includes("bombay")) {
+                    setActiveCity("Mumbai");
+                  } else if (detectedCity.toLowerCase().includes("delhi") || detectedCity.toLowerCase().includes("gurgaon") || detectedCity.toLowerCase().includes("noida") || detectedCity.toLowerCase().includes("ncr")) {
+                    setActiveCity("Delhi NCR");
+                  } else if (detectedCity.toLowerCase().includes("pune")) {
+                    setActiveCity("Pune");
+                  } else {
+                    setActiveCity(detectedCity);
+                  }
                 }
               }
-            }
-          });
-        }
-      },
-      error => {
-        console.warn("Geolocation not permitted or failed. Using default city Bangalore.", error);
+            });
+          }
+        },
+        error => {
+          console.warn("Geolocation not permitted or failed. Using default city Bangalore.", error);
+          if (checkInterval) clearInterval(checkInterval);
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    };
+
+    // Run periodically until Google Maps is loaded
+    checkInterval = setInterval(() => {
+      const win = window as any;
+      if (win.google && win.google.maps && win.google.maps.Geocoder) {
+        runGeocode();
       }
-    );
+    }, 1000);
+
+    // Also run immediately
+    runGeocode();
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval);
+    };
   }, [currentUser, setActiveCity]);
 
   // Check for shared safety parameters on load
