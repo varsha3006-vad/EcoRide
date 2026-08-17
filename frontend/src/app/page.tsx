@@ -385,6 +385,20 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === "undefined" || !navigator.geolocation) return;
 
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+    if (apiKey) {
+      const scriptId = "google-maps-api-loader";
+      let script = document.getElementById(scriptId) as HTMLScriptElement;
+      if (!script) {
+        script = document.createElement("script");
+        script.id = scriptId;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey.trim()}&libraries=geometry,places`;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+    }
+
     let checkInterval: NodeJS.Timeout;
 
     const runGeocode = () => {

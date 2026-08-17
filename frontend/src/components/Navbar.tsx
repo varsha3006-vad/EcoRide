@@ -22,6 +22,8 @@ export default function Navbar() {
   const autocompleteServiceRef = React.useRef<any>(null);
 
   React.useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+    
     const initService = () => {
       const google = (window as any).google;
       if (google && google.maps && google.maps.places) {
@@ -33,11 +35,24 @@ export default function Navbar() {
 
     if (initService()) return;
 
+    if (apiKey) {
+      const scriptId = "google-maps-api-loader";
+      let script = document.getElementById(scriptId) as HTMLScriptElement;
+      if (!script) {
+        script = document.createElement("script");
+        script.id = scriptId;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey.trim()}&libraries=geometry,places`;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+    }
+
     const interval = setInterval(() => {
       if (initService()) {
         clearInterval(interval);
       }
-    }, 1000);
+    }, 500);
 
     return () => clearInterval(interval);
   }, []);
