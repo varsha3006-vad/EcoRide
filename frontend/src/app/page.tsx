@@ -1219,7 +1219,7 @@ export default function HomePage() {
                 100% { transform: translateX(-100%); }
               }
               .custom-marquee-text {
-                animation: marquee-scroll 25s linear infinite;
+                animation: marquee-scroll 60s linear infinite;
               }
             `}</style>
             <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
