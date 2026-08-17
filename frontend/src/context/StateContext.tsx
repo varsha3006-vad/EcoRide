@@ -1621,7 +1621,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!targetRide) return;
 
     if (accept) {
-      const overlapResult = checkRideOverlap(targetRide.rideDate, targetRide.departureTime, reqToRespond.requesterId);
+      const overlapResult = checkRideOverlap(targetRide.rideDate, targetRide.departureTime, reqToRespond.requesterId, targetRide.id);
       if (overlapResult.hasOverlap) {
         addNotification({
           id: `n-overlap-requester-${Date.now()}`,
