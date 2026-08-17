@@ -318,7 +318,7 @@ interface StateContextType {
   startRide: (rideId: string) => void;
   completeRide: (rideId: string, ratings: { safety: number; comfort: number; punctuality: number }) => void;
   cancelRide: (rideId: string) => void;
-  markNotificationsRead: () => void;
+  markNotificationsRead: (id?: string) => void;
   adminDeleteRide: (rideId: string) => void;
   adminDeactivateEmployee: (employeeId: string) => void;
   isLoggedIn: boolean;
@@ -333,6 +333,7 @@ interface StateContextType {
   activeCity: string;
   setActiveCity: (city: string) => void;
   addNotification: (notif: Notification) => void;
+  sendGlobalAnnouncement: (message: string) => Promise<void>;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -1122,6 +1123,20 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
       .subscribe();
 
+    const channelAnnouncements = supabase
+      .channel("announcements-realtime")
+      .on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "ecoride_announcements" }, (payload: any) => {
+        addNotification({
+          id: payload.new.id,
+          title: payload.new.title,
+          message: payload.new.message,
+          timestamp: "Just now",
+          type: "info",
+          read: false
+        });
+      })
+      .subscribe();
+
     // --- Fallback polling ---
     const pollDatabase = async () => {
       try {
@@ -1156,6 +1171,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabase.removeChannel(channelRequests);
       supabase.removeChannel(channelEmployees);
       supabase.removeChannel(channelMessages);
+      supabase.removeChannel(channelAnnouncements);
       clearInterval(interval);
     };
   }, []);
@@ -2184,8 +2200,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, message: "Boarded successfully!" };
   };
 
-  const markNotificationsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markNotificationsRead = (id?: string) => {
+    setNotifications(prev => prev.map(n => {
+      if (id && n.id !== id) return n;
+      return { ...n, read: true };
+    }));
   };
 
   // Admin Delete Ride
@@ -2230,6 +2249,36 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       type: "warning",
       read: false
     });
+  };
+
+  // Send Global Announcement (Admin Broadcast)
+  const sendGlobalAnnouncement = async (message: string) => {
+    logSecurityEvent("ADMIN_BROADCAST", "INFO", `Administrator published global announcement: ${message.slice(0, 50)}...`);
+
+    if (SUPABASE_URL && SUPABASE_ANON_KEY && supabase) {
+      try {
+        const { error } = await supabase.from("ecoride_announcements").insert({
+          id: `ann-${Date.now()}`,
+          title: "📢 Global Announcement",
+          message: message,
+          timestamp: new Date().toISOString(),
+          type: "info"
+        });
+        if (error) throw error;
+      } catch (err) {
+        console.error("Failed to broadcast global announcement to Supabase:", err);
+      }
+    } else {
+      // Local sandbox fallback
+      addNotification({
+        id: `ann-${Date.now()}`,
+        title: "📢 Global Announcement",
+        message: message,
+        timestamp: "Just now",
+        type: "info",
+        read: false
+      });
+    }
   };
 
   // Update Profile Action
@@ -2309,7 +2358,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         logSecurityEvent,
         activeCity,
         setActiveCity,
-        addNotification
+        addNotification,
+        sendGlobalAnnouncement
       }}
     >
       {children}

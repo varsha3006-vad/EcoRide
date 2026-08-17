@@ -18,6 +18,7 @@ export async function GET() {
 
     const ddl = `
       -- Drop existing tables to ensure clean rebuild with new employee schema
+      DROP TABLE IF EXISTS ecoride_announcements CASCADE;
       DROP TABLE IF EXISTS ecoride_audit_logs CASCADE;
       DROP TABLE IF EXISTS ecoride_messages CASCADE;
       DROP TABLE IF EXISTS ecoride_requests CASCADE;
@@ -121,6 +122,15 @@ export async function GET() {
         "severity" TEXT NOT NULL,
         "message" TEXT NOT NULL,
         "timestamp" TEXT NOT NULL
+      );
+
+      -- 6. Announcements Table
+      CREATE TABLE ecoride_announcements (
+        "id" TEXT PRIMARY KEY,
+        "title" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "timestamp" TEXT NOT NULL,
+        "type" TEXT NOT NULL
       );
 
       -- Indices for performance optimizations

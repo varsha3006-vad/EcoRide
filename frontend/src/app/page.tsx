@@ -296,7 +296,10 @@ export default function HomePage() {
     auditLogs,
     activeCity,
     setActiveCity,
-    addNotification
+    addNotification,
+    sendGlobalAnnouncement,
+    notifications,
+    markNotificationsRead
   } = useAppState();
 
   // Helper to filter time options dynamically for future times only when scheduling for today
@@ -1183,6 +1186,33 @@ export default function HomePage() {
     <div className="flex-1 flex flex-col min-h-screen">
       <Navbar />
 
+      {/* Global Announcements Live Alert Banner */}
+      {(() => {
+        const latestAnn = notifications
+          .filter((n: any) => !n.read && n.id.startsWith("ann-"))
+          .sort((a: any, b: any) => b.id.localeCompare(a.id))[0];
+          
+        if (!latestAnn) return null;
+        
+        return (
+          <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs font-bold px-4 py-3 shadow-md flex items-center justify-between gap-4 animate-slide-down border-b border-orange-500/20 relative z-30">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-sm">📢</span>
+              <p className="truncate">
+                <span className="font-extrabold uppercase tracking-wider text-[9px] bg-white/20 px-1.5 py-0.5 rounded mr-1.5">System Alert</span>
+                {latestAnn.message}
+              </p>
+            </div>
+            <button
+              onClick={() => markNotificationsRead(latestAnn.id)}
+              className="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/15 hover:border-white/30 text-[9px] font-black uppercase transition-all flex items-center justify-center cursor-pointer flex-shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        );
+      })()}
+
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         
         {/* Dynamic Admin View */}
@@ -1410,11 +1440,12 @@ export default function HomePage() {
                     <button
                       onClick={() => {
                         if (!announcementText.trim()) return;
+                        sendGlobalAnnouncement(announcementText);
                         setAnnouncementSent(true);
                         setTimeout(() => setAnnouncementSent(false), 3000);
                         setAnnouncementText("");
                       }}
-                      className="px-4 py-2.5 rounded-xl bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-xs font-bold transition-colors"
+                      className="px-4 py-2.5 rounded-xl bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-xs font-bold transition-colors cursor-pointer"
                     >
                       Broadcast
                     </button>
