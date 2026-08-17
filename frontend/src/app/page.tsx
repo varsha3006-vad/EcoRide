@@ -2160,6 +2160,13 @@ export default function HomePage() {
                     <div className="divide-y divide-slate-100 dark:divide-slate-900/60">
                       {myUpcomingTrips.map(trip => {
                         const isHost = trip.hostId === currentUser.id;
+                        const boardedRaw = trip.boardedPassengers as any;
+                        const boardedArray = Array.isArray(boardedRaw)
+                          ? boardedRaw
+                          : (typeof boardedRaw === "string" && boardedRaw.startsWith("{")
+                            ? boardedRaw.slice(1, -1).split(",").map((s: string) => s.trim().replace(/^"|"$/g, ''))
+                            : []);
+                        const hasBoarded = boardedArray.includes(currentUser.id);
                         return (
                           <div key={trip.id} className="py-4 last:pb-0 space-y-3">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -2299,7 +2306,7 @@ export default function HomePage() {
                                 })()}
 
                                 {/* Passenger View: Share Safety Live Tracking Link */}
-                                {!isHost && (
+                                {!isHost && trip.status === "Started" && hasBoarded && (
                                   <button
                                     onClick={() => handleShareRide(trip.id, currentUser.id)}
                                     className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm shadow-emerald-500/20"
