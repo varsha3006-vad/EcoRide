@@ -295,7 +295,8 @@ export default function HomePage() {
     confirmBoarding,
     auditLogs,
     activeCity,
-    setActiveCity
+    setActiveCity,
+    addNotification
   } = useAppState();
 
   // Helper to filter time options dynamically for future times only when scheduling for today
@@ -339,6 +340,11 @@ export default function HomePage() {
   }, []);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+
+  // Safety Live Tracking states
+  const [isSafetyShareView, setIsSafetyShareView] = useState(false);
+  const [safetyRideId, setSafetyRideId] = useState<string | null>(null);
+  const [safetyPassengerId, setSafetyPassengerId] = useState<string | null>(null);
 
   // Wizard state: null | "host" | "join"
   const [activeWizard, setActiveWizard] = useState<null | "host" | "join">(null);
@@ -410,6 +416,20 @@ export default function HomePage() {
       }
     );
   }, [currentUser, setActiveCity]);
+
+  // Check for shared safety parameters on load
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const rideId = params.get("shareRideId");
+      const psgrId = params.get("passengerId");
+      if (rideId && psgrId) {
+        setIsSafetyShareView(true);
+        setSafetyRideId(rideId);
+        setSafetyPassengerId(psgrId);
+      }
+    }
+  }, []);
 
   // Admin filter states
   const [adminActiveTab, setAdminActiveTab] = useState<"kpis" | "rides" | "employees" | "audit">("kpis");
@@ -814,6 +834,36 @@ export default function HomePage() {
     document.body.removeChild(link);
   };
 
+  const handleShareRide = (rideId: string, passengerId: string) => {
+    const shareUrl = `${window.location.origin}/?shareRideId=${rideId}&passengerId=${passengerId}`;
+    const shareText = `I am sharing my live EcoRide commute status with you for safety. Track my location, ETA, and route real-time here: ${shareUrl}`;
+
+    const nav = navigator as any;
+    if (nav.share) {
+      nav.share({
+        title: "EcoRide Safety Live Share",
+        text: shareText,
+        url: shareUrl
+      }).catch((err: any) => console.log("Share failed:", err));
+    } else {
+      // Fallback copy
+      navigator.clipboard.writeText(shareText).then(() => {
+        addNotification({
+          id: `n-share-${Date.now()}`,
+          title: "Safety Link Copied! 📋",
+          message: "Live safety tracking link copied to clipboard. Opening WhatsApp...",
+          timestamp: "Just now",
+          type: "success",
+          read: false
+        });
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+        window.open(whatsappUrl, "_blank");
+      }).catch((err: any) => {
+        console.error("Clipboard copy failed:", err);
+      });
+    }
+  };
+
   const myCreatedRides = rides.filter(r => r.hostId === currentUser.id);
   const myJoinedRides = rides.filter(r => r.passengers.includes(currentUser.id));
   const myUpcomingTrips = [...myCreatedRides, ...myJoinedRides].filter(r => r.status?.toLowerCase() !== "completed" && r.status?.toLowerCase() !== "cancelled");
@@ -853,6 +903,121 @@ export default function HomePage() {
     const ride = rides.find(r => r.id === req.rideId);
     return ride && ride.hostId === currentUser.id && req.status === "Pending";
   });
+
+  // Public SafeCommute Tracking View (bypasses login for shared tracking URL)
+  if (isSafetyShareView && safetyRideId && safetyPassengerId) {
+    const targetRide = rides.find(r => r.id === safetyRideId);
+    const targetPassenger = employees.find(e => e.id === safetyPassengerId);
+    const host = targetRide ? employees.find(e => e.id === targetRide.hostId) : null;
+    
+    return (
+      <div className="flex-1 flex flex-col min-h-screen bg-slate-950 text-slate-105 dark:text-slate-100 p-4 sm:p-6 select-none relative overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808005_1px,transparent_1px),linear-gradient(to_bottom,#80808005_1px,transparent_1px)] bg-[size:24px_24px] opacity-30 z-0"></div>
+        <div className="absolute top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-brand-green-500/5 blur-[120px] z-0"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] h-[500px] w-[500px] rounded-full bg-brand-blue-500/5 blur-[120px] z-0"></div>
+
+        <header className="max-w-5xl w-full mx-auto flex items-center justify-between border-b border-slate-900 pb-4 mb-6 relative z-10">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-brand-green-500/10 text-brand-green-400 font-black text-sm tracking-widest">🌱 EcoRide</span>
+            <h1 className="text-xs font-black tracking-wider text-slate-400 uppercase">Safety Stream</h1>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
+            🛡️ SafeCommute Active
+          </span>
+        </header>
+
+        <main className="flex-1 max-w-5xl w-full mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+          <div className="md:col-span-2 space-y-4">
+            {targetRide ? (
+              <div className="w-full aspect-[4/3] md:aspect-video rounded-3xl overflow-hidden border border-slate-800 shadow-2xl relative">
+                <InteractiveMap
+                  pickup={targetRide.pickup}
+                  destination={targetRide.destination}
+                  passengerPickup={targetRide.pickup}
+                  passengerDrop={targetRide.destination}
+                  isDriving={true}
+                  rideId={targetRide.id}
+                  passengerId={targetPassenger?.id}
+                />
+              </div>
+            ) : (
+              <div className="w-full aspect-[4/3] rounded-3xl bg-slate-900 border border-slate-850 flex items-center justify-center text-slate-500 text-xs font-bold">
+                ⚠️ Active tracking route map loading...
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            {/* Passenger Status */}
+            <div className="glass-panel p-5 rounded-3xl border border-slate-900 bg-slate-900/40 space-y-3">
+              <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Shared Commute Details</h3>
+              {targetPassenger ? (
+                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-slate-900">
+                  <span className="text-3xl">{targetPassenger.avatar}</span>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">{targetPassenger.name}</h4>
+                    <p className="text-[9px] text-slate-400">{targetPassenger.designation} · {targetPassenger.department}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">Resolving passenger card...</p>
+              )}
+            </div>
+
+            {/* Ride Status */}
+            {targetRide ? (
+              <div className="glass-panel p-5 rounded-3xl border border-slate-900 bg-slate-900/40 space-y-4">
+                <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Trip Progress</h3>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-slate-350">Route: <span className="text-brand-green-400 font-normal">{targetRide.pickup} → {targetRide.destination}</span></p>
+                  <p className="text-[10px] font-bold text-slate-350">Departure: <span className="font-normal">{targetRide.departureTime} ({targetRide.rideDate ? formatRideDate(targetRide.rideDate) : "Today"})</span></p>
+                  <p className="text-[10px] font-bold text-slate-350 flex items-center gap-1.5">
+                    Status: <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-450 text-[9px] font-extrabold uppercase">{targetRide.status}</span>
+                  </p>
+                </div>
+
+                {host && (
+                  <div className="pt-3 border-t border-slate-900 space-y-1.5">
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Driver Details</p>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">{host.avatar}</span>
+                      <div>
+                        <p className="text-xs font-bold text-white">{host.name}</p>
+                        <p className="text-[9px] text-slate-450">Driving: {targetRide.vehicleModel} ({targetRide.vehiclePlate})</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="glass-panel p-5 rounded-3xl border border-slate-900 bg-slate-900/40 text-center text-xs text-slate-500">
+                Resolving commute details...
+              </div>
+            )}
+
+            {/* Notice Footer */}
+            <div className="text-[9px] text-slate-500 space-y-1 bg-slate-900/20 p-4 rounded-2xl border border-slate-900">
+              <p className="font-black text-slate-400 uppercase tracking-wider">🛡️ SafeCommute Stream Notice</p>
+              <p>This tracking feed is dynamically generated for safety monitoring purposes. Location pins update automatically via live vehicle telemetry.</p>
+            </div>
+            
+            <button
+              onClick={() => {
+                // Clear safety view state and redirect to main homepage/login
+                setIsSafetyShareView(false);
+                setSafetyRideId(null);
+                setSafetyPassengerId(null);
+                window.history.pushState({}, document.title, window.location.pathname);
+              }}
+              className="w-full py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-850 hover:border-slate-800 text-xs font-bold text-slate-450 hover:text-white transition-all cursor-pointer text-center block"
+            >
+              ← Back to Login / Dashboard
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     return (
@@ -2132,6 +2297,17 @@ export default function HomePage() {
                                     </div>
                                   );
                                 })()}
+
+                                {/* Passenger View: Share Safety Live Tracking Link */}
+                                {!isHost && (
+                                  <button
+                                    onClick={() => handleShareRide(trip.id, currentUser.id)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm shadow-emerald-500/20"
+                                    title="Share live location tracking safety link via WhatsApp / Messenger"
+                                  >
+                                    🛡️ Share Safety Link
+                                  </button>
+                                )}
 
                                 {/* Open Chat */}
                                 <button

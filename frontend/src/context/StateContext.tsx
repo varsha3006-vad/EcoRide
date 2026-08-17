@@ -332,6 +332,7 @@ interface StateContextType {
   updateProfile: (updatedDetails: Partial<Employee>) => void;
   activeCity: string;
   setActiveCity: (city: string) => void;
+  addNotification: (notif: Notification) => void;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -2307,7 +2308,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         auditLogs,
         logSecurityEvent,
         activeCity,
-        setActiveCity
+        setActiveCity,
+        addNotification
       }}
     >
       {children}
