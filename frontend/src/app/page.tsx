@@ -408,6 +408,8 @@ export default function HomePage() {
                   setActiveCity("Delhi NCR");
                 } else if (detectedCity.toLowerCase().includes("pune")) {
                   setActiveCity("Pune");
+                } else {
+                  setActiveCity(detectedCity);
                 }
               }
             }

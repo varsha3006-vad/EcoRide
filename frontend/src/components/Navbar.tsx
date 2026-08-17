@@ -8,6 +8,14 @@ export default function Navbar() {
   const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured, syncError, activeCity, setActiveCity } = useAppState();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showCityPopup, setShowCityPopup] = useState(false);
+  const [customCityValue, setCustomCityValue] = useState("");
+
+  React.useEffect(() => {
+    if (activeCity && !["Bangalore", "Mumbai", "Delhi NCR", "Pune"].includes(activeCity)) {
+      setCustomCityValue(activeCity);
+    }
+  }, [activeCity]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -85,22 +93,67 @@ export default function Navbar() {
 
           {/* City Geofence Selector */}
           <div className="relative flex-shrink-0">
-            <select
-              value={activeCity}
-              onChange={e => setActiveCity(e.target.value)}
-              className="flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50 text-slate-750 dark:text-slate-300 focus:border-brand-green-500 outline-none cursor-pointer transition-all appearance-none pr-8 relative"
-              style={{
-                backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236b7280\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'/%3E%3C/svg%3E")',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'right 8px center',
-                backgroundSize: '12px'
-              }}
+            <button
+              onClick={() => setShowCityPopup(!showCityPopup)}
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-black rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50 text-slate-750 dark:text-slate-350 dark:hover:text-slate-150 hover:border-brand-green-500/50 outline-none cursor-pointer transition-all relative z-10"
+              title="Click to change active city context"
             >
-              <option value="Bangalore">📍 Bangalore</option>
-              <option value="Mumbai">📍 Mumbai</option>
-              <option value="Delhi NCR">📍 Delhi NCR</option>
-              <option value="Pune">📍 Pune</option>
-            </select>
+              <span>📍 {activeCity}</span>
+              <span className="text-[8px] text-slate-400">▼</span>
+            </button>
+
+            {showCityPopup && (
+              <>
+                <div 
+                  className="fixed inset-0 z-20" 
+                  onClick={() => setShowCityPopup(false)}
+                />
+                <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-xl p-3 z-30 animate-fade-in space-y-2.5">
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-2">Select Region</p>
+                    {["Bangalore", "Mumbai", "Delhi NCR", "Pune"].map(city => (
+                      <button
+                        key={city}
+                        onClick={() => {
+                          setActiveCity(city);
+                          setCustomCityValue("");
+                          setShowCityPopup(false);
+                        }}
+                        className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                          activeCity.toLowerCase() === city.toLowerCase() 
+                            ? "bg-brand-green-500/10 text-brand-green-600 dark:text-brand-green-400" 
+                            : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900"
+                        }`}
+                      >
+                        <span>{city}</span>
+                        {activeCity.toLowerCase() === city.toLowerCase() && <span className="text-[10px]">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="border-t border-slate-150 dark:border-slate-900 pt-2.5 px-1 space-y-1.5">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Or Enter Manually</p>
+                    <input
+                      type="text"
+                      value={customCityValue}
+                      onChange={e => {
+                        setCustomCityValue(e.target.value);
+                        if (e.target.value.trim()) {
+                          setActiveCity(e.target.value.trim());
+                        }
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          setShowCityPopup(false);
+                        }
+                      }}
+                      placeholder="e.g. Chennai, Kolkata..."
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-850 dark:text-slate-150 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-green-500"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Quick Metrics (Credits) */}
