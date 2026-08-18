@@ -24,17 +24,42 @@ const supabaseSync = {
     if (!supabase) return;
     try {
       console.log("🔥 Executing deep Postgres database table purge in Supabase...");
+
+      const wipeTable = async (tableName: string, idCol: string = "id") => {
+        try {
+          const { data } = await supabase.from(tableName).select(idCol);
+          if (data && data.length > 0) {
+            const ids = data.map((item: any) => item[idCol]).filter(Boolean);
+            if (ids.length > 0) {
+              await supabase.from(tableName).delete().in(idCol, ids);
+            }
+          }
+          await supabase.from(tableName).delete().filter(idCol, "not.is", null);
+        } catch (err) {
+          console.warn(`Table wipe warning for ${tableName}:`, err);
+        }
+      };
+
       await Promise.all([
-        supabase.from("ecoride_rides").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("ecoride_requests").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("ecoride_commute_requests").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("ecoride_ride_proposals").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("ecoride_messages").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("ecoride_notifications").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("ecoride_announcements").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("ecoride_audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("ecoride_state").delete().neq("key", "keep_none")
+        wipeTable("ecoride_rides"),
+        wipeTable("ecoride_requests"),
+        wipeTable("ecoride_commute_requests"),
+        wipeTable("ecoride_ride_proposals"),
+        wipeTable("ecoride_messages"),
+        wipeTable("ecoride_notifications"),
+        wipeTable("ecoride_announcements"),
+        wipeTable("ecoride_audit_logs"),
+        wipeTable("ecoride_state", "key")
       ]);
+
+      // Overwrite state key "rides" explicitly with []
+      try {
+        await supabase.from("ecoride_state").upsert({ key: "rides", value: [], updated_at: new Date().toISOString() }, { onConflict: "key" });
+        await supabase.from("ecoride_state").upsert({ key: "requests", value: [], updated_at: new Date().toISOString() }, { onConflict: "key" });
+        await supabase.from("ecoride_state").upsert({ key: "commute_requests", value: [], updated_at: new Date().toISOString() }, { onConflict: "key" });
+        await supabase.from("ecoride_state").upsert({ key: "ride_proposals", value: [], updated_at: new Date().toISOString() }, { onConflict: "key" });
+      } catch (e) {}
+
       lastRides = [];
       lastRequests = [];
       lastCommuteRequests = [];
@@ -831,6 +856,35 @@ const parseRideDateTime = (dateStr?: string, timeStr?: string): Date | null => {
   return new Date(year, month - 1, day, hours, minutes, 0, 0);
 };
 
+// System Purge Cutoff: Any ride created or scheduled before Aug 19, 2026 01:00 AM IST is discarded
+const SYSTEM_PURGE_CUTOFF_MS = new Date("2026-08-18T19:30:00.000Z").getTime();
+
+const filterPurgedRides = (rideList: Ride[]): Ride[] => {
+  if (!rideList || !Array.isArray(rideList)) return [];
+  return rideList.filter(ride => {
+    if (!ride || !ride.id) return false;
+    let rideTimeMs = 0;
+    const rawRide = ride as any;
+    if (rawRide.createdAt) {
+      rideTimeMs = new Date(rawRide.createdAt).getTime();
+    } else if (ride.id.startsWith("ride-")) {
+      const tsStr = ride.id.replace("ride-", "").split("-")[0];
+      const parsed = Number(tsStr);
+      if (!isNaN(parsed) && parsed > 1000000000000) rideTimeMs = parsed;
+    }
+    
+    // If ride timestamp is prior to cutoff, drop it completely
+    if (rideTimeMs > 0 && rideTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
+      return false;
+    }
+    // Drop legacy mock static ride IDs
+    if (ride.id.startsWith("r-") || ride.id.startsWith("ride-1")) {
+      return false;
+    }
+    return true;
+  });
+};
+
 const mergeRidesSafely = (currentRides: Ride[], incomingRides: Ride[]): Ride[] => {
   const map = new Map<string, Ride>();
   if (typeof window !== "undefined") {
@@ -856,7 +910,7 @@ const mergeRidesSafely = (currentRides: Ride[], incomingRides: Ride[]): Ride[] =
     }
   });
 
-  const merged = Array.from(map.values());
+  const merged = filterPurgedRides(Array.from(map.values()));
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem("ecoride_rides", JSON.stringify(merged));
