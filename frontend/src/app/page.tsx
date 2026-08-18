@@ -1141,7 +1141,7 @@ export default function HomePage() {
           {/* Logo */}
           <div className="flex flex-col items-center text-center space-y-3.5">
             <div className="flex items-center gap-3">
-              {/* L&T Corporate Logo */}
+              {/* L&T Corporate Logo (DISABLED FOR NOW)
               <div className="bg-white p-1.5 rounded-xl border border-slate-800 shadow-md">
                 <img 
                   src="/logo.png" 
@@ -1149,8 +1149,8 @@ export default function HomePage() {
                   className="h-7 w-auto object-contain" 
                 />
               </div>
-              {/* Vertical divider */}
               <div className="h-6 w-[1px] bg-slate-800" />
+              */}
               {/* EcoRide Leaf Logo */}
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-green-600 to-brand-blue-500 shadow-md">
                 <Leaf className="h-5 w-5 text-white" />

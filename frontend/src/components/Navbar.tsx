@@ -140,7 +140,7 @@ export default function Navbar() {
         
         {/* Left: Brand Identity */}
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-          {/* L&T Technology Services Logo - Compact on mobile, standard on larger screens */}
+          {/* L&T Technology Services Logo (DISABLED FOR NOW)
           <div className="flex items-center bg-white/75 dark:bg-white/90 p-1 sm:p-1.5 rounded-lg shadow-sm border border-slate-100 flex-shrink-0 max-w-[125px] sm:max-w-[180px] overflow-hidden">
             <img 
               src="/logo.png" 
@@ -148,17 +148,21 @@ export default function Navbar() {
               className="h-7 sm:h-10 w-auto object-contain flex-shrink-0" 
             />
           </div>
-
-          {/* Vertical Divider - Hidden on mobile, shown on tablet/desktop */}
           <div className="hidden sm:block h-6 w-[1px] bg-slate-200 dark:bg-slate-800 flex-shrink-0" />
+          */}
 
-          {/* Brand Info - Hidden on mobile to prevent overlapping with buttons, shown on tablet/desktop */}
-          <div className="hidden sm:block">
-            <h1 className="text-sm font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-1 sm:text-base">
+          {/* EcoRide Leaf Logo */}
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-green-600 to-brand-blue-500 shadow-md flex-shrink-0">
+            <Leaf className="h-4.5 w-4.5 text-white" />
+          </div>
+
+          {/* Brand Info */}
+          <div>
+            <h1 className="text-xs font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-1.5 sm:text-sm">
               EcoRide <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-brand-green-100 text-brand-green-700 dark:bg-brand-green-950/30 dark:text-brand-green-400 border border-brand-green-500/20">Enterprise</span>
             </h1>
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-              <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Sustainable Corporate Carpooling</p>
+              <p className="hidden md:block text-[9px] text-slate-500 dark:text-slate-400 font-medium">Sustainable Corporate Carpooling</p>
               <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.2 text-[8px] font-bold ${
                 syncError
                   ? "bg-rose-500/10 text-rose-500 border border-rose-500/20 animate-pulse"
@@ -167,7 +171,7 @@ export default function Navbar() {
                     : "bg-amber-500/10 text-amber-500 border border-amber-500/20"
               }`} title={syncError || ""}>
                 <span className={`h-1.5 w-1.5 rounded-full ${syncError ? "bg-rose-500" : isSupabaseConfigured ? "bg-emerald-500" : "bg-amber-500"}`} />
-                {syncError ? `Sync Error: ${syncError.substring(0, 30)}...` : isSupabaseConfigured ? "Sync Live" : "Sandbox (Local)"}
+                {syncError ? "Sync Error" : isSupabaseConfigured ? "Sync Live" : "Sandbox"}
               </span>
             </div>
           </div>
