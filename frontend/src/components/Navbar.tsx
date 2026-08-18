@@ -324,10 +324,14 @@ export default function Navbar() {
           </div>
 
           {/* Quick Metrics (Credits) */}
-          <div className="hidden items-center gap-1.5 rounded-xl bg-brand-green-50 px-3 py-1.5 text-xs font-semibold text-brand-green-700 dark:bg-brand-green-950/20 dark:text-brand-green-400 border border-brand-green-500/10 md:flex">
-            <Award className="h-4 w-4" />
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("open-credit-details"))}
+            className="hidden items-center gap-1.5 rounded-xl bg-brand-green-50 px-3 py-1.5 text-xs font-semibold text-brand-green-700 dark:bg-brand-green-950/20 dark:text-brand-green-400 border border-brand-green-500/10 md:flex hover:bg-brand-green-100 dark:hover:bg-brand-green-900/30 cursor-pointer transition-all shadow-sm"
+            title="Click to view detailed ESG Credit Breakdown & Audit Ledger"
+          >
+            <Award className="h-4 w-4 text-brand-green-500" />
             <span>{currentUser.credits} Credits</span>
-          </div>
+          </button>
 
           {/* Notification Bell */}
           <div ref={notificationRef} className="relative">
@@ -438,6 +442,16 @@ export default function Navbar() {
                     <span className="font-semibold text-slate-800 dark:text-white">{currentUser.office}</span>
                   </div>
                   <div className="border-t mt-2 pt-1.5 space-y-1">
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        window.dispatchEvent(new CustomEvent("open-credit-details"));
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-bold text-brand-green-600 dark:text-brand-green-400 hover:bg-brand-green-500/10 rounded-xl transition-all flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">🌱 ESG Credit Audit</span>
+                      <span className="font-extrabold bg-brand-green-100 text-brand-green-700 dark:bg-brand-green-950/40 dark:text-brand-green-400 px-2 py-0.5 rounded-full text-[10px]">{currentUser.credits} Pts</span>
+                    </button>
                     <button
                       onClick={() => {
                         setShowProfileMenu(false);

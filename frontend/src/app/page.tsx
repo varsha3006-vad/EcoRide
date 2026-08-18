@@ -9,6 +9,7 @@ import AddressAutocomplete from "@/components/AddressAutocomplete";
 import ChatModal from "@/components/ChatModal";
 import PastRidesModal from "@/components/PastRidesModal";
 import ProfileModal from "@/components/ProfileModal";
+import { EsgCreditModal } from "@/components/EsgCreditModal";
 import {
   Car,
   Search,
@@ -358,6 +359,15 @@ export default function HomePage() {
   const [isSafetyShareView, setIsSafetyShareView] = useState(false);
   const [safetyRideId, setSafetyRideId] = useState<string | null>(null);
   const [safetyPassengerId, setSafetyPassengerId] = useState<string | null>(null);
+
+  // ESG Credit Breakdown modal state
+  const [showCreditModal, setShowCreditModal] = useState(false);
+
+  useEffect(() => {
+    const handleOpenCreditModal = () => setShowCreditModal(true);
+    window.addEventListener("open-credit-details", handleOpenCreditModal);
+    return () => window.removeEventListener("open-credit-details", handleOpenCreditModal);
+  }, []);
 
   // Wizard state: null | "host" | "join"
   const [activeWizard, setActiveWizard] = useState<null | "host" | "join" | "commute-request">(null);
@@ -3869,6 +3879,12 @@ export default function HomePage() {
       {showProfileModal && (
         <ProfileModal onClose={() => setShowProfileModal(false)} />
       )}
+
+      {/* ESG Credit Calculation Breakdown & Audit Modal */}
+      <EsgCreditModal
+        isOpen={showCreditModal}
+        onClose={() => setShowCreditModal(false)}
+      />
 
       {/* Bottom status signature */}
       <footer className="py-6 border-t mt-auto">
