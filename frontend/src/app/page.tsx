@@ -1088,9 +1088,9 @@ export default function HomePage() {
                       <span className="text-2xl">{host.avatar}</span>
                       <div>
                         <p className="text-xs font-bold text-white">{host.name}</p>
-                        <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-slate-400 mt-0.5">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
                           <span>Driving: <strong>{targetRide.vehicleModel}</strong></span>
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-slate-700 bg-slate-900 text-[9px] font-black text-slate-200 tracking-wider font-mono shadow-sm">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded border border-slate-700 bg-slate-900 text-[11px] font-black text-slate-200 tracking-wider font-mono shadow-sm">
                             🚗 {targetRide.vehiclePlate}
                           </span>
                         </div>
@@ -2489,7 +2489,7 @@ export default function HomePage() {
                                     <span>• Role: {isHost ? "Host" : "Passenger"}</span>
                                     <span className="flex items-center gap-1">
                                       <span>• Vehicle: {trip.vehicleModel} - {trip.vehicleType}</span>
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-[8px] font-black text-slate-800 dark:text-slate-200 tracking-wider font-mono shadow-xs ml-0.5">
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded border border-slate-350 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-[11px] font-black text-slate-800 dark:text-slate-200 tracking-wider font-mono shadow-sm ml-0.5">
                                         🚗 {trip.vehiclePlate || "N/A"}
                                       </span>
                                     </span>
@@ -2503,15 +2503,15 @@ export default function HomePage() {
                                     const hostEmployee = employees.find(e => e.id === trip.hostId);
                                     if (!hostEmployee) return null;
                                     return (
-                                      <div className="mt-2 text-[9px] text-slate-650 dark:text-slate-350 font-bold flex items-center gap-2 bg-slate-100/40 dark:bg-slate-900/30 px-2 py-1 rounded-lg border border-slate-200/20 dark:border-slate-800/10 w-fit">
+                                      <div className="mt-2 text-[11px] text-slate-650 dark:text-slate-350 font-bold flex items-center gap-2.5 bg-slate-100/40 dark:bg-slate-900/30 px-2.5 py-1.5 rounded-lg border border-slate-200/20 dark:border-slate-800/10 w-fit">
                                         <span>Host: {hostEmployee.avatar} {hostEmployee.name} ({hostEmployee.department})</span>
                                         {hostEmployee.phone && (
                                           <a
                                             href={`tel:${hostEmployee.phone}`}
-                                            className="px-2 py-0.5 rounded bg-brand-blue-500/10 hover:bg-brand-blue-500/20 text-brand-blue-600 dark:text-brand-blue-400 text-[8px] font-extrabold flex items-center gap-1 transition-all cursor-pointer"
+                                            className="px-2.5 py-1 rounded bg-brand-blue-500/10 hover:bg-brand-blue-500/20 text-brand-blue-600 dark:text-brand-blue-400 text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer"
                                             title={`Call ${hostEmployee.name}`}
                                           >
-                                            <Phone className="h-2 w-2" /> Call Host
+                                            <Phone className="h-3 w-3" /> Call Host
                                           </a>
                                         )}
                                       </div>
