@@ -10,6 +10,7 @@ import ChatModal from "@/components/ChatModal";
 import PastRidesModal from "@/components/PastRidesModal";
 import ProfileModal from "@/components/ProfileModal";
 import { EsgCreditModal } from "@/components/EsgCreditModal";
+import { RideCompletionCelebrationModal, CelebrationData } from "@/components/RideCompletionCelebrationModal";
 import {
   Car,
   Search,
@@ -368,6 +369,34 @@ export default function HomePage() {
     window.addEventListener("open-credit-details", handleOpenCreditModal);
     return () => window.removeEventListener("open-credit-details", handleOpenCreditModal);
   }, []);
+
+  // Ride Completion Celebration Modal state & listener
+  const [celebrationData, setCelebrationData] = useState<CelebrationData | null>(null);
+
+  useEffect(() => {
+    const handleCelebration = (e: any) => {
+      if (e.detail) {
+        setCelebrationData(e.detail);
+      }
+    };
+    window.addEventListener("open-ride-celebration", handleCelebration);
+    return () => window.removeEventListener("open-ride-celebration", handleCelebration);
+  }, []);
+
+  // Auto-check for pending celebration for currentUser on mount or login
+  useEffect(() => {
+    if (currentUser && typeof window !== "undefined") {
+      const key = `ecoride_pending_celebration_${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setCelebrationData(parsed);
+          localStorage.removeItem(key);
+        } catch (err) {}
+      }
+    }
+  }, [currentUser]);
 
   // Wizard state: null | "host" | "join"
   const [activeWizard, setActiveWizard] = useState<null | "host" | "join" | "commute-request">(null);
@@ -3889,6 +3918,13 @@ export default function HomePage() {
       <EsgCreditModal
         isOpen={showCreditModal}
         onClose={() => setShowCreditModal(false)}
+      />
+
+      {/* Mother Earth Hero Celebration Modal */}
+      <RideCompletionCelebrationModal
+        isOpen={!!celebrationData}
+        onClose={() => setCelebrationData(null)}
+        data={celebrationData}
       />
 
       {/* Bottom status signature */}

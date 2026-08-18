@@ -529,6 +529,7 @@ interface StateContextType {
   completeRide: (rideId: string, ratings: { safety: number; comfort: number; punctuality: number }) => void;
   cancelRide: (rideId: string, cancellingUserId?: string) => void;
   markNotificationsRead: (id?: string) => void;
+  clearNotifications: () => void;
   adminDeleteRide: (rideId: string) => void;
   adminDeactivateEmployee: (employeeId: string) => void;
   isLoggedIn: boolean;
@@ -2911,6 +2912,35 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         setMessages(prev => prev.filter(m => m.rideId !== rideId));
 
+        // Save pending celebration payload for driver & all passengers and trigger celebration modal
+        if (typeof window !== "undefined") {
+          const participants = Array.from(new Set([ride.hostId, ...(ride.passengers || [])]));
+          participants.forEach(pId => {
+            const celData = {
+              rideId,
+              co2Saved: co2Offset,
+              creditsEarned: pId === ride.hostId ? earnedCredits : Math.round(earnedCredits * 0.5),
+              drivenKm,
+              passengerCount: totalPassengers,
+              destination: ride.destination,
+              role: pId === ride.hostId ? "Host Colleague" : "Passenger"
+            };
+            localStorage.setItem(`ecoride_pending_celebration_${pId}`, JSON.stringify(celData));
+          });
+
+          window.dispatchEvent(new CustomEvent("open-ride-celebration", {
+            detail: {
+              rideId,
+              co2Saved: co2Offset,
+              creditsEarned: currentUser.id === ride.hostId ? earnedCredits : Math.round(earnedCredits * 0.5),
+              drivenKm,
+              passengerCount: totalPassengers,
+              destination: ride.destination,
+              role: currentUser.id === ride.hostId ? "Host Colleague" : "Passenger"
+            }
+          }));
+        }
+
         return {
           ...ride,
           status: "Completed" as const
@@ -3394,6 +3424,16 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           console.error(e);
         }
       }
+    }
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_notifications", JSON.stringify([]));
+    }
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("notifications", []);
     }
   };
 
@@ -4006,6 +4046,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         completeRide,
         cancelRide,
         markNotificationsRead,
+        clearNotifications,
         adminDeleteRide,
         adminDeactivateEmployee,
         isLoggedIn,

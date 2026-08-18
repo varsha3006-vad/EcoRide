@@ -5,7 +5,7 @@ import { useAppState } from "@/context/StateContext";
 import { Bell, Shield, User, Leaf, Award, ChevronDown, Check, Trash, MapPin, Loader2, Navigation } from "lucide-react";
 
 export default function Navbar() {
-  const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured, syncError, activeCity, setActiveCity, purgeAllRideDataAndResetEsg } = useAppState();
+  const { currentUser, role, setRole, notifications, markNotificationsRead, clearNotifications, employees, switchUser, logout, isSupabaseConfigured, syncError, activeCity, setActiveCity, purgeAllRideDataAndResetEsg } = useAppState();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCityPopup, setShowCityPopup] = useState(false);
@@ -355,12 +355,22 @@ export default function Navbar() {
               <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-xl overflow-hidden z-50 animate-fade-in">
                 <div className="flex items-center justify-between border-b px-4 py-3 bg-slate-50 dark:bg-slate-900/50">
                   <h3 className="font-semibold text-sm text-slate-800 dark:text-white">Notifications</h3>
-                  <button 
-                    onClick={() => markNotificationsRead()}
-                    className="text-xs text-brand-green-600 dark:text-brand-green-400 font-medium hover:underline flex items-center gap-1"
-                  >
-                    Mark all read
-                  </button>
+                  <div className="flex items-center gap-2.5">
+                    <button 
+                      onClick={() => markNotificationsRead()}
+                      className="text-xs text-brand-green-600 dark:text-brand-green-400 font-medium hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      Mark all read
+                    </button>
+                    <span className="text-slate-300 dark:text-slate-700 text-xs">•</span>
+                    <button 
+                      onClick={() => clearNotifications()}
+                      className="text-xs text-rose-500 hover:text-rose-600 dark:text-rose-400 font-medium hover:underline flex items-center gap-1 cursor-pointer"
+                      title="Clear all notifications permanently"
+                    >
+                      🗑️ Clear All
+                    </button>
+                  </div>
                 </div>
                 <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-900">
                   {userNotifications.length === 0 ? (
