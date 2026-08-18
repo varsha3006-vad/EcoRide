@@ -1279,35 +1279,42 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       });
 
-      // Self-healing migration to reset ESG scores and history
+      // Mandatory Total Data Wipe v5 for Fresh Testing Environment
       if (typeof window !== "undefined") {
-        const hasReset = localStorage.getItem("ecoride_esg_reset_v3");
-        if (hasReset !== "true") {
-          console.log("🛠️ Performing client-side self-healing ESG reset...");
+        const hasWipedV5 = localStorage.getItem("ecoride_total_wipe_v5");
+        if (hasWipedV5 !== "true") {
+          console.log("🧹 Executing mandatory v5 total system wipe for fresh testing...");
           
-          // Reset stats for all employees
           finalEmployees = finalEmployees.map((emp: Employee) => ({
             ...emp,
             esgScore: 0,
-            carbonSaved: 0,
+            carbonSaved: 0.0,
             credits: 0,
             badgeIds: []
           }));
 
-          // Wipe all rides and requests
           finalRides = [];
           finalRequests = [];
+          finalCommuteRequests = [];
+          finalRideProposals = [];
 
-          // Sync to localStorage
-          localStorage.setItem("ecoride_rides", JSON.stringify(finalRides));
-          localStorage.setItem("ecoride_requests", JSON.stringify(finalRequests));
-          localStorage.setItem("ecoride_esg_reset_v3", "true");
+          localStorage.setItem("ecoride_rides", JSON.stringify([]));
+          localStorage.setItem("ecoride_requests", JSON.stringify([]));
+          localStorage.setItem("ecoride_commute_requests", JSON.stringify([]));
+          localStorage.setItem("ecoride_ride_proposals", JSON.stringify([]));
+          localStorage.setItem("ecoride_messages", JSON.stringify([]));
+          localStorage.setItem("ecoride_notifications", JSON.stringify([]));
+          localStorage.setItem("ecoride_employees", JSON.stringify(finalEmployees));
+          localStorage.setItem("ecoride_total_wipe_v5", "true");
 
-          // Sync to Supabase
           if (SUPABASE_URL && SUPABASE_ANON_KEY) {
             supabaseSync.set("employees", finalEmployees);
-            supabaseSync.set("rides", finalRides);
-            supabaseSync.set("requests", finalRequests);
+            supabaseSync.set("rides", []);
+            supabaseSync.set("requests", []);
+            supabaseSync.set("commute_requests", []);
+            supabaseSync.set("ride_proposals", []);
+            supabaseSync.set("messages", []);
+            supabaseSync.set("notifications", []);
           }
         }
       }
@@ -3787,8 +3794,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("ecoride_data_purged_v4")) {
-      localStorage.setItem("ecoride_data_purged_v4", "true");
+    if (typeof window !== "undefined" && !localStorage.getItem("ecoride_total_wipe_v5")) {
+      localStorage.setItem("ecoride_total_wipe_v5", "true");
       purgeAllRideDataAndResetEsg();
     }
   }, []);
