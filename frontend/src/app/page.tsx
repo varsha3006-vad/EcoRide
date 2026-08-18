@@ -2761,12 +2761,46 @@ export default function HomePage() {
                             {/* Ongoing Ride Map with Embedded / Native selection */}
                             {trip.status?.toLowerCase() === "started" && (() => {
                                const passengerPickups = getOptimalWaypoints(trip, requests, getDistance);
+                               const myReq = requests.find(r => r.rideId === trip.id && r.requesterId === currentUser.id && r.status === "Accepted");
                                const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${
                                  trip.driverLat && trip.driverLng ? `&origin=${trip.driverLat},${trip.driverLng}` : ""
                                }&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&dir_action=navigate&travelmode=driving`;
 
+                               let liveTickerText = "";
+                               if (trip.driverLat && trip.driverLng && myReq?.pickupLat && myReq?.pickupLng) {
+                                 const distKm = getDistance(trip.driverLat, trip.driverLng, myReq.pickupLat, myReq.pickupLng);
+                                 const etaMins = Math.max(1, Math.round((distKm / 35) * 60));
+                                 liveTickerText = `🚘 Colleague Host ${trip.hostName} is ${distKm.toFixed(1)} km away from your pickup point (~${etaMins} mins ETA)`;
+                               } else if (trip.driverLat && trip.driverLng) {
+                                 liveTickerText = `📡 Colleague Host ${trip.hostName} is active & en-route — Live GPS Tracking Connected`;
+                               } else {
+                                 liveTickerText = `🚗 Colleague Host ${trip.hostName} has started the commute to ${myReq?.pickup || trip.pickup}`;
+                               }
+
                               return (
                                 <div className="mt-3 space-y-3">
+                                  {/* Continuous Live Host Tracking Ticker for Passengers */}
+                                  {!isHost && (
+                                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 dark:from-emerald-950/40 dark:via-teal-950/40 dark:to-sky-950/40 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-sm animate-pulse">
+                                      <div className="flex items-center gap-2.5">
+                                        <span className="p-2 rounded-xl bg-emerald-500 text-white font-black animate-bounce text-xs flex items-center justify-center">
+                                          📡
+                                        </span>
+                                        <div>
+                                          <p className="font-extrabold text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-1.5">
+                                            Continuous Live Host Tracking Feed
+                                          </p>
+                                          <p className="text-[11px] text-slate-700 dark:text-slate-200 font-bold mt-0.5">
+                                            {liveTickerText}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <span className="text-[9px] bg-emerald-600 text-white font-black px-2.5 py-1 rounded-full uppercase tracking-wider flex-shrink-0 shadow-sm">
+                                        LIVE FEED
+                                      </span>
+                                    </div>
+                                  )}
+
                                   {/* Toggle Bar */}
                                   <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800/80 p-0.5 border border-slate-200/40 dark:border-slate-700/40 w-fit">
                                     <button
@@ -2805,6 +2839,8 @@ export default function HomePage() {
                                       <InteractiveMap
                                         pickup={trip.pickup}
                                         destination={trip.destination}
+                                        passengerPickup={myReq?.pickup}
+                                        passengerDrop={myReq?.dropPoint}
                                         isDriving={true}
                                         waypoints={passengerPickups}
                                         rideId={trip.id}
