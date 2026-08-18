@@ -515,9 +515,9 @@ const INITIAL_EMPLOYEES: Employee[] = [
     designation: "System Administrator",
     office: "Building A",
     phone: "+919000000000",
-    esgScore: 100,
-    carbonSaved: 0,
-    credits: 1000,
+    esgScore: 0,
+    carbonSaved: 0.0,
+    credits: 0,
     rank: 1,
     badgeIds: [],
     gender: "Male"
@@ -537,9 +537,9 @@ const INITIAL_EMPLOYEES: Employee[] = [
       capacity: 4,
       plateNumber: "CA-770EV"
     },
-    esgScore: 85,
-    carbonSaved: 120.40,
-    credits: 640,
+    esgScore: 0,
+    carbonSaved: 0.0,
+    credits: 0,
     rank: 1,
     badgeIds: [],
     gender: "Male"
@@ -559,10 +559,10 @@ const INITIAL_EMPLOYEES: Employee[] = [
       capacity: 4,
       plateNumber: "CA-102HY"
     },
-    esgScore: 80,
-    carbonSaved: 75.20,
-    credits: 410,
-    rank: 2,
+    esgScore: 0,
+    carbonSaved: 0.0,
+    credits: 0,
+    rank: 1,
     badgeIds: [],
     gender: "Male"
   },
@@ -581,10 +581,10 @@ const INITIAL_EMPLOYEES: Employee[] = [
       capacity: 5,
       plateNumber: "CA-338OP"
     },
-    esgScore: 78,
-    carbonSaved: 45.10,
-    credits: 320,
-    rank: 3,
+    esgScore: 0,
+    carbonSaved: 0.0,
+    credits: 0,
+    rank: 1,
     badgeIds: [],
     gender: "Male"
   },
@@ -3787,8 +3787,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("ecoride_data_purged_v3")) {
-      localStorage.setItem("ecoride_data_purged_v3", "true");
+    if (typeof window !== "undefined" && !localStorage.getItem("ecoride_data_purged_v4")) {
+      localStorage.setItem("ecoride_data_purged_v4", "true");
       purgeAllRideDataAndResetEsg();
     }
   }, []);
