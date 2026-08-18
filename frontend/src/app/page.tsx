@@ -41,7 +41,9 @@ import {
   Map,
   Zap,
   Navigation,
-  Phone
+  Phone,
+  PhoneCall,
+  ShieldAlert
 } from "lucide-react";
 
 const generate15MinTimeOptions = () => {
@@ -627,6 +629,9 @@ export default function HomePage() {
   const [decliningProposal, setDecliningProposal] = useState<any | null>(null);
   const [declineReasonOption, setDeclineReasonOption] = useState<string>("schedule");
   const [customDeclineReason, setCustomDeclineReason] = useState<string>("");
+
+  // SOS Emergency modal state
+  const [sosModalTrip, setSosModalTrip] = useState<any | null>(null);
 
   useEffect(() => {
     if (joiningRide) {
@@ -2709,6 +2714,18 @@ export default function HomePage() {
                                   Google Maps
                                 </a>
 
+                                {/* SOS Calling Feature (112) */}
+                                {trip.status?.toLowerCase() !== "completed" && trip.status?.toLowerCase() !== "cancelled" && (
+                                  <a
+                                    href="tel:112"
+                                    onClick={() => setSosModalTrip(trip)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm animate-pulse"
+                                  >
+                                    <ShieldAlert className="h-3 w-3 fill-white text-rose-600" />
+                                    SOS (112)
+                                  </a>
+                                )}
+
                                 {/* Host actions */}
                                 {isHost && trip.status?.toLowerCase() === "published" && (
                                   <button
@@ -3604,6 +3621,73 @@ export default function HomePage() {
                 className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer transition-all shadow-md"
               >
                 Confirm Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SOS Emergency Assistance Modal */}
+      {sosModalTrip && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in select-none">
+          <div className="w-full max-w-md bg-white dark:bg-slate-950 rounded-3xl border-2 border-rose-500 p-6 shadow-2xl space-y-4 text-left relative overflow-hidden">
+            <div className="absolute -top-12 -right-12 h-32 w-32 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="flex items-center justify-between border-b border-rose-100 dark:border-rose-950/40 pb-3">
+              <h3 className="font-black text-rose-600 dark:text-rose-400 text-base flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 animate-pulse">🚨</span>
+                SOS Emergency Assistance
+              </h3>
+              <button
+                onClick={() => setSosModalTrip(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              If you feel unsafe or require urgent help during your commute to <strong>{sosModalTrip.destination}</strong>, use the 1-tap options below:
+            </p>
+
+            <div className="space-y-3">
+              {/* Direct 112 Dial Button */}
+              <a
+                href="tel:112"
+                className="w-full py-3.5 px-4 rounded-2xl bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-rose-600/30 transition-all cursor-pointer text-center"
+              >
+                <PhoneCall className="h-5 w-5 fill-white animate-bounce" />
+                Call 112 National Emergency Helpline
+              </a>
+
+              {/* Corporate Emergency Desk */}
+              <a
+                href="tel:1800102112"
+                className="w-full py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 border border-slate-800 transition-all cursor-pointer text-center"
+              >
+                <Shield className="h-4 w-4 text-brand-green-400" />
+                Call Corporate Security Patrol (1800-102-112)
+              </a>
+
+              {/* Real-Time Location Card */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-[11px] space-y-1 text-slate-700 dark:text-slate-300 font-medium">
+                <p className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
+                  <MapPin className="h-3.5 w-3.5 text-rose-500" />
+                  Active Trip Info for First Responders
+                </p>
+                <p>📍 <strong>Route:</strong> {sosModalTrip.pickup} → {sosModalTrip.destination}</p>
+                <p>🚘 <strong>Vehicle:</strong> {sosModalTrip.vehicleModel} ({sosModalTrip.vehiclePlate})</p>
+                <p>👤 <strong>Colleague Host:</strong> {sosModalTrip.hostName} ({sosModalTrip.hostDept})</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t pt-3">
+              <button
+                type="button"
+                onClick={() => setSosModalTrip(null)}
+                className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-xs font-bold cursor-pointer transition-all"
+              >
+                Dismiss Emergency Panel
               </button>
             </div>
           </div>
