@@ -145,7 +145,7 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-base flex-shrink-0 p-2 rounded-xl bg-brand-green-50 dark:bg-brand-green-950/40 text-brand-green-600 dark:text-brand-green-400 font-bold">
-                          🏁
+                          {ride.vehicleType === "Electric" ? "⚡" : ride.vehicleType === "Hybrid" ? "🍃" : "🚗"}
                         </span>
                         <div className="min-w-0">
                           <h4 className="font-extrabold text-slate-850 dark:text-white text-xs truncate">
