@@ -2798,17 +2798,27 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    // --- HOST / DRIVER CANCELS THE ENTIRE RIDE (EXISTING AUTO-REACTIVATION WORKFLOW) ---
-    // Collect all affected passenger IDs (excluding host)
-    const rawPassengers = (targetRide.passengers || []).filter(pId => pId !== targetRide.hostId);
-    const requestPassengers = requests.filter(req => req.rideId === rideId && req.status === "Accepted").map(req => req.requesterId);
-    const affectedPassengers = Array.from(new Set([...rawPassengers, ...requestPassengers]));
+    // --- HOST CANCELS THE ENTIRE RIDE (AUTO-REACTIVATION WORKFLOW) ---
+    // Collect all affected passenger IDs (excluding host) safely handling array, Postgres string "{id}", or single string
+    const passengersRaw = targetRide.passengers as any;
+    const parsedPassengers = Array.isArray(passengersRaw)
+      ? passengersRaw
+      : (typeof passengersRaw === "string" && passengersRaw.startsWith("{")
+        ? passengersRaw.slice(1, -1).split(",").map((s: string) => s.trim().replace(/^"|"$/g, ''))
+        : (typeof passengersRaw === "string" && passengersRaw.length > 0 ? [passengersRaw] : []));
+
+    const rawPassengers = parsedPassengers.filter((pId: string) => pId && pId !== targetRide.hostId);
+    const requestPassengers = requests
+      .filter(req => req.rideId === rideId && (req.status?.toLowerCase() === "accepted" || req.status?.toLowerCase() === "pending"))
+      .map(req => req.requesterId);
+
+    const affectedPassengers = Array.from(new Set([...rawPassengers, ...requestPassengers])).filter((pId: string) => pId && pId !== targetRide.hostId);
 
     setRides(prev => {
       const updated = prev.map(ride => {
         if (ride.id !== rideId) return ride;
 
-        // Penalty for driver late cancellation
+        // Penalty for host late cancellation
         setEmployees(prevEmps => prevEmps.map(emp => {
           if (emp.id !== ride.hostId) return emp;
           return {
@@ -2818,9 +2828,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           };
         }));
 
-        // Notify host (driver)
+        // Notify host (colleague host)
         addNotification({
           id: `n-can-host-${Date.now()}`,
+          recipientId: ride.hostId,
           title: "Ride Cancelled ⚠️",
           message: `You cancelled the commute trip to ${ride.destination}. 25 credit penalty applied.`,
           timestamp: "Just now",
@@ -2832,8 +2843,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         affectedPassengers.forEach(psgrId => {
           addNotification({
             id: `n-can-psgr-${psgrId}-${Date.now()}`,
-            title: "Ride Cancelled by Driver ⚠️",
-            message: `Your driver ${ride.hostName} cancelled the commute to ${ride.destination}. Your pickup request has been auto-reactivated with Urgent priority for other drivers to pick up.`,
+            recipientId: psgrId,
+            title: "Ride Cancelled by Colleague Host ⚠️",
+            message: `Your colleague host ${ride.hostName} cancelled the commute to ${ride.destination}. Your pickup request has been auto-reactivated with Urgent priority for other colleagues to pick up.`,
             timestamp: "Just now",
             type: "warning",
             read: false
