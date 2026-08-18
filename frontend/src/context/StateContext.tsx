@@ -835,6 +835,87 @@ const mergeRidesSafely = (currentRides: Ride[], incomingRides: Ride[]): Ride[] =
   return merged;
 };
 
+const mergeRequestsSafely = (current: RideRequest[], incoming: RideRequest[]): RideRequest[] => {
+  const map = new Map<string, RideRequest>();
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem("ecoride_requests");
+      if (saved) {
+        const parsed: RideRequest[] = JSON.parse(saved);
+        parsed.forEach(r => { if (r && r.id) map.set(r.id, r); });
+      }
+    } catch (e) {}
+  }
+  (current || []).forEach(r => { if (r && r.id) map.set(r.id, r); });
+  (incoming || []).forEach(r => {
+    if (r && r.id) {
+      const existing = map.get(r.id);
+      map.set(r.id, existing ? { ...existing, ...r } : r);
+    }
+  });
+  const merged = Array.from(map.values());
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("ecoride_requests", JSON.stringify(merged));
+    } catch (e) {}
+  }
+  return merged;
+};
+
+const mergeCommuteRequestsSafely = (current: CommuteRequest[], incoming: CommuteRequest[]): CommuteRequest[] => {
+  const map = new Map<string, CommuteRequest>();
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem("ecoride_commute_requests");
+      if (saved) {
+        const parsed: CommuteRequest[] = JSON.parse(saved);
+        parsed.forEach(r => { if (r && r.id) map.set(r.id, r); });
+      }
+    } catch (e) {}
+  }
+  (current || []).forEach(r => { if (r && r.id) map.set(r.id, r); });
+  (incoming || []).forEach(r => {
+    if (r && r.id) {
+      const existing = map.get(r.id);
+      map.set(r.id, existing ? { ...existing, ...r } : r);
+    }
+  });
+  const merged = Array.from(map.values());
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("ecoride_commute_requests", JSON.stringify(merged));
+    } catch (e) {}
+  }
+  return merged;
+};
+
+const mergeRideProposalsSafely = (current: RideProposal[], incoming: RideProposal[]): RideProposal[] => {
+  const map = new Map<string, RideProposal>();
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem("ecoride_ride_proposals");
+      if (saved) {
+        const parsed: RideProposal[] = JSON.parse(saved);
+        parsed.forEach(r => { if (r && r.id) map.set(r.id, r); });
+      }
+    } catch (e) {}
+  }
+  (current || []).forEach(r => { if (r && r.id) map.set(r.id, r); });
+  (incoming || []).forEach(r => {
+    if (r && r.id) {
+      const existing = map.get(r.id);
+      map.set(r.id, existing ? { ...existing, ...r } : r);
+    }
+  });
+  const merged = Array.from(map.values());
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("ecoride_ride_proposals", JSON.stringify(merged));
+    } catch (e) {}
+  }
+  return merged;
+};
+
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -1114,33 +1195,36 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       let finalRides = mergeRidesSafely(localRides, loadedRides || []);
 
-      let finalRequests = loadedRequests || [];
-      if (!loadedRequests && typeof window !== "undefined") {
+      let localRequests: RideRequest[] = [];
+      if (typeof window !== "undefined") {
         const savedRequests = localStorage.getItem("ecoride_requests");
         if (savedRequests) {
-          try { finalRequests = JSON.parse(savedRequests); } catch (e) {}
+          try { localRequests = JSON.parse(savedRequests); } catch (e) {}
         }
       }
+      let finalRequests = mergeRequestsSafely(localRequests, loadedRequests || []);
 
       if (loadedMessages) {
         setMessages(loadedMessages);
       }
 
-      let finalCommuteRequests = loadedCommuteRequests || [];
-      if (!loadedCommuteRequests && typeof window !== "undefined") {
+      let localCommuteReqs: CommuteRequest[] = [];
+      if (typeof window !== "undefined") {
         const saved = localStorage.getItem("ecoride_commute_requests");
         if (saved) {
-          try { finalCommuteRequests = JSON.parse(saved); } catch (e) {}
+          try { localCommuteReqs = JSON.parse(saved); } catch (e) {}
         }
       }
+      let finalCommuteRequests = mergeCommuteRequestsSafely(localCommuteReqs, loadedCommuteRequests || []);
 
-      let finalRideProposals = loadedRideProposals || [];
-      if (!loadedRideProposals && typeof window !== "undefined") {
+      let localRideProps: RideProposal[] = [];
+      if (typeof window !== "undefined") {
         const saved = localStorage.getItem("ecoride_ride_proposals");
         if (saved) {
-          try { finalRideProposals = JSON.parse(saved); } catch (e) {}
+          try { localRideProps = JSON.parse(saved); } catch (e) {}
         }
       }
+      let finalRideProposals = mergeRideProposalsSafely(localRideProps, loadedRideProposals || []);
 
       let finalEmployees = loadedEmployees || INITIAL_EMPLOYEES;
       if (!loadedEmployees && typeof window !== "undefined") {
@@ -1332,16 +1416,26 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return merged;
         });
       } else if (key === "requests") {
-        setRequests(value);
-        lastRequests = value;
+        setRequests(prev => {
+          const merged = mergeRequestsSafely(prev, value);
+          requestsRef.current = merged;
+          lastRequests = merged;
+          return merged;
+        });
       } else if (key === "commute_requests") {
-        setCommuteRequests(value);
-        commuteRequestsRef.current = value;
-        lastCommuteRequests = value;
+        setCommuteRequests(prev => {
+          const merged = mergeCommuteRequestsSafely(prev, value);
+          commuteRequestsRef.current = merged;
+          lastCommuteRequests = merged;
+          return merged;
+        });
       } else if (key === "ride_proposals") {
-        setRideProposals(value);
-        rideProposalsRef.current = value;
-        lastRideProposals = value;
+        setRideProposals(prev => {
+          const merged = mergeRideProposalsSafely(prev, value);
+          rideProposalsRef.current = merged;
+          lastRideProposals = merged;
+          return merged;
+        });
       } else if (key.startsWith("messages_")) {
         const rId = key.replace("messages_", "");
         setMessages(prev => {
@@ -2124,17 +2218,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       deviationKm
     };
 
-    const updatedRequests = [newRequest, ...requests];
-    setRequests(updatedRequests);
-    requestsRef.current = updatedRequests;
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("ecoride_requests", JSON.stringify(updatedRequests));
-    }
-    // Write to Supabase OUTSIDE setState — no race condition
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      supabaseSync.set("requests", updatedRequests);
-    }
+    setRequests(prev => {
+      const updated = mergeRequestsSafely(prev, [newRequest]);
+      requestsRef.current = updated;
+      lastRequests = updated;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_requests", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("requests", updated);
+      }
+      return updated;
+    });
 
     // Trigger push notification to host (Privacy Masked)
     triggerPushNotification(
