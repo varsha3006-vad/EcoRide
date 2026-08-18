@@ -879,7 +879,13 @@ const mergeCommuteRequestsSafely = (current: CommuteRequest[], incoming: Commute
   (incoming || []).forEach(r => {
     if (r && r.id) {
       const existing = map.get(r.id);
-      map.set(r.id, existing ? { ...existing, ...r } : r);
+      if (existing) {
+        // Protect locally auto-reactivated Pending/Urgent requests from being reverted by stale remote records
+        const isLocallyPendingUrgent = (existing.status === "Pending" && (existing.urgent || existing.cancelledByDriver));
+        map.set(r.id, isLocallyPendingUrgent ? { ...r, ...existing } : { ...existing, ...r });
+      } else {
+        map.set(r.id, r);
+      }
     }
   });
   const merged = Array.from(map.values());
@@ -2472,6 +2478,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           updated = [newUrgentReq, ...updated];
         }
 
+        commuteRequestsRef.current = updated;
         if (typeof window !== "undefined") {
           localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
         }
@@ -2895,6 +2902,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         });
 
+        commuteRequestsRef.current = updated;
         if (typeof window !== "undefined") {
           localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
         }
