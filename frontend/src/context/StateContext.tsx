@@ -416,6 +416,7 @@ export interface RideProposal {
   vehiclePlate?: string;
   vehicleType?: "Electric" | "Hybrid" | "ICE (Gasoline)";
   vehicleCapacity?: number;
+  declineReason?: string;
 }
 
 interface StateContextType {
@@ -462,7 +463,7 @@ interface StateContextType {
   postCommuteRequest: (data: Omit<CommuteRequest, "id" | "requesterId" | "requesterName" | "requesterAvatar" | "requesterDept" | "status" | "timestamp">) => Promise<void>;
   sendRideProposal: (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string, vehiclePlate?: string) => Promise<void>;
   acceptRideProposal: (proposalId: string) => Promise<void>;
-  declineRideProposal: (proposalId: string) => Promise<void>;
+  declineRideProposal: (proposalId: string, reason?: string) => Promise<void>;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -3119,11 +3120,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const declineRideProposal = async (proposalId: string) => {
+  const declineRideProposal = async (proposalId: string, reason?: string) => {
     const targetProp = rideProposals.find(p => p.id === proposalId);
+    const formattedReason = reason || "Schedule or route preference mismatch";
 
     const updatedProposals = rideProposals.map(p => {
-      if (p.id === proposalId) return { ...p, status: "Declined" };
+      if (p.id === proposalId) return { ...p, status: "Declined", declineReason: formattedReason };
       return p;
     });
 
@@ -3138,6 +3140,16 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     if (targetProp) {
+      // Notify host driver of the decline reason
+      addNotification({
+        id: `n-prop-host-dec-${Date.now()}`,
+        title: "Offer Declined ℹ️",
+        message: `Your pickup proposal for ${targetProp.proposedDepartureTime} was declined by passenger. Reason: "${formattedReason}".`,
+        timestamp: "Just now",
+        type: "info",
+        read: false
+      });
+
       setCommuteRequests(prev => {
         const updated = prev.map(cr => {
           if (cr.id === targetProp.requestId) {
@@ -3163,14 +3175,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addNotification({
         id: `n-prop-dec-${Date.now()}`,
         title: "Proposal Declined ✋",
-        message: `Proposal from ${targetProp.hostName} was declined. Your pickup request has been auto-reactivated with Urgent priority for other drivers to pick up.`,
+        message: `Proposal from ${targetProp.hostName} was declined (${formattedReason}). Your pickup request has been auto-reactivated with Urgent priority.`,
         timestamp: "Just now",
         type: "info",
         read: false
       });
     }
 
-    logSecurityEvent("RIDE_PROPOSAL_DECLINE", "INFO", `Passenger declined ride proposal ${proposalId}`);
+    logSecurityEvent("RIDE_PROPOSAL_DECLINE", "INFO", `Passenger declined ride proposal ${proposalId}. Reason: ${formattedReason}`);
   };
 
   return (

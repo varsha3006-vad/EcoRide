@@ -623,6 +623,11 @@ export default function HomePage() {
   const [reviewingRequest, setReviewingRequest] = useState<any | null>(null);
   const [mapViewPreferences, setMapViewPreferences] = useState<Record<string, "embedded" | "native">>({});
 
+  // Decline proposal modal state
+  const [decliningProposal, setDecliningProposal] = useState<any | null>(null);
+  const [declineReasonOption, setDeclineReasonOption] = useState<string>("schedule");
+  const [customDeclineReason, setCustomDeclineReason] = useState<string>("");
+
   useEffect(() => {
     if (joiningRide) {
       setPassengerPickupInput(passengerSearchPickup || joiningRide.pickup);
@@ -2880,7 +2885,7 @@ export default function HomePage() {
                                                 Accept
                                               </button>
                                               <button
-                                                onClick={() => declineRideProposal(prop.id)}
+                                                 onClick={() => setDecliningProposal(prop)}
                                                 className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[9px] font-bold cursor-pointer transition-all"
                                               >
                                                 Decline
@@ -3520,6 +3525,89 @@ export default function HomePage() {
       {/* Past Commutes Modal */}
       {showPastRidesModal && (
         <PastRidesModal onClose={() => setShowPastRidesModal(false)} />
+      )}
+
+      {/* Decline Proposal Reason Modal */}
+      {decliningProposal && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in select-none">
+          <div className="w-full max-w-md bg-white dark:bg-slate-950 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-extrabold text-slate-800 dark:text-white text-sm flex items-center gap-1.5">
+                ✋ Decline Ride Proposal
+              </h3>
+              <button
+                onClick={() => setDecliningProposal(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Please let <strong>{decliningProposal.hostName}</strong> know why you are declining their offer for {decliningProposal.proposedDepartureTime}:
+            </p>
+
+            <div className="space-y-2 text-xs">
+              {[
+                { id: "schedule", label: "⏰ Departure time doesn't match my schedule" },
+                { id: "vehicle", label: "🚗 Vehicle type or seating capacity mismatch" },
+                { id: "location", label: "📍 Pickup or drop-off location is inconvenient" },
+                { id: "alternative", label: "👥 Found an alternative commute arrangement" },
+                { id: "other", label: "✏️ Other (type custom reason)" }
+              ].map(opt => (
+                <label key={opt.id} className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/50 cursor-pointer hover:border-brand-green-500/40 transition-colors">
+                  <input
+                    type="radio"
+                    name="declineReasonOption"
+                    value={opt.id}
+                    checked={declineReasonOption === opt.id}
+                    onChange={() => setDeclineReasonOption(opt.id)}
+                    className="text-brand-green-600 focus:ring-brand-green-500 cursor-pointer"
+                  />
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{opt.label}</span>
+                </label>
+              ))}
+
+              {declineReasonOption === "other" && (
+                <textarea
+                  value={customDeclineReason}
+                  onChange={e => setCustomDeclineReason(e.target.value)}
+                  placeholder="Write your custom decline reason..."
+                  className="w-full mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 text-xs outline-none focus:ring-1 focus:ring-brand-green-500"
+                  rows={2}
+                />
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t pt-3">
+              <button
+                type="button"
+                onClick={() => setDecliningProposal(null)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-xs font-bold cursor-pointer transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  let finalReason = "";
+                  if (declineReasonOption === "schedule") finalReason = "Departure time doesn't match my schedule";
+                  else if (declineReasonOption === "vehicle") finalReason = "Vehicle type or seating capacity mismatch";
+                  else if (declineReasonOption === "location") finalReason = "Pickup or drop-off location is inconvenient";
+                  else if (declineReasonOption === "alternative") finalReason = "Found an alternative commute arrangement";
+                  else finalReason = customDeclineReason.trim() || "Other reason specified";
+
+                  declineRideProposal(decliningProposal.id, finalReason);
+                  setDecliningProposal(null);
+                  setCustomDeclineReason("");
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer transition-all shadow-md"
+              >
+                Confirm Decline
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Profile Editor Modal */}
