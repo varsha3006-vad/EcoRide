@@ -393,14 +393,12 @@ export default function HomePage() {
   const [hostSelectedPlate, setHostSelectedPlate] = useState("");
   const [proposalSelectedPlate, setProposalSelectedPlate] = useState("");
 
-  // Set default selected vehicle from current user's registered list
+  // Set default selected vehicle from current user's registered list if not already selected
   useEffect(() => {
     if (currentUser?.vehicles && currentUser.vehicles.length > 0) {
-      setHostSelectedPlate(currentUser.vehicles[0].plateNumber);
-      setProposalSelectedPlate(currentUser.vehicles[0].plateNumber);
-    } else {
-      setHostSelectedPlate("");
-      setProposalSelectedPlate("");
+      const firstPlate = currentUser.vehicles[0].plateNumber;
+      setHostSelectedPlate(prev => prev || firstPlate);
+      setProposalSelectedPlate(prev => prev || firstPlate);
     }
   }, [currentUser]);
 
@@ -2978,6 +2976,9 @@ export default function HomePage() {
                                       setProposingToRequest(cr);
                                       setProposedTimeOffset(0);
                                       setProposalRideId("new");
+                                      if (currentUser?.vehicles && currentUser.vehicles.length > 0) {
+                                        setProposalSelectedPlate(currentUser.vehicles[0].plateNumber);
+                                      }
                                     }}
                                     className="px-3 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold transition-all cursor-pointer"
                                   >
