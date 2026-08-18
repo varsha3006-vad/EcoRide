@@ -395,14 +395,29 @@ export default function HomePage() {
   const [hostSelectedPlate, setHostSelectedPlate] = useState("");
   const [proposalSelectedPlate, setProposalSelectedPlate] = useState("");
 
-  // Set default selected vehicle from current user's registered list if not already selected
+  // Sync selected vehicle from current user's registered list and auto-set vehicle properties
   useEffect(() => {
     if (currentUser?.vehicles && currentUser.vehicles.length > 0) {
-      const firstPlate = currentUser.vehicles[0].plateNumber;
-      setHostSelectedPlate(prev => prev || firstPlate);
-      setProposalSelectedPlate(prev => prev || firstPlate);
+      const currentVeh = currentUser.vehicles.find(v => v.plateNumber === hostSelectedPlate) || currentUser.vehicles[0];
+      if (currentVeh) {
+        if (currentVeh.plateNumber !== hostSelectedPlate) {
+          setHostSelectedPlate(currentVeh.plateNumber);
+        }
+        setVehicleType(currentVeh.type);
+        setCapacity(currentVeh.category === "2-Wheeler (Bike/Scooter)" ? 1 : currentVeh.capacity);
+      }
     }
-  }, [currentUser]);
+  }, [currentUser, hostSelectedPlate]);
+
+  // Auto-select initial future time option when opening wizards
+  useEffect(() => {
+    if (activeWizard === "host") {
+      const options = getFilteredTimeOptions(rideDate);
+      if (options.length > 0 && (!time || !options.includes(time))) {
+        setTime(options[0]);
+      }
+    }
+  }, [activeWizard, rideDate]);
 
   // Reset form error when switching wizards
   useEffect(() => {
@@ -828,18 +843,50 @@ export default function HomePage() {
 
   const handleHostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pickup || !dest || !time) return;
+    setFormError("");
 
-    // Validate that the departure time is in the future
+    if (!pickup.trim()) {
+      setFormError("Please select a valid pickup location.");
+      return;
+    }
+    if (!dest.trim()) {
+      setFormError("Please select a valid destination office.");
+      return;
+    }
+    if (!time) {
+      setFormError("Please select a departure time.");
+      return;
+    }
+    if (!rideDate) {
+      setFormError("Please select a ride date.");
+      return;
+    }
+
+    const activeVeh = (currentUser?.vehicles || []).find(v => v.plateNumber === hostSelectedPlate) || currentUser?.vehicles?.[0];
+    if (!activeVeh) {
+      setFormError("Please select or add a registered vehicle from your profile settings first.");
+      return;
+    }
+
+    // Validate robustly that departure time is in the future
     const parseDepartureDateTime = (dateStr: string, timeStr: string): Date => {
-      const [timePart, ampm] = timeStr.split(" ");
-      let [hours, minutes] = timePart.split(":").map(Number);
-      if (ampm === "PM" && hours < 12) {
+      if (!dateStr || !timeStr) return new Date();
+      const [year, month, day] = dateStr.split("-").map(Number);
+      
+      const upperTime = timeStr.trim().toUpperCase();
+      const isPM = upperTime.includes("PM");
+      const isAM = upperTime.includes("AM");
+      
+      const cleanTime = upperTime.replace(/AM|PM/g, "").trim();
+      let [hours, minutes] = cleanTime.split(":").map(Number);
+      if (isNaN(hours)) hours = 9;
+      if (isNaN(minutes)) minutes = 0;
+
+      if (isPM && hours < 12) {
         hours += 12;
-      } else if (ampm === "AM" && hours === 12) {
+      } else if (isAM && hours === 12) {
         hours = 0;
       }
-      const [year, month, day] = dateStr.split("-").map(Number);
       return new Date(year, month - 1, day, hours, minutes, 0, 0);
     };
 
@@ -857,13 +904,8 @@ export default function HomePage() {
       return;
     }
 
-    const activeVeh = (currentUser?.vehicles || []).find(v => v.plateNumber === hostSelectedPlate);
-    if (!activeVeh) {
-      setFormError("Please select a registered vehicle from your profile first.");
-      return;
-    }
-
-    setFormError("");
+    const is2W = activeVeh.category === "2-Wheeler (Bike/Scooter)";
+    const rideSeats = is2W ? 1 : Math.max(1, capacity);
 
     createRide({
       pickup,
@@ -874,8 +916,8 @@ export default function HomePage() {
       vehiclePlate: activeVeh.plateNumber,
       vehicleType: activeVeh.type,
       vehicleCategory: activeVeh.category || "4-Wheeler (Car)",
-      seatsAvailable: activeVeh.category === "2-Wheeler (Bike/Scooter)" ? 1 : capacity,
-      seatsTotal: activeVeh.category === "2-Wheeler (Bike/Scooter)" ? 1 : capacity,
+      seatsAvailable: rideSeats,
+      seatsTotal: rideSeats,
       recurring,
       detourRadius: radius,
       co2Saved: co2SavedEstimate,
