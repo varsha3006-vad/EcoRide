@@ -254,6 +254,7 @@ const supabaseSync = {
 export interface Vehicle {
   model: string;
   type: "Electric" | "Hybrid" | "ICE (Gasoline)";
+  category?: "4-Wheeler (Car)" | "2-Wheeler (Bike/Scooter)";
   capacity: number;
   plateNumber: string;
 }
@@ -298,6 +299,7 @@ export interface Ride {
   vehicleModel: string;
   vehiclePlate: string;
   vehicleType: "Electric" | "Hybrid" | "ICE (Gasoline)";
+  vehicleCategory?: "4-Wheeler (Car)" | "2-Wheeler (Bike/Scooter)";
   seatsAvailable: number;
   seatsTotal: number;
   recurring: boolean;

@@ -873,8 +873,9 @@ export default function HomePage() {
       vehicleModel: activeVeh.model,
       vehiclePlate: activeVeh.plateNumber,
       vehicleType: activeVeh.type,
-      seatsAvailable: capacity,
-      seatsTotal: capacity,
+      vehicleCategory: activeVeh.category || "4-Wheeler (Car)",
+      seatsAvailable: activeVeh.category === "2-Wheeler (Bike/Scooter)" ? 1 : capacity,
+      seatsTotal: activeVeh.category === "2-Wheeler (Bike/Scooter)" ? 1 : capacity,
       recurring,
       detourRadius: radius,
       co2Saved: co2SavedEstimate,
@@ -1894,7 +1895,7 @@ export default function HomePage() {
                                   setHostSelectedPlate(plate);
                                   const veh = (currentUser.vehicles || []).find(v => v.plateNumber === plate);
                                   if (veh) {
-                                    setCapacity(veh.capacity);
+                                    setCapacity(veh.category === "2-Wheeler (Bike/Scooter)" ? 1 : veh.capacity);
                                     setVehicleType(veh.type);
                                   }
                                 }}
@@ -1902,28 +1903,31 @@ export default function HomePage() {
                               >
                                 {(currentUser.vehicles || []).map(v => (
                                   <option key={v.plateNumber} value={v.plateNumber}>
-                                    {v.model} ({v.plateNumber})
+                                    {v.category === "2-Wheeler (Bike/Scooter)" ? "🛵 2-Wheeler" : "🚘 Car"}: {v.model} ({v.plateNumber})
                                   </option>
                                 ))}
                               </select>
                             </div>
                             <div>
-                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Vehicle Propulsion</label>
-                              <div className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 text-xs text-slate-700 dark:text-slate-350 font-medium h-[34px] flex items-center">
-                                {vehicleType === "Electric" ? "⚡ Electric" : vehicleType === "Hybrid" ? "🍃 Hybrid" : "⛽ ICE (Gasoline)"}
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Vehicle Type & Propulsion</label>
+                              <div className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 text-xs text-slate-700 dark:text-slate-350 font-bold h-[34px] flex items-center gap-1.5">
+                                {((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? "🛵 2-Wheeler Bike" : "🚘 4-Wheeler Car"} • {vehicleType === "Electric" ? "⚡ Electric" : vehicleType === "Hybrid" ? "🍃 Hybrid" : "⛽ ICE (Gasoline)"}
                               </div>
                             </div>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Available Passenger Seats</label>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                {((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? "🛵 Available Pillion Seat" : "Available Passenger Seats"}
+                              </label>
                               <input
                                 type="number"
                                 min="1"
-                                max={((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.capacity) || 6}
-                                value={capacity}
+                                max={((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? 1 : (((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.capacity) || 6)}
+                                value={((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? 1 : capacity}
+                                disabled={((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)"}
                                 onChange={e => setCapacity(Number(e.target.value))}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none disabled:opacity-60 cursor-not-allowed"
                               />
                             </div>
                           </div>

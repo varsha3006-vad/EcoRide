@@ -29,6 +29,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
 
   // New Vehicle inputs form state
   const [newVModel, setNewVModel] = useState("");
+  const [newVCategory, setNewVCategory] = useState<"4-Wheeler (Car)" | "2-Wheeler (Bike/Scooter)">("4-Wheeler (Car)");
   const [newVType, setNewVType] = useState<"Electric" | "Hybrid" | "ICE (Gasoline)">("Electric");
   const [newVCapacity, setNewVCapacity] = useState(4);
   const [newVPlate, setNewVPlate] = useState("");
@@ -48,8 +49,9 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
         updatedVehicles.push({
           model: newVModel.trim(),
           plateNumber: cleanPlate,
+          category: newVCategory,
           type: newVType,
-          capacity: Number(newVCapacity)
+          capacity: newVCategory === "2-Wheeler (Bike/Scooter)" ? 1 : Number(newVCapacity)
         });
       }
     }
@@ -90,14 +92,16 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
     const newVehicle = {
       model: newVModel.trim(),
       plateNumber: cleanPlate,
+      category: newVCategory,
       type: newVType,
-      capacity: Number(newVCapacity)
+      capacity: newVCategory === "2-Wheeler (Bike/Scooter)" ? 1 : Number(newVCapacity)
     };
 
     setVehiclesList(prev => [...prev, newVehicle]);
     setNewVModel("");
     setNewVPlate("");
     setNewVType("Electric");
+    setNewVCategory("4-Wheeler (Car)");
     setNewVCapacity(4);
     setVError("");
   };
@@ -277,14 +281,19 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
               ) : (
                 <div className="grid grid-cols-1 gap-2 max-h-[160px] overflow-y-auto pr-1">
                   {vehiclesList.map((veh) => {
-                    const propulsionIcon = veh.type === "Electric" ? "⚡" : veh.type === "Hybrid" ? "🍃" : "⛽";
+                    const is2W = veh.category === "2-Wheeler (Bike/Scooter)";
+                    const propulsionIcon = is2W 
+                      ? (veh.type === "Electric" ? "🛵⚡" : "🛵⛽")
+                      : (veh.type === "Electric" ? "⚡" : veh.type === "Hybrid" ? "🍃" : "🚘");
                     return (
                       <div key={veh.plateNumber} className="p-3 rounded-xl bg-slate-950/40 border border-slate-800 flex items-center justify-between gap-3 text-xs">
                         <div className="flex items-center gap-2.5">
                           <span className="text-lg bg-slate-900 p-1.5 rounded-lg">{propulsionIcon}</span>
                           <div>
                             <h5 className="font-bold text-white">{veh.model} <span className="text-[9px] text-slate-500 font-normal">({veh.plateNumber})</span></h5>
-                            <p className="text-[9px] text-slate-400 mt-0.5">{veh.type} • {veh.capacity} seats</p>
+                            <p className="text-[9px] text-slate-400 mt-0.5">
+                              {is2W ? "🛵 2-Wheeler Bike/Scooter" : "🚘 4-Wheeler Car"} • {veh.type} • {is2W ? "1 Pillion seat" : `${veh.capacity} seats`}
+                            </p>
                           </div>
                         </div>
                         <button
@@ -306,6 +315,41 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
             <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800 space-y-3">
               <span className="text-[9px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Add a Vehicle</span>
               
+              {/* Category Selector */}
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Vehicle Category</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewVCategory("4-Wheeler (Car)");
+                      setNewVCapacity(4);
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
+                      newVCategory === "4-Wheeler (Car)"
+                        ? "bg-brand-green-500/20 text-brand-green-400 border-brand-green-500/50 shadow-sm"
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+                    }`}
+                  >
+                    🚘 4-Wheeler (Car)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewVCategory("2-Wheeler (Bike/Scooter)");
+                      setNewVCapacity(1);
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
+                      newVCategory === "2-Wheeler (Bike/Scooter)"
+                        ? "bg-brand-green-500/20 text-brand-green-400 border-brand-green-500/50 shadow-sm"
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+                    }`}
+                  >
+                    🛵 2-Wheeler (Bike)
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Vehicle Model</label>
@@ -320,7 +364,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
                       }
                     }}
                     className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
-                    placeholder="e.g. Tesla Model 3"
+                    placeholder={newVCategory === "2-Wheeler (Bike/Scooter)" ? "e.g. Ather 450X / Activa" : "e.g. Tesla Model 3 / Nexon EV"}
                   />
                 </div>
 
@@ -349,18 +393,21 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
                     className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none"
                   >
                     <option value="Electric">⚡ Electric</option>
-                    <option value="Hybrid">🍃 Hybrid</option>
+                    {newVCategory !== "2-Wheeler (Bike/Scooter)" && <option value="Hybrid">🍃 Hybrid</option>}
                     <option value="ICE (Gasoline)">⛽ ICE (Gasoline)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Seats Capacity</label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    {newVCategory === "2-Wheeler (Bike/Scooter)" ? "Pillion Seat Capacity" : "Seats Capacity"}
+                  </label>
                   <input
                     type="number"
                     min={1}
-                    max={8}
-                    value={newVCapacity}
+                    max={newVCategory === "2-Wheeler (Bike/Scooter)" ? 1 : 8}
+                    value={newVCategory === "2-Wheeler (Bike/Scooter)" ? 1 : newVCapacity}
+                    disabled={newVCategory === "2-Wheeler (Bike/Scooter)"}
                     onChange={e => setNewVCapacity(Number(e.target.value))}
                     onKeyDown={e => {
                       if (e.key === "Enter") {
@@ -368,7 +415,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
                         handleAddVehicle(e);
                       }
                     }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none disabled:opacity-60 cursor-not-allowed"
                   />
                 </div>
               </div>
