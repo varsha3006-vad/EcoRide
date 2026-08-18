@@ -2555,7 +2555,7 @@ export default function HomePage() {
                                                         ✓ Boarded
                                                       </span>
                                                     )}
-                                                    {canSeeDetails && p.phone && (
+                                                    {canSeeDetails && p.phone && !isSelf && (
                                                       <a
                                                         href={`tel:${p.phone}`}
                                                         className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-brand-blue-600 dark:bg-slate-800 dark:hover:bg-slate-700 transition-all flex items-center justify-center cursor-pointer"
