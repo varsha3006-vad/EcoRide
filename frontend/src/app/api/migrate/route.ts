@@ -264,6 +264,8 @@ export async function GET() {
       ALTER TABLE ecoride_requests ENABLE ROW LEVEL SECURITY;
       ALTER TABLE ecoride_messages ENABLE ROW LEVEL SECURITY;
       ALTER TABLE ecoride_audit_logs ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE ecoride_commute_requests ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE ecoride_ride_proposals ENABLE ROW LEVEL SECURITY;
 
       -- Create RLS policies if not exist
       DO $$
@@ -317,6 +319,26 @@ export async function GET() {
         IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Allow public update audit_logs') THEN
           CREATE POLICY "Allow public update audit_logs" ON ecoride_audit_logs FOR UPDATE USING (true);
         END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Allow public read commute_requests') THEN
+          CREATE POLICY "Allow public read commute_requests" ON ecoride_commute_requests FOR SELECT USING (true);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Allow public insert commute_requests') THEN
+          CREATE POLICY "Allow public insert commute_requests" ON ecoride_commute_requests FOR INSERT WITH CHECK (true);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Allow public update commute_requests') THEN
+          CREATE POLICY "Allow public update commute_requests" ON ecoride_commute_requests FOR UPDATE USING (true);
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Allow public read ride_proposals') THEN
+          CREATE POLICY "Allow public read ride_proposals" ON ecoride_ride_proposals FOR SELECT USING (true);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Allow public insert ride_proposals') THEN
+          CREATE POLICY "Allow public insert ride_proposals" ON ecoride_ride_proposals FOR INSERT WITH CHECK (true);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Allow public update ride_proposals') THEN
+          CREATE POLICY "Allow public update ride_proposals" ON ecoride_ride_proposals FOR UPDATE USING (true);
+        END IF;
       END $$;
 
       -- Register for realtime
@@ -326,7 +348,9 @@ export async function GET() {
         ecoride_rides,
         ecoride_requests,
         ecoride_messages,
-        ecoride_audit_logs;
+        ecoride_audit_logs,
+        ecoride_commute_requests,
+        ecoride_ride_proposals;
     `;
 
     await client.query(ddl);

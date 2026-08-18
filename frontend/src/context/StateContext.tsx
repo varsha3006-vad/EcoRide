@@ -44,30 +44,30 @@ const supabaseSync = {
       if (key === "commute_requests") {
         try {
           const { data, error } = await supabase.from("ecoride_commute_requests").select("*");
-          if (error) throw error;
-          lastCommuteRequests = data || [];
-          return data;
+          if (!error && data && data.length > 0) {
+            lastCommuteRequests = data;
+            return data;
+          }
         } catch (dbErr) {
-          console.warn("ecoride_commute_requests table missing, falling back to state table", dbErr);
-          const { data, error } = await supabase.from("ecoride_state").select("value").eq("key", key).maybeSingle();
-          if (error) throw error;
-          lastCommuteRequests = data ? data.value : [];
-          return lastCommuteRequests;
+          console.warn("ecoride_commute_requests table query error:", dbErr);
         }
+        const { data: stData } = await supabase.from("ecoride_state").select("value").eq("key", key).maybeSingle();
+        lastCommuteRequests = stData ? stData.value : [];
+        return lastCommuteRequests;
       }
       if (key === "ride_proposals") {
         try {
           const { data, error } = await supabase.from("ecoride_ride_proposals").select("*");
-          if (error) throw error;
-          lastRideProposals = data || [];
-          return data;
+          if (!error && data && data.length > 0) {
+            lastRideProposals = data;
+            return data;
+          }
         } catch (dbErr) {
-          console.warn("ecoride_ride_proposals table missing, falling back to state table", dbErr);
-          const { data, error } = await supabase.from("ecoride_state").select("value").eq("key", key).maybeSingle();
-          if (error) throw error;
-          lastRideProposals = data ? data.value : [];
-          return lastRideProposals;
+          console.warn("ecoride_ride_proposals table query error:", dbErr);
         }
+        const { data: stData } = await supabase.from("ecoride_state").select("value").eq("key", key).maybeSingle();
+        lastRideProposals = stData ? stData.value : [];
+        return lastRideProposals;
       }
       if (key === "messages" || key.startsWith("messages_")) {
         const rideId = key.startsWith("messages_") ? key.replace("messages_", "") : null;
@@ -156,18 +156,18 @@ const supabaseSync = {
         });
         if (changed.length > 0) {
           try {
-            const { error } = await supabase.from("ecoride_commute_requests").upsert(changed);
-            if (error) throw error;
+            await supabase.from("ecoride_commute_requests").upsert(changed);
           } catch (dbErr) {
-            console.warn("Failed to upsert ecoride_commute_requests, falling back to state table:", dbErr);
-            const { error } = await supabase
+            console.warn("Failed to upsert ecoride_commute_requests table:", dbErr);
+          }
+          try {
+            await supabase
               .from("ecoride_state")
               .upsert(
                 { key, value, updated_at: new Date().toISOString() },
                 { onConflict: "key" }
               );
-            if (error) throw error;
-          }
+          } catch (stErr) {}
         }
         lastCommuteRequests = value;
         return;
@@ -179,18 +179,18 @@ const supabaseSync = {
         });
         if (changed.length > 0) {
           try {
-            const { error } = await supabase.from("ecoride_ride_proposals").upsert(changed);
-            if (error) throw error;
+            await supabase.from("ecoride_ride_proposals").upsert(changed);
           } catch (dbErr) {
-            console.warn("Failed to upsert ecoride_ride_proposals, falling back to state table:", dbErr);
-            const { error } = await supabase
+            console.warn("Failed to upsert ecoride_ride_proposals table:", dbErr);
+          }
+          try {
+            await supabase
               .from("ecoride_state")
               .upsert(
                 { key, value, updated_at: new Date().toISOString() },
                 { onConflict: "key" }
               );
-            if (error) throw error;
-          }
+          } catch (stErr) {}
         }
         lastRideProposals = value;
         return;
@@ -2736,13 +2736,13 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       hostDept: currentUser.department,
       proposedTimeOffset,
       proposedDepartureTime,
-      rideId,
+      rideId: rideId || undefined,
       status: "Pending",
       timestamp: new Date().toISOString(),
-      vehicleModel: activeVeh?.model,
-      vehiclePlate: activeVeh?.plateNumber,
-      vehicleType: activeVeh?.type,
-      vehicleCapacity: activeVeh?.capacity
+      vehicleModel: activeVeh?.model || "",
+      vehiclePlate: activeVeh?.plateNumber || "",
+      vehicleType: activeVeh?.type || "Hybrid",
+      vehicleCapacity: activeVeh?.capacity || 4
     };
 
     setRideProposals(prev => {
