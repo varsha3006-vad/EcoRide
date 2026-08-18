@@ -24,12 +24,15 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
   const [gender, setGender] = useState(currentUser.gender || "Other");
   const [avatar, setAvatar] = useState(currentUser.avatar || "👨‍💻");
 
-  // Vehicle States
-  const [hasVehicle, setHasVehicle] = useState(!!currentUser.vehicle);
-  const [vModel, setVModel] = useState(currentUser.vehicle?.model || "");
-  const [vType, setVType] = useState<"Electric" | "Hybrid" | "ICE (Gasoline)">(currentUser.vehicle?.type || "Electric");
-  const [vCapacity, setVCapacity] = useState(currentUser.vehicle?.capacity || 4);
-  const [vPlate, setVPlate] = useState(currentUser.vehicle?.plateNumber || "");
+  // Multiple Vehicles list state
+  const [vehiclesList, setVehiclesList] = useState<any[]>(currentUser.vehicles || []);
+
+  // New Vehicle inputs form state
+  const [newVModel, setNewVModel] = useState("");
+  const [newVType, setNewVType] = useState<"Electric" | "Hybrid" | "ICE (Gasoline)">("Electric");
+  const [newVCapacity, setNewVCapacity] = useState(4);
+  const [newVPlate, setNewVPlate] = useState("");
+  const [vError, setVError] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -44,25 +47,47 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
       department,
       designation,
       gender,
-      avatar
+      avatar,
+      vehicles: vehiclesList
     };
-
-    if (hasVehicle) {
-      updatedDetails.vehicle = {
-        model: vModel || "Generic Commute Car",
-        type: vType,
-        capacity: Number(vCapacity),
-        plateNumber: vPlate || "ECO-RIDE"
-      };
-    } else {
-      updatedDetails.vehicle = null;
-    }
 
     setTimeout(() => {
       updateProfile(updatedDetails);
       setIsSaving(false);
       onClose();
     }, 600);
+  };
+  const handleAddVehicle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!newVModel.trim() || !newVPlate.trim()) {
+      setVError("Please enter both the Vehicle Model and Plate Number.");
+      return;
+    }
+
+    const cleanPlate = newVPlate.trim().toUpperCase();
+    if (vehiclesList.some(v => v.plateNumber === cleanPlate)) {
+      setVError("This plate number is already registered.");
+      return;
+    }
+
+    const newVehicle = {
+      model: newVModel.trim(),
+      plateNumber: cleanPlate,
+      type: newVType,
+      capacity: Number(newVCapacity)
+    };
+
+    setVehiclesList(prev => [...prev, newVehicle]);
+    setNewVModel("");
+    setNewVPlate("");
+    setNewVType("Electric");
+    setNewVCapacity(4);
+    setVError("");
+  };
+
+  const handleDeleteVehicle = (e: React.MouseEvent, plate: string) => {
+    e.preventDefault();
+    setVehiclesList(prev => prev.filter(v => v.plateNumber !== plate));
   };
 
   return (
@@ -217,55 +242,82 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
           </div>
 
           {/* Vehicle Settings Toggle */}
-          <div className="border-t border-slate-800 pt-4 mt-2">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Car className="h-4.5 w-4.5 text-brand-blue-400" />
-                <div>
-                  <h4 className="text-xs font-bold text-white">Do you host carpools? (Vehicle Info)</h4>
-                  <p className="text-[9px] text-slate-400">Toggle on to fill in corporate vehicle specifications</p>
-                </div>
+          <div className="border-t border-slate-800 pt-4 mt-2 space-y-4">
+            <div className="flex items-center gap-2">
+              <Car className="h-4.5 w-4.5 text-brand-blue-400" />
+              <div>
+                <h4 className="text-xs font-bold text-white">Manage Corporate Vehicles</h4>
+                <p className="text-[9px] text-slate-400">Configure your registered vehicles for ride-sharing</p>
               </div>
-              <input
-                type="checkbox"
-                checked={hasVehicle}
-                onChange={e => setHasVehicle(e.target.checked)}
-                className="h-4 w-4 text-brand-green-500 rounded border-slate-850 bg-slate-950 focus:ring-brand-green-500 cursor-pointer"
-              />
             </div>
 
-            {hasVehicle && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950/40 p-4 rounded-2xl border border-slate-800 animate-fade-in">
+            {/* List of registered vehicles */}
+            <div className="space-y-2">
+              {vehiclesList.length === 0 ? (
+                <div className="p-3 text-center rounded-xl bg-slate-950/20 border border-dashed border-slate-800 text-[10px] text-slate-400">
+                  No vehicles registered. Add a vehicle below to enable carpool hosting.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 max-h-[160px] overflow-y-auto pr-1">
+                  {vehiclesList.map((veh) => {
+                    const propulsionIcon = veh.type === "Electric" ? "⚡" : veh.type === "Hybrid" ? "🍃" : "⛽";
+                    return (
+                      <div key={veh.plateNumber} className="p-3 rounded-xl bg-slate-950/40 border border-slate-800 flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-lg bg-slate-900 p-1.5 rounded-lg">{propulsionIcon}</span>
+                          <div>
+                            <h5 className="font-bold text-white">{veh.model} <span className="text-[9px] text-slate-500 font-normal">({veh.plateNumber})</span></h5>
+                            <p className="text-[9px] text-slate-400 mt-0.5">{veh.type} • {veh.capacity} seats</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteVehicle(e, veh.plateNumber)}
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          title="Delete Vehicle"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Add New Vehicle sub-form */}
+            <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800 space-y-3">
+              <span className="text-[9px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Add a Vehicle</span>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Vehicle Model</label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Vehicle Model</label>
                   <input
                     type="text"
-                    required
-                    value={vModel}
-                    onChange={e => setVModel(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-800 bg-slate-950 text-xs text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
+                    value={newVModel}
+                    onChange={e => setNewVModel(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
                     placeholder="e.g. Tesla Model 3"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Plate Number</label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Plate Number</label>
                   <input
                     type="text"
-                    required
-                    value={vPlate}
-                    onChange={e => setVPlate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-800 bg-slate-950 text-xs text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
+                    value={newVPlate}
+                    onChange={e => setNewVPlate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
                     placeholder="e.g. KA-03-ME-1234"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Vehicle Type</label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Propulsion Type</label>
                   <select
-                    value={vType}
-                    onChange={e => setVType(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-800 bg-slate-950 text-xs text-white focus:ring-1 focus:ring-brand-green-500 outline-none"
+                    value={newVType}
+                    onChange={e => setNewVType(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none"
                   >
                     <option value="Electric">⚡ Electric</option>
                     <option value="Hybrid">🍃 Hybrid</option>
@@ -274,19 +326,32 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Available Passenger Seats</label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Seats Capacity</label>
                   <input
                     type="number"
-                    required
                     min={1}
                     max={8}
-                    value={vCapacity}
-                    onChange={e => setVCapacity(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-800 bg-slate-950 text-xs text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
+                    value={newVCapacity}
+                    onChange={e => setNewVCapacity(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
                   />
                 </div>
               </div>
-            )}
+
+              {vError && (
+                <p className="text-[9px] font-bold text-rose-500 text-center">{vError}</p>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={handleAddVehicle}
+                  className="px-3 py-1.5 rounded-xl bg-brand-green-600/10 hover:bg-brand-green-600/20 text-brand-green-400 text-[10px] font-bold cursor-pointer transition-colors"
+                >
+                  ➕ Add Vehicle
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Action buttons */}

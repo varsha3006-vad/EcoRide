@@ -36,6 +36,7 @@ export async function GET() {
         "office" TEXT,
         "phone" TEXT,
         "vehicle" JSONB DEFAULT NULL,
+        "vehicles" JSONB DEFAULT '[]'::jsonb,
         "esgScore" NUMERIC DEFAULT 0,
         "carbonSaved" NUMERIC DEFAULT 0,
         "credits" INTEGER DEFAULT 0,
@@ -166,7 +167,11 @@ export async function GET() {
         "proposedDepartureTime" TEXT NOT NULL,
         "rideId" TEXT REFERENCES ecoride_rides("id") ON DELETE CASCADE,
         "status" TEXT NOT NULL DEFAULT 'Pending',
-        "timestamp" TEXT NOT NULL
+        "timestamp" TEXT NOT NULL,
+        "vehicleModel" TEXT,
+        "vehiclePlate" TEXT,
+        "vehicleType" TEXT,
+        "vehicleCapacity" INTEGER
       );
 
       -- Indices for performance optimizations
@@ -183,62 +188,72 @@ export async function GET() {
 
       -- Seed data
       INSERT INTO ecoride_employees (
-        "id", "name", "email", "avatar", "department", "designation", "office", "phone", "vehicle", 
+        "id", "name", "email", "avatar", "department", "designation", "office", "phone", "vehicle", "vehicles", 
         "esgScore", "carbonSaved", "credits", "rank", "badgeIds", "gender", "isHost", "registeredAt"
       ) VALUES
       (
         'eeeee999-e999-e999-e999-eeeeeeeeeeee', 'System Admin', 'admin@company.com', '🛡️', 'Security & Compliance', 'System Administrator', 'Building A', '+919000000000', 
-        NULL, 
+        NULL, '[]'::jsonb,
         100, 0.0, 1000, 1, '{}', 'Male', false, '2026-08-08T10:00:00Z'
       ),
       (
         'eeeee111-e111-e111-e111-eeeeeeeeeeee', 'Rahul', 'rahul@company.com', '👨‍💻', 'Engineering', 'Principal Architect', 'Building B', '+919687605862', 
         '{"model": "Tesla Model S", "type": "Electric", "capacity": 4, "plateNumber": "CA-770EV"}'::jsonb, 
+        '[{"model": "Tesla Model S", "type": "Electric", "capacity": 4, "plateNumber": "CA-770EV"}]'::jsonb, 
         85, 120.40, 640, 1, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
         'eeeee222-e222-e222-e222-eeeeeeeeeeee', 'Shail', 'shail@company.com', '👨‍🎨', 'Product Design', 'Lead Designer', 'Building C', '+919731848848', 
         '{"model": "Toyota Prius", "type": "Hybrid", "capacity": 4, "plateNumber": "CA-102HY"}'::jsonb, 
+        '[{"model": "Toyota Prius", "type": "Hybrid", "capacity": 4, "plateNumber": "CA-102HY"}]'::jsonb, 
         80, 75.20, 410, 2, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
         'eeeee333-e333-e333-e333-eeeeeeeeeeee', 'Leo', 'leo@company.com', '👨‍💼', 'Operations', 'Ops Coordinator', 'Building B', '+919036005050', 
         '{"model": "Honda Accord", "type": "Hybrid", "capacity": 5, "plateNumber": "CA-338OP"}'::jsonb, 
+        '[{"model": "Honda Accord", "type": "Hybrid", "capacity": 5, "plateNumber": "CA-338OP"}]'::jsonb, 
         78, 45.10, 320, 3, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
         'eeeee444-e444-e444-e444-eeeeeeeeeeee', 'Naveen', 'naveen@company.com', '👨‍💻', 'Product Management', 'Senior PM', 'Building A', '555-0400', 
         '{"model": "Rivian R1T", "type": "Electric", "capacity": 5, "plateNumber": "CA-990EV"}'::jsonb, 
+        '[{"model": "Rivian R1T", "type": "Electric", "capacity": 5, "plateNumber": "CA-990EV"}]'::jsonb, 
         88, 160.80, 780, 4, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
         'eeeee555-e555-e555-e555-eeeeeeeeeeee', 'Varsha', 'varsha@company.com', '👩‍💼', 'Human Resources', 'HR Director', 'Building A', '+919687605863', 
         '{"model": "Tesla Model Y", "type": "Electric", "capacity": 4, "plateNumber": "CA-889XG"}'::jsonb, 
+        '[{"model": "Tesla Model Y", "type": "Electric", "capacity": 4, "plateNumber": "CA-889XG"}]'::jsonb, 
         92, 95.50, 510, 5, '{}', 'Female', true, '2026-08-08T10:00:00Z'
       ),
       (
         'e-alex', 'Alex', 'alex@company.com', '👨‍💻', 'Engineering', 'Principal Architect', 'Building B', '555-0600', 
         '{"model": "Tesla Model S", "type": "Electric", "capacity": 4, "plateNumber": "CA-770EV"}'::jsonb, 
+        '[{"model": "Tesla Model S", "type": "Electric", "capacity": 4, "plateNumber": "CA-770EV"}]'::jsonb, 
         85, 120.40, 640, 6, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
         'e-chris', 'Chris', 'chris@company.com', '👨‍🎨', 'Product Design', 'Lead Designer', 'Building C', '555-0700', 
         '{"model": "Toyota Prius", "type": "Hybrid", "capacity": 4, "plateNumber": "CA-102HY"}'::jsonb, 
+        '[{"model": "Toyota Prius", "type": "Hybrid", "capacity": 4, "plateNumber": "CA-102HY"}]'::jsonb, 
         80, 75.20, 410, 7, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
         'e-bob', 'Bob', 'bob@company.com', '👨‍💼', 'Operations', 'Ops Coordinator', 'Building B', '555-0800', 
         '{"model": "Honda Accord", "type": "Hybrid", "capacity": 5, "plateNumber": "CA-338OP"}'::jsonb, 
+        '[{"model": "Honda Accord", "type": "Hybrid", "capacity": 5, "plateNumber": "CA-338OP"}]'::jsonb, 
         78, 45.10, 320, 8, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
         'e-dan', 'Dan', 'dan@company.com', '👨‍💻', 'Product Management', 'Senior PM', 'Building A', '555-0900', 
         '{"model": "Rivian R1T", "type": "Electric", "capacity": 5, "plateNumber": "CA-990EV"}'::jsonb, 
+        '[{"model": "Rivian R1T", "type": "Electric", "capacity": 5, "plateNumber": "CA-990EV"}]'::jsonb, 
         88, 160.80, 780, 9, '{}', 'Male', true, '2026-08-08T10:00:00Z'
       ),
       (
         'e-elle', 'Elle', 'elle@company.com', '👩‍💼', 'Human Resources', 'HR Director', 'Building A', '555-1000', 
         '{"model": "Tesla Model Y", "type": "Electric", "capacity": 4, "plateNumber": "CA-889XG"}'::jsonb, 
+        '[{"model": "Tesla Model Y", "type": "Electric", "capacity": 4, "plateNumber": "CA-889XG"}]'::jsonb, 
         92, 95.50, 510, 10, '{}', 'Female', true, '2026-08-08T10:00:00Z'
       )
       ON CONFLICT (id) DO NOTHING;

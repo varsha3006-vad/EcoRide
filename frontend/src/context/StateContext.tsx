@@ -247,6 +247,13 @@ const supabaseSync = {
 };
 
 // Types
+export interface Vehicle {
+  model: string;
+  type: "Electric" | "Hybrid" | "ICE (Gasoline)";
+  capacity: number;
+  plateNumber: string;
+}
+
 export interface Employee {
   id: string;
   name: string;
@@ -256,12 +263,8 @@ export interface Employee {
   designation: string;
   office: string;
   phone?: string;
-  vehicle?: {
-    model: string;
-    type: "Electric" | "Hybrid" | "ICE (Gasoline)";
-    capacity: number;
-    plateNumber: string;
-  } | null;
+  vehicle?: Vehicle | null;
+  vehicles?: Vehicle[];
   esgScore: number;
   carbonSaved: number; // in kg
   credits: number;
@@ -403,6 +406,10 @@ export interface RideProposal {
   rideId?: string; // Links to host's ride
   status: string; // 'Pending' | 'Accepted' | 'Declined'
   timestamp: string;
+  vehicleModel?: string;
+  vehiclePlate?: string;
+  vehicleType?: "Electric" | "Hybrid" | "ICE (Gasoline)";
+  vehicleCapacity?: number;
 }
 
 interface StateContextType {
@@ -447,7 +454,7 @@ interface StateContextType {
   commuteRequests: CommuteRequest[];
   rideProposals: RideProposal[];
   postCommuteRequest: (data: Omit<CommuteRequest, "id" | "requesterId" | "requesterName" | "requesterAvatar" | "requesterDept" | "status" | "timestamp">) => Promise<void>;
-  sendRideProposal: (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string) => Promise<void>;
+  sendRideProposal: (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string, vehiclePlate?: string) => Promise<void>;
   acceptRideProposal: (proposalId: string) => Promise<void>;
   declineRideProposal: (proposalId: string) => Promise<void>;
 }
@@ -1064,21 +1071,27 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Merge and enforce correct mock profiles (phone numbers, names, vehicles, etc.) from INITIAL_EMPLOYEES
       finalEmployees = finalEmployees.map((emp: Employee) => {
         const initEmp = INITIAL_EMPLOYEES.find(i => i.id === emp.id);
-        if (initEmp) {
-          return {
-            ...emp,
-            name: initEmp.name,
-            email: initEmp.email,
-            avatar: initEmp.avatar,
-            phone: initEmp.phone,
-            vehicle: initEmp.vehicle,
-            gender: initEmp.gender,
-            department: initEmp.department,
-            designation: initEmp.designation,
-            office: initEmp.office
-          };
-        }
-        return emp;
+        const baseEmp = initEmp ? {
+          ...emp,
+          name: initEmp.name,
+          email: initEmp.email,
+          avatar: initEmp.avatar,
+          phone: initEmp.phone,
+          vehicle: emp.vehicle || initEmp.vehicle,
+          gender: initEmp.gender,
+          department: initEmp.department,
+          designation: initEmp.designation,
+          office: initEmp.office
+        } : emp;
+
+        const resolvedVehicles = baseEmp.vehicles && baseEmp.vehicles.length > 0
+          ? baseEmp.vehicles
+          : (baseEmp.vehicle ? [baseEmp.vehicle] : []);
+
+        return {
+          ...baseEmp,
+          vehicles: resolvedVehicles
+        };
       });
 
       // Ensure any new mock personas (like Leo) that are missing from cache are added
@@ -2608,8 +2621,13 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const updated = prev.map(emp => {
         if (emp.id === currentUserId) {
           const merged = { ...emp, ...updatedDetails };
-          // Dynamically compute isHost based on vehicle presence
-          merged.isHost = !!(merged.vehicle && merged.vehicle.model);
+          if (updatedDetails.vehicles !== undefined) {
+            const vehs = updatedDetails.vehicles || [];
+            merged.isHost = vehs.length > 0;
+            merged.vehicle = vehs.length > 0 ? vehs[0] : null;
+          } else {
+            merged.isHost = !!((merged.vehicles && merged.vehicles.length > 0) || (merged.vehicle && merged.vehicle.model));
+          }
           return merged;
         }
         return emp;
@@ -2675,7 +2693,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const sendRideProposal = async (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string) => {
+  const sendRideProposal = async (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string, vehiclePlate?: string) => {
+    const activeVeh = (currentUser?.vehicles || []).find(v => v.plateNumber === vehiclePlate);
     const newProposal: RideProposal = {
       id: `pr-${Date.now()}`,
       requestId,
@@ -2687,7 +2706,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       proposedDepartureTime,
       rideId,
       status: "Pending",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      vehicleModel: activeVeh?.model,
+      vehiclePlate: activeVeh?.plateNumber,
+      vehicleType: activeVeh?.type,
+      vehicleCapacity: activeVeh?.capacity
     };
 
     setRideProposals(prev => {
@@ -2756,11 +2779,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         destination: commReq.destination,
         departureTime: proposal.proposedDepartureTime,
         rideDate: commReq.rideDate,
-        vehicleModel: hostUser?.vehicle?.model || "Standard Hybrid",
-        vehiclePlate: hostUser?.vehicle?.plateNumber || "TEMP-PLT",
-        vehicleType: hostUser?.vehicle?.type || "Hybrid",
-        seatsAvailable: (hostUser?.vehicle?.capacity || 4) - 1,
-        seatsTotal: hostUser?.vehicle?.capacity || 4,
+        vehicleModel: proposal.vehicleModel || hostUser?.vehicle?.model || "Standard Hybrid",
+        vehiclePlate: proposal.vehiclePlate || hostUser?.vehicle?.plateNumber || "TEMP-PLT",
+        vehicleType: proposal.vehicleType || hostUser?.vehicle?.type || "Hybrid",
+        seatsAvailable: (proposal.vehicleCapacity || hostUser?.vehicle?.capacity || 4) - 1,
+        seatsTotal: proposal.vehicleCapacity || hostUser?.vehicle?.capacity || 4,
         recurring: false,
         status: "Published",
         passengers: [currentUser.id],

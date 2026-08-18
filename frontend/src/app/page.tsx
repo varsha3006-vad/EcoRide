@@ -387,12 +387,22 @@ export default function HomePage() {
   const [commuteDate, setCommuteDate] = useState(getLocalDateString());
   const [commuteTime, setCommuteTime] = useState("");
   const [commuteSeats, setCommuteSeats] = useState(1);
-
-  // Proposal states
   const [proposingToRequest, setProposingToRequest] = useState<any | null>(null);
   const [proposedTimeOffset, setProposedTimeOffset] = useState<number>(0);
   const [proposalRideId, setProposalRideId] = useState<string>("new");
+  const [hostSelectedPlate, setHostSelectedPlate] = useState("");
+  const [proposalSelectedPlate, setProposalSelectedPlate] = useState("");
 
+  // Set default selected vehicle from current user's registered list
+  useEffect(() => {
+    if (currentUser?.vehicles && currentUser.vehicles.length > 0) {
+      setHostSelectedPlate(currentUser.vehicles[0].plateNumber);
+      setProposalSelectedPlate(currentUser.vehicles[0].plateNumber);
+    } else {
+      setHostSelectedPlate("");
+      setProposalSelectedPlate("");
+    }
+  }, [currentUser]);
 
   // Reset form error when switching wizards
   useEffect(() => {
@@ -839,6 +849,12 @@ export default function HomePage() {
       return;
     }
 
+    const activeVeh = (currentUser?.vehicles || []).find(v => v.plateNumber === hostSelectedPlate);
+    if (!activeVeh) {
+      setFormError("Please select a registered vehicle from your profile first.");
+      return;
+    }
+
     setFormError("");
 
     createRide({
@@ -846,9 +862,9 @@ export default function HomePage() {
       destination: dest,
       departureTime: time,
       rideDate,
-      vehicleModel: currentUser.vehicle?.model || "Tesla Model Y",
-      vehiclePlate: currentUser.vehicle?.plateNumber || "CA-990EV",
-      vehicleType: vehicleType,
+      vehicleModel: activeVeh.model,
+      vehiclePlate: activeVeh.plateNumber,
+      vehicleType: activeVeh.type,
       seatsAvailable: capacity,
       seatsTotal: capacity,
       recurring,
@@ -1849,30 +1865,57 @@ export default function HomePage() {
                           </select>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Available Seats</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="6"
-                            value={capacity}
-                            onChange={e => setCapacity(Number(e.target.value))}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
-                          />
+                      {(!currentUser?.vehicles || currentUser.vehicles.length === 0) ? (
+                        <div className="p-3 text-center rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-400">
+                          ⚠️ You have no vehicles registered in your profile. Please add a vehicle in your profile settings to host rides.
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Vehicle Propulsion</label>
-                          <select
-                            value={vehicleType}
-                            onChange={e => setVehicleType(e.target.value as any)}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
-                          >
-                            <option value="Electric">Electric Vehicle (EV Bonus)</option>
-                            <option value="Hybrid">Hybrid Vehicle</option>
-                          </select>
-                        </div>
-                      </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Select Registered Vehicle</label>
+                              <select
+                                value={hostSelectedPlate}
+                                onChange={e => {
+                                  const plate = e.target.value;
+                                  setHostSelectedPlate(plate);
+                                  const veh = (currentUser.vehicles || []).find(v => v.plateNumber === plate);
+                                  if (veh) {
+                                    setCapacity(veh.capacity);
+                                    setVehicleType(veh.type);
+                                  }
+                                }}
+                                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                              >
+                                {(currentUser.vehicles || []).map(v => (
+                                  <option key={v.plateNumber} value={v.plateNumber}>
+                                    {v.model} ({v.plateNumber})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Vehicle Propulsion</label>
+                              <div className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 text-xs text-slate-700 dark:text-slate-350 font-medium h-[34px] flex items-center">
+                                {vehicleType === "Electric" ? "⚡ Electric" : vehicleType === "Hybrid" ? "🍃 Hybrid" : "⛽ ICE (Gasoline)"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Available Passenger Seats</label>
+                              <input
+                                type="number"
+                                min="1"
+                                max={((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.capacity) || 6}
+                                value={capacity}
+                                onChange={e => setCapacity(Number(e.target.value))}
+                                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
 
                       {currentUser?.gender?.toLowerCase() === "female" && (
                         <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800/40">
@@ -2439,7 +2482,7 @@ export default function HomePage() {
                                     </span>
                                     <span>• Status: <strong className="text-brand-green-600">{trip.status}</strong></span>
                                     <span>• Role: {isHost ? "Host" : "Passenger"}</span>
-                                    <span>• Vehicle: {trip.vehicleModel} ({trip.vehicleType})</span>
+                                    <span>• Vehicle: {trip.vehicleModel} ({trip.vehiclePlate || "N/A"}) - {trip.vehicleType}</span>
                                     <span>• Seats: <strong>{trip.seatsAvailable} of {trip.seatsTotal} vacant</strong></span>
                                     {trip.womenOnly && (
                                       <span className="text-purple-600 dark:text-purple-400 font-bold">• 👩‍👧‍👧 Female-Only</span>
@@ -3054,7 +3097,8 @@ export default function HomePage() {
                   proposingToRequest.id,
                   proposedTimeOffset,
                   computedTime,
-                  selectedRide ? selectedRide.id : undefined
+                  selectedRide ? selectedRide.id : undefined,
+                  proposalSelectedPlate
                 );
                 setProposingToRequest(null);
               };
@@ -3104,6 +3148,49 @@ export default function HomePage() {
                         </select>
                       </div>
 
+                      {proposalRideId === "new" && (
+                        <div>
+                          {(!currentUser?.vehicles || currentUser.vehicles.length === 0) ? (
+                            <div className="p-2.5 text-center rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-[10px] text-amber-800 dark:text-amber-400">
+                              ⚠️ You have no vehicles registered in your profile. Please add a vehicle in your profile settings to propose ride offers.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-2xl border border-slate-200/50 dark:border-slate-800/50">
+                              <div>
+                                <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Driving Vehicle</label>
+                                <select
+                                  value={proposalSelectedPlate}
+                                  onChange={e => setProposalSelectedPlate(e.target.value)}
+                                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                                >
+                                  {(currentUser.vehicles || []).map(v => (
+                                    <option key={v.plateNumber} value={v.plateNumber}>
+                                      {v.model} ({v.plateNumber})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Propulsion / Seats</label>
+                                <div className="text-[10px] text-slate-600 dark:text-slate-400 font-bold mt-1.5 flex items-center gap-1.5">
+                                  {(() => {
+                                    const v = (currentUser.vehicles || []).find(x => x.plateNumber === proposalSelectedPlate);
+                                    if (!v) return "N/A";
+                                    return (
+                                      <>
+                                        <span>{v.type === "Electric" ? "⚡ EV" : v.type === "Hybrid" ? "🍃 Hybrid" : "⛽ ICE"}</span>
+                                        <span>•</span>
+                                        <span>{v.capacity} Seats</span>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="space-y-1">
                         <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                           <span>Time Tolerance Offset</span>
@@ -3140,7 +3227,12 @@ export default function HomePage() {
                         </button>
                         <button
                           type="submit"
-                          className="px-4 py-2 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-xs font-bold cursor-pointer"
+                          disabled={proposalRideId === "new" && (!currentUser?.vehicles || currentUser.vehicles.length === 0)}
+                          className={`px-4 py-2 rounded-xl text-white text-xs font-bold cursor-pointer transition-opacity ${
+                            proposalRideId === "new" && (!currentUser?.vehicles || currentUser.vehicles.length === 0)
+                              ? "bg-slate-350 dark:bg-slate-850 cursor-not-allowed opacity-50"
+                              : "bg-brand-green-600 hover:bg-brand-green-700"
+                          }`}
                         >
                           Send Offer
                         </button>
