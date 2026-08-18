@@ -1497,6 +1497,53 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const msgVal = await supabaseSync.get(`messages_${rId}`);
           if (msgVal) applyRow(`messages_${rId}`, msgVal);
         }
+        // Auto-expiration checker for un-matched/un-offered commute requests (15 mins past desired departure time)
+        const now = new Date();
+        setCommuteRequests(prev => {
+          let hasChanges = false;
+          const updated = prev.map(cr => {
+            if (cr.status !== "Pending") return cr;
+            if (!cr.rideDate || !cr.desiredTime) return cr;
+
+            try {
+              const [timePart, ampm] = cr.desiredTime.trim().split(" ");
+              let [hours, minutes] = timePart.split(":").map(Number);
+              if (ampm?.toUpperCase() === "PM" && hours < 12) hours += 12;
+              if (ampm?.toUpperCase() === "AM" && hours === 12) hours = 0;
+              const [year, month, day] = cr.rideDate.split("-").map(Number);
+              const reqTime = new Date(year, month - 1, day, hours, minutes, 0);
+
+              // Expiration Buffer: 15 minutes after desired departure time
+              const expireThreshold = new Date(reqTime.getTime() + 15 * 60 * 1000);
+
+              if (now > expireThreshold) {
+                hasChanges = true;
+                if (cr.requesterId === currentUserIdRef.current) {
+                  addNotification({
+                    id: `n-exp-${cr.id}-${Date.now()}`,
+                    title: "Pickup Request Expired ⏰",
+                    message: `No driver matched your pickup window to ${cr.destination} for ${cr.desiredTime}. Your request has been moved to activity history.`,
+                    timestamp: "Just now",
+                    type: "warning",
+                    read: false
+                  });
+                }
+                return { ...cr, status: "Expired" as any };
+              }
+            } catch (e) {}
+            return cr;
+          });
+
+          if (hasChanges) {
+            if (typeof window !== "undefined") {
+              localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+            }
+            if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+              supabaseSync.set("commute_requests", updated);
+            }
+          }
+          return updated;
+        });
       } catch (e) {
         console.warn("Poll error:", e);
       }
