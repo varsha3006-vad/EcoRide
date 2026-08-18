@@ -38,6 +38,22 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    let updatedVehicles = [...vehiclesList];
+
+    // Auto-commit any pending typed vehicle if model and plate are present when submitting form
+    if (newVModel.trim() && newVPlate.trim()) {
+      const cleanPlate = newVPlate.trim().toUpperCase();
+      if (!updatedVehicles.some(v => v.plateNumber === cleanPlate)) {
+        updatedVehicles.push({
+          model: newVModel.trim(),
+          plateNumber: cleanPlate,
+          type: newVType,
+          capacity: Number(newVCapacity)
+        });
+      }
+    }
+
     setIsSaving(true);
 
     const updatedDetails: any = {
@@ -48,7 +64,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
       designation,
       gender,
       avatar,
-      vehicles: vehiclesList
+      vehicles: updatedVehicles
     };
 
     setTimeout(() => {
@@ -57,7 +73,8 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
       onClose();
     }, 600);
   };
-  const handleAddVehicle = (e: React.MouseEvent) => {
+
+  const handleAddVehicle = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!newVModel.trim() || !newVPlate.trim()) {
       setVError("Please enter both the Vehicle Model and Plate Number.");
@@ -296,6 +313,12 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
                     type="text"
                     value={newVModel}
                     onChange={e => setNewVModel(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddVehicle(e);
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
                     placeholder="e.g. Tesla Model 3"
                   />
@@ -307,6 +330,12 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
                     type="text"
                     value={newVPlate}
                     onChange={e => setNewVPlate(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddVehicle(e);
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
                     placeholder="e.g. KA-03-ME-1234"
                   />
@@ -333,20 +362,26 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
                     max={8}
                     value={newVCapacity}
                     onChange={e => setNewVCapacity(Number(e.target.value))}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddVehicle(e);
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-[11px] text-white focus:ring-1 focus:ring-brand-green-500 outline-none animate-none"
                   />
                 </div>
               </div>
 
               {vError && (
-                <p className="text-[9px] font-bold text-rose-500 text-center">{vError}</p>
+                <p className="text-[10px] font-bold text-rose-500 text-center">{vError}</p>
               )}
 
               <div className="flex justify-end pt-1">
                 <button
                   type="button"
                   onClick={handleAddVehicle}
-                  className="px-3 py-1.5 rounded-xl bg-brand-green-600/10 hover:bg-brand-green-600/20 text-brand-green-400 text-[10px] font-bold cursor-pointer transition-colors"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-1.5 rounded-xl bg-brand-green-600/20 hover:bg-brand-green-600/30 text-brand-green-400 text-xs sm:text-[10px] font-bold cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1 min-h-[44px] sm:min-h-0"
                 >
                   ➕ Add Vehicle
                 </button>

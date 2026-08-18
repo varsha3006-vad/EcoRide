@@ -770,16 +770,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [rides, setRides] = useState<Ride[]>(INITIAL_RIDES);
   const [requests, setRequests] = useState<RideRequest[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "n-1",
-      title: "Welcome to EcoRide 🌱",
-      message: "Track your corporate carbon savings, earn ESG credits, and claim commuting rewards with colleagues.",
-      timestamp: "Today, 12:00 PM",
-      type: "success",
-      read: false
-    }
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>([]);
   const [activeCity, setActiveCity] = useState<string>("Bangalore");
@@ -997,6 +988,23 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setRoleState("Employee");
         }
       }
+
+      // Trigger Welcome notification only once per day
+      const todayStr = new Date().toLocaleDateString("en-US");
+      const lastShown = localStorage.getItem("ecoride_welcome_notif_date");
+      if (lastShown !== todayStr) {
+        setNotifications([
+          {
+            id: "n-1",
+            title: "Welcome to EcoRide 🌱",
+            message: "Track your corporate carbon savings, earn ESG credits, and claim commuting rewards with colleagues.",
+            timestamp: "Today, 12:00 PM",
+            type: "success",
+            read: false
+          }
+        ]);
+        localStorage.setItem("ecoride_welcome_notif_date", todayStr);
+      }
     }
   }, []);
 
@@ -1068,20 +1076,22 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // Merge and enforce correct mock profiles (phone numbers, names, vehicles, etc.) from INITIAL_EMPLOYEES
+      // Merge and enforce correct mock profiles while preserving remote/user profile edits
       finalEmployees = finalEmployees.map((emp: Employee) => {
         const initEmp = INITIAL_EMPLOYEES.find(i => i.id === emp.id);
         const baseEmp = initEmp ? {
+          ...initEmp,
           ...emp,
-          name: initEmp.name,
-          email: initEmp.email,
-          avatar: initEmp.avatar,
-          phone: initEmp.phone,
-          vehicle: emp.vehicle || initEmp.vehicle,
-          gender: initEmp.gender,
-          department: initEmp.department,
-          designation: initEmp.designation,
-          office: initEmp.office
+          name: emp.name || initEmp.name,
+          email: emp.email || initEmp.email,
+          avatar: emp.avatar || initEmp.avatar,
+          phone: emp.phone || initEmp.phone,
+          gender: emp.gender || initEmp.gender,
+          department: emp.department || initEmp.department,
+          designation: emp.designation || initEmp.designation,
+          office: emp.office || initEmp.office,
+          vehicle: emp.vehicle !== undefined ? emp.vehicle : initEmp.vehicle,
+          vehicles: emp.vehicles && emp.vehicles.length > 0 ? emp.vehicles : (emp.vehicle ? [emp.vehicle] : (initEmp.vehicles || (initEmp.vehicle ? [initEmp.vehicle] : [])))
         } : emp;
 
         const resolvedVehicles = baseEmp.vehicles && baseEmp.vehicles.length > 0
@@ -1236,7 +1246,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Helper to apply incoming row to local state
     const applyRow = (key: string, value: any) => {
       if (!key || !value) return;
-      if (key === "rides") {
+      if (key === "employees") {
+        setEmployees(value);
+        employeesRef.current = value;
+        lastEmployees = value;
+      } else if (key === "rides") {
         const normalized = value.map(normalizeRide);
         setRides(normalized);
         ridesRef.current = normalized;
@@ -1452,6 +1466,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // --- Fallback polling ---
     const pollDatabase = async () => {
       try {
+        const empVal = await supabaseSync.get("employees");
+        if (empVal) applyRow("employees", empVal);
+
         const ridesVal = await supabaseSync.get("rides");
         if (ridesVal) applyRow("rides", ridesVal);
 
@@ -2338,13 +2355,27 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           };
         }));
 
+        // Notify host (driver)
         addNotification({
-          id: `n-can-${Date.now()}`,
+          id: `n-can-host-${Date.now()}`,
           title: "Ride Cancelled ⚠️",
-          message: `${ride.hostName} cancelled the commute trip. 25 credit penalty applied.`,
+          message: `You cancelled the commute trip to ${ride.destination}. 25 credit penalty applied.`,
           timestamp: "Just now",
           type: "warning",
           read: false
+        });
+
+        // Notify all passengers on the ride
+        const psgrs = ride.passengers || [];
+        psgrs.forEach(psgrId => {
+          addNotification({
+            id: `n-can-psgr-${psgrId}-${Date.now()}`,
+            title: "Ride Cancelled ⚠️",
+            message: `Your ride from ${ride.pickup} to ${ride.destination} has been cancelled by driver ${ride.hostName}.`,
+            timestamp: "Just now",
+            type: "warning",
+            read: false
+          });
         });
 
         // Wipe chat room on cancellation
@@ -2635,13 +2666,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       // Synchronously update the refs and global tracker to prevent sync timing anomalies
       employeesRef.current = updated;
-      lastEmployees = updated;
 
       if (typeof window !== "undefined") {
         localStorage.setItem("ecoride_employees", JSON.stringify(updated));
       }
       if (SUPABASE_URL && SUPABASE_ANON_KEY) {
         supabaseSync.set("employees", updated);
+      } else {
+        lastEmployees = updated;
       }
       return updated;
     });

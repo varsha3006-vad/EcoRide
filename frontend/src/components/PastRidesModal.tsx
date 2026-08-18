@@ -13,17 +13,18 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
   const { rides, currentUser, employees } = useAppState();
   const [selectedColleague, setSelectedColleague] = useState<Employee | null>(null);
 
-  // Filter completed rides where the user was the host or a passenger
+  // Filter completed or cancelled rides where the user was the host or a passenger
   const pastRides = rides.filter(
     (r) =>
-      r.status === "Completed" &&
+      (r.status === "Completed" || r.status === "Cancelled") &&
       (r.hostId === currentUser.id || r.passengers.includes(currentUser.id))
   );
 
-  // Calculate cumulative stats for past commutes
-  const totalCommutes = pastRides.length;
+  // Calculate cumulative stats for past commutes (skipping cancelled rides in metric sums)
+  const totalCommutes = pastRides.filter(r => r.status === "Completed").length;
   
   const totalCreditsEarned = pastRides.reduce((acc, ride) => {
+    if (ride.status === "Cancelled") return acc;
     const isDriver = ride.hostId === currentUser.id;
     const totalPassengers = ride.passengers.length;
     if (isDriver) {
@@ -35,6 +36,7 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
   }, 0);
 
   const totalCarbonSaved = pastRides.reduce((acc, ride) => {
+    if (ride.status === "Cancelled") return acc;
     const isDriver = ride.hostId === currentUser.id;
     const totalPassengers = ride.passengers.length;
     if (isDriver) {
@@ -44,8 +46,8 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
     }
   }, 0);
 
-  // Average distance per commute is 12.5km if not explicitly tracked
-  const totalDistance = pastRides.length * 12.5;
+  // Average distance per completed commute is 12.5km if not explicitly tracked
+  const totalDistance = pastRides.filter(r => r.status === "Completed").length * 12.5;
 
   const handleColleagueClick = (empId: string) => {
     const found = employees.find((emp) => emp.id === empId);
@@ -111,17 +113,18 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
             ) : (
               pastRides.map((ride) => {
                 const isHost = ride.hostId === currentUser.id;
+                const isCancelled = ride.status === "Cancelled";
                 const rideDateFormatted = ride.rideDate
                   ? new Date(ride.rideDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                   : "Aug 10, 2026";
                 
-                const rideCredits = isHost
+                const rideCredits = isCancelled ? 0 : (isHost
                   ? ride.esgCredits + (ride.passengers.length * 15)
-                  : Math.round((ride.esgCredits + (ride.passengers.length * 15)) * 0.5);
+                  : Math.round((ride.esgCredits + (ride.passengers.length * 15)) * 0.5));
 
-                const rideCarbon = isHost
+                const rideCarbon = isCancelled ? 0 : (isHost
                   ? (ride.co2Saved * (ride.passengers.length || 1))
-                  : ride.co2Saved;
+                  : ride.co2Saved);
 
                 return (
                   <div key={ride.id} className="glass-panel p-4 rounded-2xl border border-slate-150 dark:border-slate-800 text-left space-y-3 shadow-sm hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
@@ -131,13 +134,20 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
                         <Calendar className="h-3.5 w-3.5 text-slate-400" />
                         {rideDateFormatted} at {ride.departureTime}
                       </div>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold border ${
-                        isHost
-                          ? "bg-brand-green-500/10 text-brand-green-600 dark:text-brand-green-400 border-brand-green-500/20"
-                          : "bg-brand-blue-500/10 text-brand-blue-600 dark:text-brand-blue-400 border-brand-blue-500/20"
-                      }`}>
-                        {isHost ? "🚗 Host Driver" : "👥 Co-Passenger"}
-                      </span>
+                      <div className="flex items-center gap-1 flex-wrap justify-end">
+                        {isCancelled && (
+                          <span className="inline-flex items-center rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 text-[9px] font-extrabold">
+                            ⚠️ Cancelled
+                          </span>
+                        )}
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold border ${
+                          isHost
+                            ? "bg-brand-green-500/10 text-brand-green-600 dark:text-brand-green-400 border-brand-green-500/20"
+                            : "bg-brand-blue-500/10 text-brand-blue-600 dark:text-brand-blue-400 border-brand-blue-500/20"
+                        }`}>
+                          {isHost ? "🚗 Host Driver" : "👥 Co-Passenger"}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Route */}
@@ -156,15 +166,21 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
                     <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 dark:border-slate-900 text-center">
                       <div>
                         <p className="text-[8px] font-bold text-slate-400 uppercase">Credits</p>
-                        <p className="text-xs font-extrabold text-brand-blue-600 dark:text-brand-blue-400 mt-0.5">+{rideCredits}</p>
+                        <p className="text-xs font-extrabold text-brand-blue-600 dark:text-brand-blue-400 mt-0.5">
+                          {isCancelled ? "0" : `+${rideCredits}`}
+                        </p>
                       </div>
                       <div>
                         <p className="text-[8px] font-bold text-slate-400 uppercase">CO₂ Saved</p>
-                        <p className="text-xs font-extrabold text-brand-green-600 dark:text-brand-green-400 mt-0.5">{rideCarbon.toFixed(1)} kg</p>
+                        <p className="text-xs font-extrabold text-brand-green-600 dark:text-brand-green-400 mt-0.5">
+                          {rideCarbon.toFixed(1)} kg
+                        </p>
                       </div>
                       <div>
                         <p className="text-[8px] font-bold text-slate-400 uppercase">Distance</p>
-                        <p className="text-xs font-extrabold text-slate-700 dark:text-slate-300 mt-0.5">12.5 km</p>
+                        <p className="text-xs font-extrabold text-slate-700 dark:text-slate-300 mt-0.5">
+                          {isCancelled ? "0.0 km" : "12.5 km"}
+                        </p>
                       </div>
                     </div>
 
