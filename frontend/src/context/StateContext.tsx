@@ -156,7 +156,11 @@ const supabaseSync = {
         });
         if (changed.length > 0) {
           try {
-            await supabase.from("ecoride_commute_requests").upsert(changed);
+            const { error } = await supabase.from("ecoride_commute_requests").upsert(changed);
+            if (error) {
+              const sanitized = changed.map(({ urgent, cancelledByDriver, ...rest }: any) => rest);
+              await supabase.from("ecoride_commute_requests").upsert(sanitized);
+            }
           } catch (dbErr) {
             console.warn("Failed to upsert ecoride_commute_requests table:", dbErr);
           }
@@ -2466,7 +2470,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         affectedPassengers.forEach(psgrId => {
           const psgrUser = employees.find(e => e.id === psgrId);
-          const existingReqIndex = updated.findIndex(cr => cr.requesterId === psgrId && (cr.status === "Matched" || cr.status === "Pending"));
+          const proposalReqIds = rideProposals.filter(p => p.rideId === rideId).map(p => p.requestId);
+          const existingReqIndex = updated.findIndex(cr => cr.requesterId === psgrId || proposalReqIds.includes(cr.id));
 
           if (existingReqIndex >= 0) {
             // Re-activate existing request with Urgent priority

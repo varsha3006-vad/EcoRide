@@ -2916,14 +2916,28 @@ export default function HomePage() {
                     </h3>
                   </div>
 
-                  {commuteRequests.filter(cr => cr.city === activeCity && cr.status === "Pending" && cr.requesterId !== currentUser.id).length === 0 ? (
+                  {commuteRequests.filter(cr => {
+                    if (cr.requesterId === currentUser.id) return false;
+                    if (cr.status !== "Pending") return false;
+                    if (!cr.city) return true;
+                    return cr.city.toLowerCase() === activeCity.toLowerCase() ||
+                      cr.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||
+                      cr.destination.toLowerCase().includes(activeCity.toLowerCase());
+                  }).length === 0 ? (
                     <div className="py-8 text-center text-xs text-slate-400">
                       No pending pickup requests in {activeCity}. Share your route or invite colleagues!
                     </div>
                   ) : (
                     <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
                       {commuteRequests
-                        .filter(cr => cr.city === activeCity && cr.status === "Pending" && cr.requesterId !== currentUser.id)
+                        .filter(cr => {
+                          if (cr.requesterId === currentUser.id) return false;
+                          if (cr.status !== "Pending") return false;
+                          if (!cr.city) return true;
+                          return cr.city.toLowerCase() === activeCity.toLowerCase() ||
+                            cr.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||
+                            cr.destination.toLowerCase().includes(activeCity.toLowerCase());
+                        })
                         .map(cr => {
                           const myProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id);
                           return (

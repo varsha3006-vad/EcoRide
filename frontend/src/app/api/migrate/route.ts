@@ -152,8 +152,13 @@ export async function GET() {
         "seatsNeeded" INTEGER NOT NULL DEFAULT 1,
         "status" TEXT NOT NULL DEFAULT 'Pending',
         "city" TEXT NOT NULL,
-        "timestamp" TEXT NOT NULL
+        "timestamp" TEXT NOT NULL,
+        "urgent" BOOLEAN DEFAULT false,
+        "cancelledByDriver" BOOLEAN DEFAULT false
       );
+
+      ALTER TABLE ecoride_commute_requests ADD COLUMN IF NOT EXISTS "urgent" BOOLEAN DEFAULT false;
+      ALTER TABLE ecoride_commute_requests ADD COLUMN IF NOT EXISTS "cancelledByDriver" BOOLEAN DEFAULT false;
 
       -- 8. Proposals sent by drivers to pick up passengers
       CREATE TABLE IF NOT EXISTS ecoride_ride_proposals (
