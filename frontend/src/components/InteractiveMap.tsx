@@ -340,9 +340,28 @@ export default function InteractiveMap({
     new google.maps.DirectionsService().route({
       origin: startLatLng, destination: endLatLng, waypoints: googleWaypoints, optimizeWaypoints: true, travelMode: google.maps.TravelMode.DRIVING
     }, (result: any, status: any) => {
-      if (status === google.maps.DirectionsStatus.OK) {
+      if (status === google.maps.DirectionsStatus.OK && result.routes && result.routes[0]) {
         directionsRenderer.setDirections(result);
         setCoordinatesPath(result.routes[0].overview_path);
+
+        // Real-time distance and ETA extraction from Google Maps route legs
+        let totalMeters = 0;
+        let totalSeconds = 0;
+        if (result.routes[0].legs) {
+          result.routes[0].legs.forEach((leg: any) => {
+            if (leg.distance?.value) totalMeters += leg.distance.value;
+            if (leg.duration?.value) totalSeconds += leg.duration.value;
+          });
+        }
+        if (totalMeters > 0) {
+          const calcKm = (totalMeters / 1000).toFixed(1);
+          setDistanceStr(`${calcKm} km`);
+        }
+        if (totalSeconds > 0) {
+          const calcEta = Math.round(totalSeconds / 60);
+          setEta(calcEta);
+        }
+
         placeStaticMarkers();
         if (isAutoCentering) {
           const bounds = new google.maps.LatLngBounds();
