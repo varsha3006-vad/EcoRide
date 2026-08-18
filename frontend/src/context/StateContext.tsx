@@ -2151,7 +2151,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabaseSync.set("rides", updatedRides);
     }
 
-    // Trigger push notification to passenger (Privacy Masked)
+    // Trigger push notification to passenger (Privacy Masked) & handle decline auto-reactivation
     if (accept) {
       triggerPushNotification(
         reqToRespond.requesterId,
@@ -2159,6 +2159,57 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         `Your ride request to ${targetRide.destination} was accepted. Ready to commute!`
       );
     } else {
+      setCommuteRequests(prev => {
+        let updated = [...prev];
+        const psgrId = reqToRespond.requesterId;
+        const psgrUser = employees.find(e => e.id === psgrId);
+        const existingIndex = updated.findIndex(cr => cr.requesterId === psgrId && (cr.status === "Matched" || cr.status === "Pending"));
+
+        if (existingIndex >= 0) {
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            status: "Pending",
+            urgent: true,
+            cancelledByDriver: true
+          };
+        } else {
+          const newUrgentReq: CommuteRequest = {
+            id: `cr-auto-${Date.now()}-${psgrId}`,
+            requesterId: psgrId,
+            requesterName: psgrUser?.name || reqToRespond.requesterName || "Colleague Passenger",
+            requesterAvatar: psgrUser?.avatar || reqToRespond.requesterAvatar || "👤",
+            requesterDept: psgrUser?.department || reqToRespond.requesterDept || "Operations",
+            pickup: reqToRespond.pickup || targetRide.pickup,
+            destination: reqToRespond.dropPoint || targetRide.destination,
+            rideDate: targetRide.rideDate || new Date().toISOString().split("T")[0],
+            desiredTime: targetRide.departureTime || "09:00 AM",
+            seatsNeeded: 1,
+            status: "Pending",
+            city: targetRide.city || activeCity,
+            timestamp: new Date().toISOString(),
+            urgent: true,
+            cancelledByDriver: true
+          };
+          updated = [newUrgentReq, ...updated];
+        }
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("commute_requests", updated);
+        }
+        return updated;
+      });
+
+      addNotification({
+        id: `n-req-dec-${Date.now()}`,
+        title: "Ride Request Declined ℹ️",
+        message: `Your request to join ${targetRide.hostName}'s ride to ${targetRide.destination} was declined. Your pickup request has been auto-reactivated with Urgent priority.`,
+        timestamp: "Just now",
+        type: "info",
+        read: false
+      });
       triggerPushNotification(
         reqToRespond.requesterId,
         "Ride Request Declined ❌",
@@ -3017,6 +3068,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const declineRideProposal = async (proposalId: string) => {
+    const targetProp = rideProposals.find(p => p.id === proposalId);
+
     const updatedProposals = rideProposals.map(p => {
       if (p.id === proposalId) return { ...p, status: "Declined" };
       return p;
@@ -3030,6 +3083,39 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
       supabaseSync.set("ride_proposals", updatedProposals);
+    }
+
+    if (targetProp) {
+      setCommuteRequests(prev => {
+        const updated = prev.map(cr => {
+          if (cr.id === targetProp.requestId) {
+            return {
+              ...cr,
+              status: "Pending",
+              urgent: true,
+              cancelledByDriver: true
+            };
+          }
+          return cr;
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("commute_requests", updated);
+        }
+        return updated;
+      });
+
+      addNotification({
+        id: `n-prop-dec-${Date.now()}`,
+        title: "Proposal Declined ✋",
+        message: `Proposal from ${targetProp.hostName} was declined. Your pickup request has been auto-reactivated with Urgent priority for other drivers to pick up.`,
+        timestamp: "Just now",
+        type: "info",
+        read: false
+      });
     }
 
     logSecurityEvent("RIDE_PROPOSAL_DECLINE", "INFO", `Passenger declined ride proposal ${proposalId}`);

@@ -969,7 +969,7 @@ export default function HomePage() {
 
   const myCreatedRides = rides.filter(r => r.hostId === currentUser.id);
   const myJoinedRides = rides.filter(r => r.passengers.includes(currentUser.id));
-  const myUpcomingTrips = [...myCreatedRides, ...myJoinedRides].filter(r => r.status?.toLowerCase() !== "completed");
+  const myUpcomingTrips = [...myCreatedRides, ...myJoinedRides].filter(r => r.status === "Published" || r.status === "Started");
 
   // Search/Filter rides list
   const filteredRides = rides.filter(r => {
