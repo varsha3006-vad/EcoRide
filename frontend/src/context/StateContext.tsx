@@ -358,6 +358,7 @@ export interface Notification {
   type: "info" | "success" | "warning" | "request";
   read: boolean;
   link?: string;
+  recipientId?: string;
 }
 
 export interface Badge {
@@ -3041,6 +3042,42 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const sendRideProposal = async (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string, vehiclePlate?: string) => {
+    // Rule 2A: Overlap Protection — If host already has accepted co-passengers on an existing ride, block conflicting proposals
+    const parseTimeToMins = (tStr: string): number => {
+      try {
+        const [tp, ap] = tStr.trim().split(" ");
+        let [h, m] = tp.split(":").map(Number);
+        if (ap?.toUpperCase() === "PM" && h < 12) h += 12;
+        if (ap?.toUpperCase() === "AM" && h === 12) h = 0;
+        return h * 60 + m;
+      } catch (e) {
+        return 0;
+      }
+    };
+
+    const propMins = parseTimeToMins(proposedDepartureTime);
+    const occupiedOverlappingRide = rides.find(r => {
+      if (r.hostId !== currentUser.id) return false;
+      if (r.status === "Completed" || r.status === "Cancelled") return false;
+      const coPassengers = (r.passengers || []).filter(pId => pId !== r.hostId);
+      if (coPassengers.length === 0) return false;
+      const rideMins = parseTimeToMins(r.departureTime);
+      return Math.abs(rideMins - propMins) <= 45;
+    });
+
+    if (occupiedOverlappingRide) {
+      addNotification({
+        id: `n-overlap-err-${Date.now()}`,
+        recipientId: currentUser.id,
+        title: "Schedule Overlap Warning ⚠️",
+        message: `You already have accepted co-passengers on your ${occupiedOverlappingRide.departureTime} commute. You cannot send a proposal for an overlapping trip at ${proposedDepartureTime}.`,
+        timestamp: "Just now",
+        type: "warning",
+        read: false
+      });
+      throw new Error(`Schedule Overlap Warning: You already have accepted co-passengers on your ${occupiedOverlappingRide.departureTime} commute.`);
+    }
+
     const activeVeh = (currentUser?.vehicles || []).find(v => v.plateNumber === vehiclePlate);
     const newProposal: RideProposal = {
       id: `pr-${Date.now()}`,
@@ -3072,16 +3109,27 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return updated;
     });
 
-    logSecurityEvent("RIDE_PROPOSAL_SEND", "INFO", `Driver offered pickup proposal for request ${requestId} with offset ${proposedTimeOffset} mins`);
+    logSecurityEvent("RIDE_PROPOSAL_SEND", "INFO", `Colleague offered pickup proposal for request ${requestId} with offset ${proposedTimeOffset} mins`);
     
     const commReq = commuteRequests.find(c => c.id === requestId);
     if (commReq) {
       addNotification({
         id: `n-prop-send-${Date.now()}`,
+        recipientId: currentUser.id,
         title: "Proposal Sent! ✉️",
         message: `Your ride offer has been successfully sent to ${commReq.requesterName}.`,
         timestamp: "Just now",
         type: "success",
+        read: false
+      });
+
+      addNotification({
+        id: `n-prop-rec-${Date.now()}`,
+        recipientId: commReq.requesterId,
+        title: "New Ride Proposal Received 🚗",
+        message: `Colleague ${currentUser.name} offered a pickup proposal for ${proposedDepartureTime}. View in your pickup requests section.`,
+        timestamp: "Just now",
+        type: "info",
         read: false
       });
     }
@@ -3225,11 +3273,72 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabaseSync.set("ride_proposals", updatedProposals);
     }
 
+    // Rule 2B: Solo Ride Auto-Cancellation — If host has an existing solo scheduled ride (0 passengers), auto-cancel it upon proposal acceptance
+    const parseTimeToMins = (tStr: string): number => {
+      try {
+        const [tp, ap] = tStr.trim().split(" ");
+        let [h, m] = tp.split(":").map(Number);
+        if (ap?.toUpperCase() === "PM" && h < 12) h += 12;
+        if (ap?.toUpperCase() === "AM" && h === 12) h = 0;
+        return h * 60 + m;
+      } catch (e) {
+        return 0;
+      }
+    };
+
+    const newPropMins = parseTimeToMins(proposal.proposedDepartureTime);
+
+    setRides(prev => {
+      const updated = prev.map(r => {
+        if (r.hostId === proposal.hostId && r.id !== (targetRide?.id) && (r.status === "Published" || r.status === "Started")) {
+          const coPassengers = (r.passengers || []).filter(pId => pId !== r.hostId);
+          if (coPassengers.length === 0) {
+            const rMins = parseTimeToMins(r.departureTime);
+            if (Math.abs(rMins - newPropMins) <= 60) {
+              addNotification({
+                id: `n-auto-can-solo-${Date.now()}`,
+                recipientId: proposal.hostId,
+                title: "Schedule Auto-Adjusted 🚗",
+                message: `Your previous solo ${r.departureTime} commute was automatically cancelled as your ${proposal.proposedDepartureTime} proposal ride with ${currentUser.name} was accepted.`,
+                timestamp: "Just now",
+                type: "info",
+                read: false
+              });
+              return { ...r, status: "Cancelled" as const };
+            }
+          }
+        }
+        return r;
+      });
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("rides", updated);
+      }
+      return updated;
+    });
+
     logSecurityEvent("RIDE_PROPOSAL_ACCEPT", "INFO", `Passenger accepted ride proposal ${proposalId}`);
+    
+    // Notification for passenger
     addNotification({
-      id: `n-prop-acc-${Date.now()}`,
+      id: `n-prop-acc-psgr-${Date.now()}`,
+      recipientId: currentUser.id,
       title: "Proposal Accepted! 🚗",
-      message: `You have matched with your colleague ${proposal.hostName}. The commute details are now on your dashboard.`,
+      message: `You matched with your colleague ${proposal.hostName}. The commute details are now on your dashboard.`,
+      timestamp: "Just now",
+      type: "success",
+      read: false
+    });
+
+    // Notification for host driver
+    addNotification({
+      id: `n-prop-acc-host-${Date.now()}`,
+      recipientId: proposal.hostId,
+      title: "Ride Offer Accepted! 🎉",
+      message: `Colleague ${currentUser.name} accepted your proposal for ${proposal.proposedDepartureTime}. View passenger details on your active ride card.`,
       timestamp: "Just now",
       type: "success",
       read: false
@@ -3259,8 +3368,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Notify host driver of the decline reason
       addNotification({
         id: `n-prop-host-dec-${Date.now()}`,
+        recipientId: targetProp.hostId,
         title: "Offer Declined ℹ️",
-        message: `Your pickup proposal for ${targetProp.proposedDepartureTime} was declined by passenger. Reason: "${formattedReason}".`,
+        message: `Your pickup proposal for ${targetProp.proposedDepartureTime} was declined by passenger ${currentUser.name}. Reason: "${formattedReason}".`,
         timestamp: "Just now",
         type: "info",
         read: false
@@ -3289,7 +3399,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
 
       addNotification({
-        id: `n-prop-dec-${Date.now()}`,
+        id: `n-prop-dec-psgr-${Date.now()}`,
+        recipientId: currentUser.id,
         title: "Proposal Declined ✋",
         message: `Proposal from ${targetProp.hostName} was declined (${formattedReason}). Your pickup request has been auto-reactivated with Urgent priority.`,
         timestamp: "Just now",

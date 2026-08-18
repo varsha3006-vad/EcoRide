@@ -132,7 +132,8 @@ export default function Navbar() {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const userNotifications = notifications.filter(n => !n.recipientId || n.recipientId === currentUser.id);
+  const unreadCount = userNotifications.filter(n => !n.read).length;
 
   return (
     <nav className="glass-panel sticky top-0 z-40 w-full border-b px-4 py-3 sm:px-6">
@@ -358,12 +359,12 @@ export default function Navbar() {
                   </button>
                 </div>
                 <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-900">
-                  {notifications.length === 0 ? (
+                  {userNotifications.length === 0 ? (
                     <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
                       No notifications yet
                     </div>
                   ) : (
-                    notifications.map(notif => (
+                    userNotifications.map(notif => (
                       <div
                         key={notif.id}
                         className={`p-4 transition-colors border-l-4 ${

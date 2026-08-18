@@ -2349,10 +2349,10 @@ export default function HomePage() {
                           </span>
                           <div>
                             <h4 className="text-xs sm:text-sm font-extrabold text-amber-800 dark:text-amber-300">
-                              Driver Cancelled Your Ride to {urgentReq.destination}
+                              Colleague Host Cancelled Your Ride to {urgentReq.destination}
                             </h4>
                             <p className="text-[10px] text-slate-650 dark:text-slate-350 text-slate-600 font-medium mt-0.5 leading-relaxed">
-                              Your previous driver cancelled the ride. Your pickup request has been auto-reactivated with <strong className="text-amber-600 dark:text-amber-400 font-bold">Urgent Priority</strong> for all region drivers.
+                              Your previous colleague host cancelled the commute. Your pickup request has been auto-reactivated with <strong className="text-amber-600 dark:text-amber-400 font-bold">Urgent Priority</strong> for all region colleagues.
                             </p>
                           </div>
                         </div>
@@ -2361,7 +2361,7 @@ export default function HomePage() {
                       {altRides.length > 0 && (
                         <div className="border-t border-amber-500/20 pt-3 space-y-2">
                           <p className="text-[9px] font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
-                            ⚡ Recommended Alternative Drivers Heading To {urgentReq.destination}:
+                            ⚡ Recommended Alternative Colleagues Heading To {urgentReq.destination}:
                           </p>
                           <div className="grid grid-cols-1 gap-2">
                             {altRides.slice(0, 2).map(r => (
@@ -2959,7 +2959,7 @@ export default function HomePage() {
                                     <span className="text-[9px] text-slate-500 font-normal">({cr.requesterDept})</span>
                                     {cr.urgent && (
                                       <span className="text-[8px] bg-amber-500 text-white dark:bg-amber-600 px-2 py-0.5 rounded-full font-black animate-pulse flex items-center gap-1">
-                                        🚨 Urgent (Driver Cancelled)
+                                        🚨 Urgent (Colleague Cancelled)
                                       </span>
                                     )}
                                   </h4>
