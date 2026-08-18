@@ -2823,7 +2823,7 @@ export default function HomePage() {
                 </div>
 
                 {/* My Pickup Requests & Received Proposals */}
-                {commuteRequests.filter(cr => cr.requesterId === currentUser.id).length > 0 && (
+                {commuteRequests.filter(cr => cr.requesterId === currentUser.id && cr.status === "Pending").length > 0 && (
                   <div className="glass-panel p-5 rounded-3xl border border-slate-200/50 dark:border-slate-800/40 space-y-5 bg-white dark:bg-slate-950/20">
                     <div className="flex items-center justify-between border-b pb-3">
                       <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
@@ -2833,7 +2833,7 @@ export default function HomePage() {
 
                     <div className="space-y-4 divide-y divide-slate-100 dark:divide-slate-800/60">
                       {commuteRequests
-                        .filter(cr => cr.requesterId === currentUser.id)
+                        .filter(cr => cr.requesterId === currentUser.id && cr.status === "Pending")
                         .map((cr, idx) => {
                           const proposalsForThisRequest = rideProposals.filter(p => p.requestId === cr.id);
                           return (
