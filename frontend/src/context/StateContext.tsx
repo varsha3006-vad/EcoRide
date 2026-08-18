@@ -3737,20 +3737,27 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.removeItem("ecoride_requests");
       localStorage.removeItem("ecoride_commute_requests");
       localStorage.removeItem("ecoride_ride_proposals");
+      localStorage.removeItem("ecoride_messages");
+      localStorage.removeItem("ecoride_notifications");
       localStorage.setItem("ecoride_rides", JSON.stringify([]));
       localStorage.setItem("ecoride_requests", JSON.stringify([]));
       localStorage.setItem("ecoride_commute_requests", JSON.stringify([]));
       localStorage.setItem("ecoride_ride_proposals", JSON.stringify([]));
+      localStorage.setItem("ecoride_messages", JSON.stringify([]));
+      localStorage.setItem("ecoride_notifications", JSON.stringify([]));
     }
 
     setRides([]);
     setRequests([]);
     setCommuteRequests([]);
     setRideProposals([]);
+    setMessages([]);
+    setNotifications([]);
     ridesRef.current = [];
     requestsRef.current = [];
     commuteRequestsRef.current = [];
     rideProposalsRef.current = [];
+    messagesRef.current = [];
 
     setEmployees(prev => {
       const resetEmps = prev.map(emp => ({
@@ -3774,12 +3781,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabaseSync.set("requests", []);
       supabaseSync.set("commute_requests", []);
       supabaseSync.set("ride_proposals", []);
+      supabaseSync.set("messages", []);
+      supabaseSync.set("notifications", []);
     }
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("ecoride_data_purged_v2")) {
-      localStorage.setItem("ecoride_data_purged_v2", "true");
+    if (typeof window !== "undefined" && !localStorage.getItem("ecoride_data_purged_v3")) {
+      localStorage.setItem("ecoride_data_purged_v3", "true");
       purgeAllRideDataAndResetEsg();
     }
   }, []);

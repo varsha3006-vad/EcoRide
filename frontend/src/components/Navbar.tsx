@@ -5,7 +5,7 @@ import { useAppState } from "@/context/StateContext";
 import { Bell, Shield, User, Leaf, Award, ChevronDown, Check, Trash, MapPin, Loader2, Navigation } from "lucide-react";
 
 export default function Navbar() {
-  const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured, syncError, activeCity, setActiveCity } = useAppState();
+  const { currentUser, role, setRole, notifications, markNotificationsRead, employees, switchUser, logout, isSupabaseConfigured, syncError, activeCity, setActiveCity, purgeAllRideDataAndResetEsg } = useAppState();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCityPopup, setShowCityPopup] = useState(false);
@@ -478,6 +478,17 @@ export default function Navbar() {
                       className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-900/50 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       ⚙️ Notification Settings
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        if (typeof window !== "undefined" && window.confirm("Clear all past commute data, requests, messages, and reset ESG points to 0 for a fresh start?")) {
+                          purgeAllRideDataAndResetEsg();
+                        }
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      🧹 Reset & Clear All Data
                     </button>
                     <button
                       onClick={() => {
