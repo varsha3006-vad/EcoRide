@@ -2331,6 +2331,64 @@ export default function HomePage() {
                   </div>
                 )}
 
+                {/* Stranded Passenger Auto-Reactivation Rescue Banner */}
+                {(() => {
+                  const urgentReq = commuteRequests.find(cr => cr.requesterId === currentUser.id && cr.urgent && cr.status === "Pending");
+                  if (!urgentReq) return null;
+                  const altRides = rides.filter(r => r.status === "Published" && r.seatsAvailable > 0 && r.hostId !== currentUser.id && (r.destination.toLowerCase().includes(urgentReq.destination.toLowerCase()) || urgentReq.destination.toLowerCase().includes(r.destination.toLowerCase())));
+
+                  return (
+                    <div className="glass-panel p-5 rounded-3xl border-2 border-amber-500/40 bg-amber-500/10 dark:bg-amber-950/20 text-left space-y-3 animate-slide-up shadow-xl">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-xl p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 mt-0.5">
+                            🚨
+                          </span>
+                          <div>
+                            <h4 className="text-xs sm:text-sm font-extrabold text-amber-800 dark:text-amber-300">
+                              Driver Cancelled Your Ride to {urgentReq.destination}
+                            </h4>
+                            <p className="text-[10px] text-slate-650 dark:text-slate-350 text-slate-600 font-medium mt-0.5 leading-relaxed">
+                              Your previous driver cancelled the ride. Your pickup request has been auto-reactivated with <strong className="text-amber-600 dark:text-amber-400 font-bold">Urgent Priority</strong> for all region drivers.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {altRides.length > 0 && (
+                        <div className="border-t border-amber-500/20 pt-3 space-y-2">
+                          <p className="text-[9px] font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                            ⚡ Recommended Alternative Drivers Heading To {urgentReq.destination}:
+                          </p>
+                          <div className="grid grid-cols-1 gap-2">
+                            {altRides.slice(0, 2).map(r => (
+                              <div key={r.id} className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/50 flex items-center justify-between gap-3 shadow-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">{getMaskedHostAvatar(r, currentUser.id)}</span>
+                                  <div>
+                                    <h5 className="text-[11px] font-bold text-slate-800 dark:text-white">
+                                      {getMaskedHostName(r, currentUser.id)} <span className="text-[9px] text-slate-500 font-normal">({r.hostDept})</span>
+                                    </h5>
+                                    <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
+                                      Departure: ⏱️ {r.departureTime} • Vacant Seats: {r.seatsAvailable}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => setJoiningRide(r)}
+                                  className="px-3 py-1.5 rounded-xl bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-[10px] font-extrabold cursor-pointer transition-all shadow-sm flex-shrink-0"
+                                >
+                                  Join Alternative Ride
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Stacking Offer / Join Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Offer a Ride Card */}
@@ -2871,12 +2929,22 @@ export default function HomePage() {
                         .map(cr => {
                           const myProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id);
                           return (
-                            <div key={cr.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/40 flex items-center justify-between gap-4 animate-fade-in">
+                            <div key={cr.id} className={`p-4 rounded-2xl border flex items-center justify-between gap-4 animate-fade-in ${
+                              cr.urgent
+                                ? "bg-amber-500/10 border-amber-500/30 dark:bg-amber-950/20"
+                                : "bg-slate-50 dark:bg-slate-900/60 border-slate-200/50 dark:border-slate-800/40"
+                            }`}>
                               <div className="flex items-center gap-3">
                                 <span className="text-2xl">{cr.requesterAvatar || "👤"}</span>
                                 <div>
-                                  <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1">
-                                    {cr.requesterName} <span className="text-[9px] text-slate-500 font-normal">({cr.requesterDept})</span>
+                                  <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 flex-wrap">
+                                    <span>{cr.requesterName}</span>
+                                    <span className="text-[9px] text-slate-500 font-normal">({cr.requesterDept})</span>
+                                    {cr.urgent && (
+                                      <span className="text-[8px] bg-amber-500 text-white dark:bg-amber-600 px-2 py-0.5 rounded-full font-black animate-pulse flex items-center gap-1">
+                                        🚨 Urgent (Driver Cancelled)
+                                      </span>
+                                    )}
                                   </h4>
                                   <p className="text-[10px] text-slate-550 dark:text-slate-350 font-bold">{cr.pickup} → {cr.destination}</p>
                                   <div className="flex items-center gap-2 mt-1">

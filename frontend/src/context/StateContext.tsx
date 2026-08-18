@@ -392,6 +392,8 @@ export interface CommuteRequest {
   status: string; // 'Pending' | 'Matched' | 'Cancelled'
   city: string;
   timestamp: string;
+  urgent?: boolean;
+  cancelledByDriver?: boolean;
 }
 
 export interface RideProposal {
@@ -2341,6 +2343,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Cancel Ride
   const cancelRide = (rideId: string) => {
+    const targetRide = rides.find(r => r.id === rideId);
+    const affectedPassengers = targetRide?.passengers || [];
+
     setRides(prev => {
       const updated = prev.map(ride => {
         if (ride.id !== rideId) return ride;
@@ -2365,13 +2370,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           read: false
         });
 
-        // Notify all passengers on the ride
-        const psgrs = ride.passengers || [];
-        psgrs.forEach(psgrId => {
+        // Notify all passengers on the ride & inform them of auto-reactivated request
+        affectedPassengers.forEach(psgrId => {
           addNotification({
             id: `n-can-psgr-${psgrId}-${Date.now()}`,
-            title: "Ride Cancelled ⚠️",
-            message: `Your ride from ${ride.pickup} to ${ride.destination} has been cancelled by driver ${ride.hostName}.`,
+            title: "Ride Cancelled by Driver ⚠️",
+            message: `Your driver ${ride.hostName} cancelled the commute to ${ride.destination}. Your pickup request has been auto-reactivated with Urgent priority for other drivers to pick up.`,
             timestamp: "Just now",
             type: "warning",
             read: false
@@ -2398,6 +2402,67 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       return updated;
     });
+
+    // Auto-reactivate affected passengers' commute requests & update proposals/requests
+    if (affectedPassengers.length > 0) {
+      setCommuteRequests(prev => {
+        const updated = prev.map(cr => {
+          if (affectedPassengers.includes(cr.requesterId)) {
+            return {
+              ...cr,
+              status: "Pending",
+              urgent: true,
+              cancelledByDriver: true
+            };
+          }
+          return cr;
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("commute_requests", updated);
+        }
+        return updated;
+      });
+
+      setRideProposals(prev => {
+        const updated = prev.map(p => {
+          if (p.rideId === rideId || affectedPassengers.some(pId => commuteRequests.find(c => c.id === p.requestId)?.requesterId === pId)) {
+            return { ...p, status: "Cancelled" };
+          }
+          return p;
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_ride_proposals", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("ride_proposals", updated);
+        }
+        return updated;
+      });
+
+      setRequests(prev => {
+        const updated = prev.map(req => {
+          if (req.rideId === rideId) {
+            return { ...req, status: "Rejected" as const };
+          }
+          return req;
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_requests", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("requests", updated);
+        }
+        return updated;
+      });
+    }
+
+    logSecurityEvent("RIDE_CANCELLED", "WARNING", `Ride ID ${rideId} was cancelled by driver.`);
   };
 
   const lastGpsSyncTimeRef = useRef<number>(0);
