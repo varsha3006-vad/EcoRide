@@ -584,8 +584,10 @@ export default function HomePage() {
 
       // Geocode all rides in parallel
       const activeRides = rides.filter(r => {
-        if (r.hostId === currentUser.id) return false;
-        const isJoinable = r.status === "Published" || (r.status === "Started" && r.seatsAvailable > 0);
+        if (isUserHost(r)) return false;
+        if (r.seatsAvailable <= 0) return false;
+        const statusLower = r.status?.toLowerCase();
+        const isJoinable = statusLower === "published" || statusLower === "started";
         if (!isJoinable) return false;
         if (r.womenOnly && currentUser.gender?.toLowerCase() !== "female") return false;
         return true;
@@ -1068,7 +1070,9 @@ export default function HomePage() {
   // Search/Filter rides list
   const filteredRides = rides.filter(r => {
     if (isUserHost(r)) return false; // Hide own rides from discovery feed
-    const isJoinable = r.status?.toLowerCase() === "published" || (r.status?.toLowerCase() === "started" && r.seatsAvailable > 0);
+    if (r.seatsAvailable <= 0) return false; // Hide full rides (0 available seats)
+    const statusLower = r.status?.toLowerCase();
+    const isJoinable = statusLower === "published" || statusLower === "started";
     if (!isJoinable) return false;
 
     // City Geofencing: Only show rides in the user's active city
