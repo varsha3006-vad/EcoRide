@@ -1088,7 +1088,12 @@ export default function HomePage() {
                       <span className="text-2xl">{host.avatar}</span>
                       <div>
                         <p className="text-xs font-bold text-white">{host.name}</p>
-                        <p className="text-[9px] text-slate-450">Driving: {targetRide.vehicleModel} ({targetRide.vehiclePlate})</p>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-slate-400 mt-0.5">
+                          <span>Driving: <strong>{targetRide.vehicleModel}</strong></span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-slate-700 bg-slate-900 text-[9px] font-black text-slate-200 tracking-wider font-mono shadow-sm">
+                            🚗 {targetRide.vehiclePlate}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2482,7 +2487,12 @@ export default function HomePage() {
                                     </span>
                                     <span>• Status: <strong className="text-brand-green-600">{trip.status}</strong></span>
                                     <span>• Role: {isHost ? "Host" : "Passenger"}</span>
-                                    <span>• Vehicle: {trip.vehicleModel} ({trip.vehiclePlate || "N/A"}) - {trip.vehicleType}</span>
+                                    <span className="flex items-center gap-1">
+                                      <span>• Vehicle: {trip.vehicleModel} - {trip.vehicleType}</span>
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-[8px] font-black text-slate-800 dark:text-slate-200 tracking-wider font-mono shadow-xs ml-0.5">
+                                        🚗 {trip.vehiclePlate || "N/A"}
+                                      </span>
+                                    </span>
                                     <span>• Seats: <strong>{trip.seatsAvailable} of {trip.seatsTotal} vacant</strong></span>
                                     {trip.womenOnly && (
                                       <span className="text-purple-600 dark:text-purple-400 font-bold">• 👩‍👧‍👧 Female-Only</span>
