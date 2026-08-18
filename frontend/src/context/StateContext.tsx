@@ -2456,14 +2456,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // --- PASSENGER CANCELS THEIR OWN SEAT ON AN ACCEPTED RIDE ---
       const passengerUser = employees.find(e => e.id === actorId);
 
-      // 1. Remove passenger from ride and increase seatsAvailable by 1
+      // 1. Remove passenger from ride and cancel ride for host driver if 0 passengers remain or if proposal ride
       setRides(prev => {
         const updated = prev.map(r => {
           if (r.id !== rideId) return r;
+          const remainingPassengers = r.passengers.filter(pId => pId !== actorId);
+          const isProposalRide = rideProposals.some(p => p.rideId === rideId);
+          const shouldCancelRide = remainingPassengers.length === 0 || isProposalRide;
+
           return {
             ...r,
-            passengers: r.passengers.filter(pId => pId !== actorId),
-            seatsAvailable: r.seatsAvailable + 1
+            passengers: remainingPassengers,
+            seatsAvailable: Math.min(r.seatsTotal, r.seatsAvailable + 1),
+            status: shouldCancelRide ? ("Cancelled" as const) : r.status
           };
         });
 
@@ -2539,8 +2544,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // 5. Send notifications to host driver and passenger
       addNotification({
         id: `n-psgr-can-host-${Date.now()}`,
-        title: "Passenger Cancelled Seat ℹ️",
-        message: `Passenger ${passengerUser?.name || "Colleague"} cancelled their seat for your ride to ${targetRide.destination}. 1 seat freed up.`,
+        title: "Proposal Ride Cancelled ℹ️",
+        message: `Passenger ${passengerUser?.name || "Colleague"} cancelled their proposal booking. The ride to ${targetRide.destination} has been cancelled.`,
         timestamp: "Just now",
         type: "info",
         read: false
