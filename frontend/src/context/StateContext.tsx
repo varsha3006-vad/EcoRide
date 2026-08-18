@@ -441,7 +441,7 @@ interface StateContextType {
   sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
   startRide: (rideId: string) => void;
   completeRide: (rideId: string, ratings: { safety: number; comfort: number; punctuality: number }) => void;
-  cancelRide: (rideId: string) => void;
+  cancelRide: (rideId: string, cancellingUserId?: string) => void;
   markNotificationsRead: (id?: string) => void;
   adminDeleteRide: (rideId: string) => void;
   adminDeactivateEmployee: (employeeId: string) => void;
@@ -2444,11 +2444,122 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // Cancel Ride
-  const cancelRide = (rideId: string) => {
+  // Cancel Ride (Handles host driver cancellation vs passenger seat cancellation)
+  const cancelRide = (rideId: string, cancellingUserId?: string) => {
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
+    const actorId = cancellingUserId || currentUser.id;
+    const isHostCancelling = targetRide.hostId === actorId;
+
+    if (!isHostCancelling) {
+      // --- PASSENGER CANCELS THEIR OWN SEAT ON AN ACCEPTED RIDE ---
+      const passengerUser = employees.find(e => e.id === actorId);
+
+      // 1. Remove passenger from ride and increase seatsAvailable by 1
+      setRides(prev => {
+        const updated = prev.map(r => {
+          if (r.id !== rideId) return r;
+          return {
+            ...r,
+            passengers: r.passengers.filter(pId => pId !== actorId),
+            seatsAvailable: r.seatsAvailable + 1
+          };
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("rides", updated);
+        }
+        return updated;
+      });
+
+      // 2. Mark passenger's CommuteRequest as CANCELLED PERMANENTLY (NOT Pending!)
+      setCommuteRequests(prev => {
+        const proposalReqIds = rideProposals.filter(p => p.rideId === rideId && p.status === "Accepted").map(p => p.requestId);
+        const updated = prev.map(cr => {
+          if (cr.requesterId === actorId && (cr.status === "Matched" || proposalReqIds.includes(cr.id))) {
+            return {
+              ...cr,
+              status: "Cancelled",
+              urgent: false,
+              cancelledByDriver: false
+            };
+          }
+          return cr;
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("commute_requests", updated);
+        }
+        return updated;
+      });
+
+      // 3. Mark RideRequest for passenger as Cancelled
+      setRequests(prev => {
+        const updated = prev.map(req => {
+          if (req.rideId === rideId && req.requesterId === actorId) {
+            return { ...req, status: "Rejected" as const };
+          }
+          return req;
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_requests", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("requests", updated);
+        }
+        return updated;
+      });
+
+      // 4. Mark RideProposal for passenger as Cancelled
+      setRideProposals(prev => {
+        const updated = prev.map(p => {
+          if (p.rideId === rideId && commuteRequests.find(c => c.id === p.requestId)?.requesterId === actorId) {
+            return { ...p, status: "Cancelled" };
+          }
+          return p;
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_ride_proposals", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("ride_proposals", updated);
+        }
+        return updated;
+      });
+
+      // 5. Send notifications to host driver and passenger
+      addNotification({
+        id: `n-psgr-can-host-${Date.now()}`,
+        title: "Passenger Cancelled Seat ℹ️",
+        message: `Passenger ${passengerUser?.name || "Colleague"} cancelled their seat for your ride to ${targetRide.destination}. 1 seat freed up.`,
+        timestamp: "Just now",
+        type: "info",
+        read: false
+      });
+
+      addNotification({
+        id: `n-psgr-can-self-${Date.now()}`,
+        title: "Booking Cancelled ℹ️",
+        message: `Your commute booking to ${targetRide.destination} has been cancelled permanently.`,
+        timestamp: "Just now",
+        type: "info",
+        read: false
+      });
+
+      logSecurityEvent("PASSENGER_CANCELLED_SEAT", "INFO", `Passenger ${actorId} cancelled seat on ride ${rideId}`);
+      return;
+    }
+
+    // --- HOST / DRIVER CANCELS THE ENTIRE RIDE (EXISTING AUTO-REACTIVATION WORKFLOW) ---
     // Collect all affected passenger IDs (excluding host)
     const rawPassengers = (targetRide.passengers || []).filter(pId => pId !== targetRide.hostId);
     const requestPassengers = requests.filter(req => req.rideId === rideId && req.status === "Accepted").map(req => req.requesterId);

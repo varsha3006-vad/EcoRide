@@ -2732,7 +2732,7 @@ export default function HomePage() {
                                 {/* Cancel action */}
                                 {trip.status?.toLowerCase() !== "completed" && trip.status?.toLowerCase() !== "cancelled" && (
                                   <button
-                                    onClick={() => cancelRide(trip.id)}
+                                    onClick={() => cancelRide(trip.id, currentUser.id)}
                                     className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer"
                                   >
                                     Cancel
