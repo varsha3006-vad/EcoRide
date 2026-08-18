@@ -30,10 +30,27 @@ const supabaseSync = {
         return data;
       }
       if (key === "rides") {
-        const { data, error } = await supabase.from("ecoride_rides").select("*");
-        if (error) throw error;
-        lastRides = data || [];
-        return data;
+        let tableRides: any[] = [];
+        try {
+          const { data, error } = await supabase.from("ecoride_rides").select("*");
+          if (!error && data && data.length > 0) tableRides = data;
+        } catch (e) {}
+
+        let stateRides: any[] = [];
+        try {
+          const { data: stData } = await supabase.from("ecoride_state").select("value").eq("key", "rides").maybeSingle();
+          if (stData && Array.isArray(stData.value)) stateRides = stData.value;
+        } catch (e) {}
+
+        const mergedMap = new Map<string, any>();
+        stateRides.forEach(r => { if (r && r.id) mergedMap.set(r.id, r); });
+        tableRides.forEach(r => { if (r && r.id) mergedMap.set(r.id, r); });
+        const merged = Array.from(mergedMap.values());
+        if (merged.length > 0) {
+          lastRides = merged;
+          return merged;
+        }
+        return lastRides.length > 0 ? lastRides : null;
       }
       if (key === "requests") {
         const { data, error } = await supabase.from("ecoride_requests").select("*");
@@ -123,8 +140,20 @@ const supabaseSync = {
           return !old || JSON.stringify(old) !== JSON.stringify(r);
         });
         if (changed.length > 0) {
-          const { error } = await supabase.from("ecoride_rides").upsert(changed);
-          if (error) throw error;
+          try {
+            const { error } = await supabase.from("ecoride_rides").upsert(changed);
+            if (error) console.warn("Failed to upsert ecoride_rides table:", error);
+          } catch (e) {
+            console.warn("Failed to upsert ecoride_rides:", e);
+          }
+          try {
+            await supabase
+              .from("ecoride_state")
+              .upsert(
+                { key, value, updated_at: new Date().toISOString() },
+                { onConflict: "key" }
+              );
+          } catch (stErr) {}
         }
         lastRides = value;
         return;
@@ -772,6 +801,40 @@ const parseRideDateTime = (dateStr?: string, timeStr?: string): Date | null => {
   return new Date(year, month - 1, day, hours, minutes, 0, 0);
 };
 
+const mergeRidesSafely = (currentRides: Ride[], incomingRides: Ride[]): Ride[] => {
+  const map = new Map<string, Ride>();
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem("ecoride_rides");
+      if (saved) {
+        const parsed: Ride[] = JSON.parse(saved);
+        parsed.forEach(r => {
+          if (r && r.id) map.set(r.id, normalizeRide(r));
+        });
+      }
+    } catch (e) {}
+  }
+
+  (currentRides || []).forEach(r => {
+    if (r && r.id) map.set(r.id, normalizeRide(r));
+  });
+
+  (incomingRides || []).forEach(r => {
+    if (r && r.id) {
+      const existing = map.get(r.id);
+      map.set(r.id, normalizeRide(existing ? { ...existing, ...r } : r));
+    }
+  });
+
+  const merged = Array.from(map.values());
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("ecoride_rides", JSON.stringify(merged));
+    } catch (e) {}
+  }
+  return merged;
+};
+
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -1042,13 +1105,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         loadedRideProposals = await supabaseSync.get("ride_proposals");
       }
 
-      let finalRides = loadedRides || [];
-      if (!loadedRides && typeof window !== "undefined") {
+      let localRides: Ride[] = [];
+      if (typeof window !== "undefined") {
         const savedRides = localStorage.getItem("ecoride_rides");
         if (savedRides) {
-          try { finalRides = JSON.parse(savedRides); } catch (e) {}
+          try { localRides = JSON.parse(savedRides); } catch (e) {}
         }
       }
+      let finalRides = mergeRidesSafely(localRides, loadedRides || []);
 
       let finalRequests = loadedRequests || [];
       if (!loadedRequests && typeof window !== "undefined") {
@@ -1261,10 +1325,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         employeesRef.current = value;
         lastEmployees = value;
       } else if (key === "rides") {
-        const normalized = value.map(normalizeRide);
-        setRides(normalized);
-        ridesRef.current = normalized;
-        lastRides = normalized;
+        setRides(prev => {
+          const merged = mergeRidesSafely(prev, value);
+          ridesRef.current = merged;
+          lastRides = merged;
+          return merged;
+        });
       } else if (key === "requests") {
         setRequests(value);
         lastRequests = value;
@@ -1949,18 +2015,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       city: rideData.city || activeCity
     };
 
-    // Use ref for current rides to avoid stale closure
-    const updatedRides = [newRide, ...ridesRef.current];
-    setRides(updatedRides);
-    ridesRef.current = updatedRides;
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("ecoride_rides", JSON.stringify(updatedRides));
-    }
-    // Write to Supabase OUTSIDE setState — no race condition
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      supabaseSync.set("rides", updatedRides);
-    }
+    // Use safe merging helper to ensure new ride is persisted and never lost to race condition or poll
+    setRides(prev => {
+      const updated = mergeRidesSafely(prev, [newRide]);
+      ridesRef.current = updated;
+      lastRides = updated;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("rides", updated);
+      }
+      return updated;
+    });
     
     logSecurityEvent("RIDE_CREATE", "INFO", `Created ride ID: ${newRide.id} from ${newRide.pickup} to ${newRide.destination} (Seats: ${newRide.seatsTotal})`);
 
