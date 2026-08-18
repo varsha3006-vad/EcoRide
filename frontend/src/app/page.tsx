@@ -969,7 +969,7 @@ export default function HomePage() {
 
   const myCreatedRides = rides.filter(r => r.hostId === currentUser.id);
   const myJoinedRides = rides.filter(r => r.passengers.includes(currentUser.id));
-  const myUpcomingTrips = [...myCreatedRides, ...myJoinedRides].filter(r => r.status?.toLowerCase() !== "completed" && r.status?.toLowerCase() !== "cancelled");
+  const myUpcomingTrips = [...myCreatedRides, ...myJoinedRides].filter(r => r.status?.toLowerCase() !== "completed");
 
   // Search/Filter rides list
   const filteredRides = rides.filter(r => {
@@ -2725,7 +2725,7 @@ export default function HomePage() {
                                 )}
 
                                 {/* Cancel action */}
-                                {trip.status?.toLowerCase() !== "completed" && (
+                                {trip.status?.toLowerCase() !== "completed" && trip.status?.toLowerCase() !== "cancelled" && (
                                   <button
                                     onClick={() => cancelRide(trip.id)}
                                     className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer"

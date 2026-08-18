@@ -2344,14 +2344,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Cancel Ride
   const cancelRide = (rideId: string) => {
     const targetRide = rides.find(r => r.id === rideId);
-    const affectedPassengers = targetRide?.passengers || [];
+    if (!targetRide) return;
+
+    // Collect all affected passenger IDs (excluding host)
+    const rawPassengers = (targetRide.passengers || []).filter(pId => pId !== targetRide.hostId);
+    const requestPassengers = requests.filter(req => req.rideId === rideId && req.status === "Accepted").map(req => req.requesterId);
+    const affectedPassengers = Array.from(new Set([...rawPassengers, ...requestPassengers]));
 
     setRides(prev => {
       const updated = prev.map(ride => {
         if (ride.id !== rideId) return ride;
 
         // Penalty for driver late cancellation
-        setEmployees(prev => prev.map(emp => {
+        setEmployees(prevEmps => prevEmps.map(emp => {
           if (emp.id !== ride.hostId) return emp;
           return {
             ...emp,
@@ -2386,7 +2391,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (SUPABASE_URL && SUPABASE_ANON_KEY) {
           supabaseSync.delete(`messages_${rideId}`);
         }
-        setMessages(prev => prev.filter(m => m.rideId !== rideId));
+        setMessages(prevMsgs => prevMsgs.filter(m => m.rideId !== rideId));
 
         return {
           ...ride,
@@ -2403,19 +2408,44 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return updated;
     });
 
-    // Auto-reactivate affected passengers' commute requests & update proposals/requests
+    // Auto-reactivate OR auto-create affected passengers' commute requests & update proposals/requests
     if (affectedPassengers.length > 0) {
       setCommuteRequests(prev => {
-        const updated = prev.map(cr => {
-          if (affectedPassengers.includes(cr.requesterId)) {
-            return {
-              ...cr,
+        let updated = [...prev];
+
+        affectedPassengers.forEach(psgrId => {
+          const psgrUser = employees.find(e => e.id === psgrId);
+          const existingReqIndex = updated.findIndex(cr => cr.requesterId === psgrId && (cr.status === "Matched" || cr.status === "Pending"));
+
+          if (existingReqIndex >= 0) {
+            // Re-activate existing request with Urgent priority
+            updated[existingReqIndex] = {
+              ...updated[existingReqIndex],
               status: "Pending",
               urgent: true,
               cancelledByDriver: true
             };
+          } else {
+            // Auto-create urgent commute request if passenger joined directly without prior request
+            const newUrgentReq: CommuteRequest = {
+              id: `cr-auto-${Date.now()}-${psgrId}`,
+              requesterId: psgrId,
+              requesterName: psgrUser?.name || "Colleague Passenger",
+              requesterAvatar: psgrUser?.avatar || "👤",
+              requesterDept: psgrUser?.department || "Operations",
+              pickup: targetRide.pickup,
+              destination: targetRide.destination,
+              rideDate: targetRide.rideDate || new Date().toISOString().split("T")[0],
+              desiredTime: targetRide.departureTime || "09:00 AM",
+              seatsNeeded: 1,
+              status: "Pending",
+              city: targetRide.city || activeCity,
+              timestamp: new Date().toISOString(),
+              urgent: true,
+              cancelledByDriver: true
+            };
+            updated = [newUrgentReq, ...updated];
           }
-          return cr;
         });
 
         if (typeof window !== "undefined") {
