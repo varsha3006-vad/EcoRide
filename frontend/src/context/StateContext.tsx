@@ -20,6 +20,32 @@ let lastCommuteRequests: any[] = [];
 let lastRideProposals: any[] = [];
 
 const supabaseSync = {
+  clearAllData: async () => {
+    if (!supabase) return;
+    try {
+      console.log("🔥 Executing deep Postgres database table purge in Supabase...");
+      await Promise.all([
+        supabase.from("ecoride_rides").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase.from("ecoride_requests").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase.from("ecoride_commute_requests").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase.from("ecoride_ride_proposals").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase.from("ecoride_messages").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase.from("ecoride_notifications").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase.from("ecoride_announcements").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase.from("ecoride_audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase.from("ecoride_state").delete().neq("key", "keep_none")
+      ]);
+      lastRides = [];
+      lastRequests = [];
+      lastCommuteRequests = [];
+      lastRideProposals = [];
+      lastMessages = [];
+      lastEmployees = [];
+      console.log("✅ Supabase cloud tables completely purged!");
+    } catch (e) {
+      console.warn("Supabase purge error:", e);
+    }
+  },
   get: async (key: string) => {
     if (!supabase) return null;
     try {
@@ -1179,6 +1205,41 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.log("🔗 Supabase Target URL:", SUPABASE_URL || "NOT CONFIGURED (Local Sandbox Mode)");
       console.log("🔑 Anon Key Active:", SUPABASE_ANON_KEY ? "YES (Cloud Active)" : "NO");
       
+      // Force Clean Migration v10 for Total Fresh Testing Environment
+      if (typeof window !== "undefined") {
+        const isCleanV10 = localStorage.getItem("ecoride_force_clean_v10");
+        if (isCleanV10 !== "true") {
+          console.log("⚡ Executing force clean v10 database wipe...");
+          localStorage.removeItem("ecoride_rides");
+          localStorage.removeItem("ecoride_requests");
+          localStorage.removeItem("ecoride_commute_requests");
+          localStorage.removeItem("ecoride_ride_proposals");
+          localStorage.removeItem("ecoride_messages");
+          localStorage.removeItem("ecoride_notifications");
+          localStorage.removeItem("ecoride_employees");
+          localStorage.removeItem("ecoride_read_announcements");
+          localStorage.setItem("ecoride_force_clean_v10", "true");
+
+          if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            await supabaseSync.clearAllData();
+          }
+
+          setRides([]);
+          setRequests([]);
+          setCommuteRequests([]);
+          setRideProposals([]);
+          setMessages([]);
+          setNotifications([]);
+          
+          const cleanEmps = INITIAL_EMPLOYEES.map(e => ({ ...e, credits: 0, carbonSaved: 0.0, esgScore: 0, badgeIds: [] }));
+          setEmployees(cleanEmps);
+          if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            supabaseSync.set("employees", cleanEmps);
+          }
+          return;
+        }
+      }
+
       let loadedRides = null;
       let loadedRequests = null;
       let loadedMessages = null;
@@ -3784,12 +3845,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      supabaseSync.set("rides", []);
-      supabaseSync.set("requests", []);
-      supabaseSync.set("commute_requests", []);
-      supabaseSync.set("ride_proposals", []);
-      supabaseSync.set("messages", []);
-      supabaseSync.set("notifications", []);
+      supabaseSync.clearAllData();
+      supabaseSync.set("employees", INITIAL_EMPLOYEES.map(e => ({ ...e, credits: 0, carbonSaved: 0.0, esgScore: 0, badgeIds: [] })));
     }
   };
 
