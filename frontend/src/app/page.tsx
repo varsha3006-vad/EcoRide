@@ -2715,7 +2715,7 @@ export default function HomePage() {
                                 </a>
 
                                 {/* SOS Calling Feature (112) */}
-                                {trip.status?.toLowerCase() !== "completed" && trip.status?.toLowerCase() !== "cancelled" && (
+                                {trip.status?.toLowerCase() === "started" && (
                                   <a
                                     href="tel:112"
                                     onClick={() => setSosModalTrip(trip)}
