@@ -2583,7 +2583,9 @@ export default function HomePage() {
                           <div key={trip.id} className="py-4 last:pb-0 space-y-3">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                               <div className="flex items-start gap-3">
-                                <span className="text-2xl mt-0.5">🚗</span>
+                                <span className="text-2xl mt-0.5">
+                                  {trip.vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "🛵" : "🚗"}
+                                </span>
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-800 dark:text-white">
                                     {trip.pickup} → {trip.destination}
@@ -2600,12 +2602,12 @@ export default function HomePage() {
                                     <span>• Status: <strong className="text-brand-green-600">{trip.status}</strong></span>
                                     <span>• Role: {isHost ? "Host" : "Passenger"}</span>
                                     <span className="flex items-center gap-1">
-                                      <span>• Vehicle: {trip.vehicleModel} - {trip.vehicleType}</span>
+                                      <span>• Vehicle: {trip.vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "🛵 2-Wheeler" : "🚘 Car"} ({trip.vehicleModel} - {trip.vehicleType})</span>
                                       <span className="inline-flex items-center px-2 py-0.5 rounded border border-slate-350 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-[11px] font-black text-slate-800 dark:text-slate-200 tracking-wider font-mono shadow-sm ml-0.5">
-                                        🚗 {trip.vehiclePlate || "N/A"}
+                                        {trip.vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "🛵" : "🚗"} {trip.vehiclePlate || "N/A"}
                                       </span>
                                     </span>
-                                    <span>• Seats: <strong>{trip.seatsAvailable} of {trip.seatsTotal} vacant</strong></span>
+                                    <span>• Seats: <strong>{trip.seatsAvailable} of {trip.seatsTotal} {trip.vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "pillion vacant" : "vacant"}</strong></span>
                                     {trip.womenOnly && (
                                       <span className="text-purple-600 dark:text-purple-400 font-bold">• 👩‍👧‍👧 Female-Only</span>
                                     )}
@@ -2813,14 +2815,15 @@ export default function HomePage() {
                                }&destination=${encodeURIComponent(trip.destination)}${passengerPickups.length > 0 ? `&waypoints=${encodeURIComponent(passengerPickups.join('|'))}` : ""}&dir_action=navigate&travelmode=driving`;
 
                                let liveTickerText = "";
+                               const vehIconStr = trip.vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "🛵" : "🚘";
                                if (trip.driverLat && trip.driverLng && myReq?.pickupLat && myReq?.pickupLng) {
                                  const distKm = getDistance(trip.driverLat, trip.driverLng, myReq.pickupLat, myReq.pickupLng);
                                  const etaMins = Math.max(1, Math.round((distKm / 35) * 60));
-                                 liveTickerText = `🚘 Colleague Host ${trip.hostName} is ${distKm.toFixed(1)} km away from your pickup point (~${etaMins} mins ETA)`;
+                                 liveTickerText = `${vehIconStr} Colleague Host ${trip.hostName} is ${distKm.toFixed(1)} km away from your pickup point (~${etaMins} mins ETA)`;
                                } else if (trip.driverLat && trip.driverLng) {
                                  liveTickerText = `📡 Colleague Host ${trip.hostName} is active & en-route — Live GPS Tracking Connected`;
                                } else {
-                                 liveTickerText = `🚗 Colleague Host ${trip.hostName} has started the commute to ${myReq?.pickup || trip.pickup}`;
+                                 liveTickerText = `${vehIconStr} Colleague Host ${trip.hostName} has started the commute to ${myReq?.pickup || trip.pickup}`;
                                }
 
                               return (

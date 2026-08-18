@@ -15,6 +15,7 @@ interface InteractiveMapProps {
   rideId?: string;
   isHost?: boolean;
   passengerId?: string; // current user's id when they are a passenger
+  vehicleCategory?: "4-Wheeler (Car)" | "2-Wheeler (Bike/Scooter)";
 }
 
 export default function InteractiveMap({ 
@@ -27,7 +28,8 @@ export default function InteractiveMap({
   onLocationDetected,
   rideId,
   isHost = false,
-  passengerId
+  passengerId,
+  vehicleCategory
 }: InteractiveMapProps) {
   const { rides, updateRideLocation, updatePassengerLocation } = useAppState();
   const [eta, setEta] = useState<number | null>(null);
@@ -76,6 +78,8 @@ export default function InteractiveMap({
       setIsAutoCentering(true);
     }
   }, [isDriving]);
+
+  const vehChar = vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "🛵" : "🚗";
 
   // 1. Load Google Maps API Script
   useEffect(() => {
@@ -326,7 +330,7 @@ export default function InteractiveMap({
       
       const carMarker = new google.maps.Marker({
         position: startLatLng, map: map,
-        icon: { url: `data:image/svg+xml;utf8,` + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(90 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`), scaledSize: new google.maps.Size(32, 32), anchor: new google.maps.Point(16, 16) }
+        icon: { url: `data:image/svg+xml;utf8,` + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(90 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">${vehChar}</text></svg>`), scaledSize: new google.maps.Size(32, 32), anchor: new google.maps.Point(16, 16) }
       });
       carMarkerRef.current = carMarker;
     };
@@ -418,7 +422,7 @@ export default function InteractiveMap({
           if (heading !== null && !isNaN(heading)) {
             const adjustedRotation = (heading + 90) % 360;
             const rotatedSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(
-              `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(${adjustedRotation} 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`
+              `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(${adjustedRotation} 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">${vehChar}</text></svg>`
             );
             carMarkerRef.current.setIcon({
               url: rotatedSvg,
@@ -545,7 +549,7 @@ export default function InteractiveMap({
           
           const adjustedRotation = (heading + 90) % 360;
           const rotatedSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(
-            `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(${adjustedRotation} 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">🚗</text></svg>`
+            `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><text transform="rotate(${adjustedRotation} 16 16)" x="16" y="18" font-size="22" text-anchor="middle" dominant-baseline="middle">${vehChar}</text></svg>`
           );
           carMarkerRef.current.setIcon({
             url: rotatedSvg,
