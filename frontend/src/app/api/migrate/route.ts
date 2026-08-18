@@ -133,6 +133,42 @@ export async function GET() {
         "type" TEXT NOT NULL
       );
 
+      -- 7. Commute requests posted by passengers
+      CREATE TABLE IF NOT EXISTS ecoride_commute_requests (
+        "id" TEXT PRIMARY KEY,
+        "requesterId" TEXT NOT NULL REFERENCES ecoride_employees("id") ON DELETE CASCADE,
+        "requesterName" TEXT NOT NULL,
+        "requesterAvatar" TEXT,
+        "requesterDept" TEXT,
+        "pickup" TEXT NOT NULL,
+        "pickupLat" NUMERIC,
+        "pickupLng" NUMERIC,
+        "destination" TEXT NOT NULL,
+        "destLat" NUMERIC,
+        "destLng" NUMERIC,
+        "rideDate" TEXT NOT NULL,
+        "desiredTime" TEXT NOT NULL,
+        "seatsNeeded" INTEGER NOT NULL DEFAULT 1,
+        "status" TEXT NOT NULL DEFAULT 'Pending',
+        "city" TEXT NOT NULL,
+        "timestamp" TEXT NOT NULL
+      );
+
+      -- 8. Proposals sent by drivers to pick up passengers
+      CREATE TABLE IF NOT EXISTS ecoride_ride_proposals (
+        "id" TEXT PRIMARY KEY,
+        "requestId" TEXT NOT NULL REFERENCES ecoride_commute_requests("id") ON DELETE CASCADE,
+        "hostId" TEXT NOT NULL REFERENCES ecoride_employees("id") ON DELETE CASCADE,
+        "hostName" TEXT NOT NULL,
+        "hostAvatar" TEXT,
+        "hostDept" TEXT,
+        "proposedTimeOffset" INTEGER NOT NULL,
+        "proposedDepartureTime" TEXT NOT NULL,
+        "rideId" TEXT REFERENCES ecoride_rides("id") ON DELETE CASCADE,
+        "status" TEXT NOT NULL DEFAULT 'Pending',
+        "timestamp" TEXT NOT NULL
+      );
+
       -- Indices for performance optimizations
       CREATE INDEX IF NOT EXISTS idx_ecoride_employees_email ON ecoride_employees("email");
       CREATE INDEX IF NOT EXISTS idx_ecoride_rides_host ON ecoride_rides("hostId");
@@ -140,6 +176,10 @@ export async function GET() {
       CREATE INDEX IF NOT EXISTS idx_ecoride_requests_ride ON ecoride_requests("rideId");
       CREATE INDEX IF NOT EXISTS idx_ecoride_requests_requester ON ecoride_requests("requesterId");
       CREATE INDEX IF NOT EXISTS idx_ecoride_messages_ride ON ecoride_messages("rideId");
+      CREATE INDEX IF NOT EXISTS idx_ecoride_commute_requests_req ON ecoride_commute_requests("requesterId");
+      CREATE INDEX IF NOT EXISTS idx_ecoride_commute_requests_city ON ecoride_commute_requests("city");
+      CREATE INDEX IF NOT EXISTS idx_ecoride_ride_proposals_req ON ecoride_ride_proposals("requestId");
+      CREATE INDEX IF NOT EXISTS idx_ecoride_ride_proposals_host ON ecoride_ride_proposals("hostId");
 
       -- Seed data
       INSERT INTO ecoride_employees (

@@ -16,6 +16,8 @@ let lastEmployees: any[] = [];
 let lastRides: any[] = [];
 let lastRequests: any[] = [];
 let lastMessages: any[] = [];
+let lastCommuteRequests: any[] = [];
+let lastRideProposals: any[] = [];
 
 const supabaseSync = {
   get: async (key: string) => {
@@ -38,6 +40,34 @@ const supabaseSync = {
         if (error) throw error;
         lastRequests = data || [];
         return data;
+      }
+      if (key === "commute_requests") {
+        try {
+          const { data, error } = await supabase.from("ecoride_commute_requests").select("*");
+          if (error) throw error;
+          lastCommuteRequests = data || [];
+          return data;
+        } catch (dbErr) {
+          console.warn("ecoride_commute_requests table missing, falling back to state table", dbErr);
+          const { data, error } = await supabase.from("ecoride_state").select("value").eq("key", key).maybeSingle();
+          if (error) throw error;
+          lastCommuteRequests = data ? data.value : [];
+          return lastCommuteRequests;
+        }
+      }
+      if (key === "ride_proposals") {
+        try {
+          const { data, error } = await supabase.from("ecoride_ride_proposals").select("*");
+          if (error) throw error;
+          lastRideProposals = data || [];
+          return data;
+        } catch (dbErr) {
+          console.warn("ecoride_ride_proposals table missing, falling back to state table", dbErr);
+          const { data, error } = await supabase.from("ecoride_state").select("value").eq("key", key).maybeSingle();
+          if (error) throw error;
+          lastRideProposals = data ? data.value : [];
+          return lastRideProposals;
+        }
       }
       if (key === "messages" || key.startsWith("messages_")) {
         const rideId = key.startsWith("messages_") ? key.replace("messages_", "") : null;
@@ -117,6 +147,52 @@ const supabaseSync = {
           }
         }
         lastRequests = value;
+        return;
+      }
+      if (key === "commute_requests" && Array.isArray(value)) {
+        const changed = value.filter(r => {
+          const old = lastCommuteRequests.find(o => o.id === r.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(r);
+        });
+        if (changed.length > 0) {
+          try {
+            const { error } = await supabase.from("ecoride_commute_requests").upsert(changed);
+            if (error) throw error;
+          } catch (dbErr) {
+            console.warn("Failed to upsert ecoride_commute_requests, falling back to state table:", dbErr);
+            const { error } = await supabase
+              .from("ecoride_state")
+              .upsert(
+                { key, value, updated_at: new Date().toISOString() },
+                { onConflict: "key" }
+              );
+            if (error) throw error;
+          }
+        }
+        lastCommuteRequests = value;
+        return;
+      }
+      if (key === "ride_proposals" && Array.isArray(value)) {
+        const changed = value.filter(r => {
+          const old = lastRideProposals.find(o => o.id === r.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(r);
+        });
+        if (changed.length > 0) {
+          try {
+            const { error } = await supabase.from("ecoride_ride_proposals").upsert(changed);
+            if (error) throw error;
+          } catch (dbErr) {
+            console.warn("Failed to upsert ecoride_ride_proposals, falling back to state table:", dbErr);
+            const { error } = await supabase
+              .from("ecoride_state")
+              .upsert(
+                { key, value, updated_at: new Date().toISOString() },
+                { onConflict: "key" }
+              );
+            if (error) throw error;
+          }
+        }
+        lastRideProposals = value;
         return;
       }
       if ((key === "messages" || key.startsWith("messages_")) && Array.isArray(value)) {
@@ -295,6 +371,40 @@ export interface SecurityAuditLog {
   details: string;
 }
 
+export interface CommuteRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  requesterAvatar?: string;
+  requesterDept?: string;
+  pickup: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  destination: string;
+  destLat?: number;
+  destLng?: number;
+  rideDate: string;
+  desiredTime: string;
+  seatsNeeded: number;
+  status: string; // 'Pending' | 'Matched' | 'Cancelled'
+  city: string;
+  timestamp: string;
+}
+
+export interface RideProposal {
+  id: string;
+  requestId: string;
+  hostId: string;
+  hostName: string;
+  hostAvatar?: string;
+  hostDept?: string;
+  proposedTimeOffset: number;
+  proposedDepartureTime: string;
+  rideId?: string; // Links to host's ride
+  status: string; // 'Pending' | 'Accepted' | 'Declined'
+  timestamp: string;
+}
+
 interface StateContextType {
   employees: Employee[];
   currentUser: Employee;
@@ -334,6 +444,12 @@ interface StateContextType {
   setActiveCity: (city: string) => void;
   addNotification: (notif: Notification) => void;
   sendGlobalAnnouncement: (message: string) => Promise<void>;
+  commuteRequests: CommuteRequest[];
+  rideProposals: RideProposal[];
+  postCommuteRequest: (data: Omit<CommuteRequest, "id" | "requesterId" | "requesterName" | "requesterAvatar" | "requesterDept" | "status" | "timestamp">) => Promise<void>;
+  sendRideProposal: (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string) => Promise<void>;
+  acceptRideProposal: (proposalId: string) => Promise<void>;
+  declineRideProposal: (proposalId: string) => Promise<void>;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -660,12 +776,24 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>([]);
   const [activeCity, setActiveCity] = useState<string>("Bangalore");
+  const [commuteRequests, setCommuteRequests] = useState<CommuteRequest[]>([]);
+  const [rideProposals, setRideProposals] = useState<RideProposal[]>([]);
 
   const currentUserIdRef = useRef(currentUserId);
   const ridesRef = useRef(rides);
   const requestsRef = useRef(requests);
   const employeesRef = useRef(employees);
   const messagesRef = useRef(messages);
+  const commuteRequestsRef = useRef(commuteRequests);
+  const rideProposalsRef = useRef(rideProposals);
+
+  useEffect(() => {
+    commuteRequestsRef.current = commuteRequests;
+  }, [commuteRequests]);
+
+  useEffect(() => {
+    rideProposalsRef.current = rideProposals;
+  }, [rideProposals]);
 
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
@@ -876,6 +1004,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let loadedRequests = null;
       let loadedMessages = null;
       let loadedEmployees = null;
+      let loadedCommuteRequests = null;
+      let loadedRideProposals = null;
 
       if (SUPABASE_URL && SUPABASE_ANON_KEY) {
         console.log("🔌 Connecting to Supabase for shared data...");
@@ -883,6 +1013,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         loadedRequests = await supabaseSync.get("requests");
         loadedMessages = await supabaseSync.get("messages");
         loadedEmployees = await supabaseSync.get("employees");
+        loadedCommuteRequests = await supabaseSync.get("commute_requests");
+        loadedRideProposals = await supabaseSync.get("ride_proposals");
       }
 
       let finalRides = loadedRides || [];
@@ -903,6 +1035,22 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (loadedMessages) {
         setMessages(loadedMessages);
+      }
+
+      let finalCommuteRequests = loadedCommuteRequests || [];
+      if (!loadedCommuteRequests && typeof window !== "undefined") {
+        const saved = localStorage.getItem("ecoride_commute_requests");
+        if (saved) {
+          try { finalCommuteRequests = JSON.parse(saved); } catch (e) {}
+        }
+      }
+
+      let finalRideProposals = loadedRideProposals || [];
+      if (!loadedRideProposals && typeof window !== "undefined") {
+        const saved = localStorage.getItem("ecoride_ride_proposals");
+        if (saved) {
+          try { finalRideProposals = JSON.parse(saved); } catch (e) {}
+        }
       }
 
       let finalEmployees = loadedEmployees || INITIAL_EMPLOYEES;
@@ -1018,6 +1166,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setEmployees(finalEmployees);
       setRides(finalRides.map(normalizeRide));
       setRequests(finalRequests);
+      setCommuteRequests(finalCommuteRequests);
+      commuteRequestsRef.current = finalCommuteRequests;
+      setRideProposals(finalRideProposals);
+      rideProposalsRef.current = finalRideProposals;
 
       setIsLoaded(true);
     };
@@ -1044,6 +1196,20 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setRequests(parsed);
         } catch (err) {}
       }
+      if (e.key === "ecoride_commute_requests" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setCommuteRequests(parsed);
+          commuteRequestsRef.current = parsed;
+        } catch (err) {}
+      }
+      if (e.key === "ecoride_ride_proposals" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setRideProposals(parsed);
+          rideProposalsRef.current = parsed;
+        } catch (err) {}
+      }
     };
 
     window.addEventListener("storage", handleStorageChange);
@@ -1065,6 +1231,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else if (key === "requests") {
         setRequests(value);
         lastRequests = value;
+      } else if (key === "commute_requests") {
+        setCommuteRequests(value);
+        commuteRequestsRef.current = value;
+        lastCommuteRequests = value;
+      } else if (key === "ride_proposals") {
+        setRideProposals(value);
+        rideProposalsRef.current = value;
+        lastRideProposals = value;
       } else if (key.startsWith("messages_")) {
         const rId = key.replace("messages_", "");
         setMessages(prev => {
@@ -1179,6 +1353,89 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
       .subscribe();
 
+    const channelCommuteRequests = supabase
+      .channel("commute-requests-realtime")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "ecoride_commute_requests" }, (payload: any) => {
+        if (payload.eventType === "INSERT") {
+          setCommuteRequests(prev => {
+            const updated = [payload.new, ...prev.filter(r => r.id !== payload.new.id)];
+            commuteRequestsRef.current = updated;
+            lastCommuteRequests = updated;
+            return updated;
+          });
+        } else if (payload.eventType === "UPDATE") {
+          setCommuteRequests(prev => {
+            const updated = prev.map(r => r.id === payload.new.id ? payload.new : r);
+            commuteRequestsRef.current = updated;
+            lastCommuteRequests = updated;
+            return updated;
+          });
+        } else if (payload.eventType === "DELETE") {
+          setCommuteRequests(prev => {
+            const updated = prev.filter(r => r.id !== payload.old.id);
+            commuteRequestsRef.current = updated;
+            lastCommuteRequests = updated;
+            return updated;
+          });
+        }
+      })
+      .subscribe();
+
+    const channelRideProposals = supabase
+      .channel("ride-proposals-realtime")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "ecoride_ride_proposals" }, (payload: any) => {
+        if (payload.eventType === "INSERT") {
+          setRideProposals(prev => {
+            const updated = [payload.new, ...prev.filter(r => r.id !== payload.new.id)];
+            rideProposalsRef.current = updated;
+            lastRideProposals = updated;
+            return updated;
+          });
+
+          // Proximity/Proposal notification trigger for targeted passenger requester
+          const commuteReq = commuteRequestsRef.current.find(c => c.id === payload.new.requestId);
+          if (commuteReq && commuteReq.requesterId === currentUserIdRef.current) {
+            addNotification({
+              id: `prop-alert-${payload.new.id}`,
+              title: "Ride Offer Received 🚗",
+              message: `Your colleague ${payload.new.hostName} offered to pick you up at ${payload.new.proposedDepartureTime} (${payload.new.proposedTimeOffset > 0 ? "+" : ""}${payload.new.proposedTimeOffset} mins offset).`,
+              timestamp: "Just now",
+              type: "info",
+              read: false
+            });
+            playNotificationSound();
+          }
+        } else if (payload.eventType === "UPDATE") {
+          setRideProposals(prev => {
+            const updated = prev.map(r => r.id === payload.new.id ? payload.new : r);
+            rideProposalsRef.current = updated;
+            lastRideProposals = updated;
+            return updated;
+          });
+
+          // Proximity/Proposal notification trigger for host once accepted
+          if (payload.new.status === "Accepted" && payload.new.hostId === currentUserIdRef.current) {
+            addNotification({
+              id: `prop-acc-alert-${payload.new.id}`,
+              title: "Ride Offer Accepted! 🎉",
+              message: "Your colleague accepted your proposal to pick them up. View passengers list on your active ride card.",
+              timestamp: "Just now",
+              type: "success",
+              read: false
+            });
+            playNotificationSound();
+          }
+        } else if (payload.eventType === "DELETE") {
+          setRideProposals(prev => {
+            const updated = prev.filter(r => r.id !== payload.old.id);
+            rideProposalsRef.current = updated;
+            lastRideProposals = updated;
+            return updated;
+          });
+        }
+      })
+      .subscribe();
+
     // --- Fallback polling ---
     const pollDatabase = async () => {
       try {
@@ -1187,6 +1444,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         const reqVal = await supabaseSync.get("requests");
         if (reqVal) applyRow("requests", reqVal);
+
+        const commuteVal = await supabaseSync.get("commute_requests");
+        if (commuteVal) applyRow("commute_requests", commuteVal);
+
+        const propVal = await supabaseSync.get("ride_proposals");
+        if (propVal) applyRow("ride_proposals", propVal);
 
         // Messages for active rides
         const activeRides = ridesRef.current;
@@ -1214,6 +1477,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabase.removeChannel(channelEmployees);
       supabase.removeChannel(channelMessages);
       supabase.removeChannel(channelAnnouncements);
+      supabase.removeChannel(channelCommuteRequests);
+      supabase.removeChannel(channelRideProposals);
       clearInterval(interval);
     };
   }, []);
@@ -2375,6 +2640,251 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const postCommuteRequest = async (data: Omit<CommuteRequest, "id" | "requesterId" | "requesterName" | "requesterAvatar" | "requesterDept" | "status" | "timestamp">) => {
+    const newRequest: CommuteRequest = {
+      ...data,
+      id: `cr-${Date.now()}`,
+      requesterId: currentUser.id,
+      requesterName: currentUser.name,
+      requesterAvatar: currentUser.avatar,
+      requesterDept: currentUser.department,
+      status: "Pending",
+      timestamp: new Date().toISOString()
+    };
+
+    setCommuteRequests(prev => {
+      const updated = [newRequest, ...prev];
+      commuteRequestsRef.current = updated;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("commute_requests", updated);
+      }
+      return updated;
+    });
+
+    logSecurityEvent("COMMUTE_REQUEST_POST", "INFO", `User posted commute request from ${data.pickup} to ${data.destination}`);
+    addNotification({
+      id: `n-cr-${Date.now()}`,
+      title: "Pickup Request Posted! 📋",
+      message: `Your pickup request has been posted. Drivers in ${activeCity} can now see it and send proposals.`,
+      timestamp: "Just now",
+      type: "success",
+      read: false
+    });
+  };
+
+  const sendRideProposal = async (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string) => {
+    const newProposal: RideProposal = {
+      id: `pr-${Date.now()}`,
+      requestId,
+      hostId: currentUser.id,
+      hostName: currentUser.name,
+      hostAvatar: currentUser.avatar,
+      hostDept: currentUser.department,
+      proposedTimeOffset,
+      proposedDepartureTime,
+      rideId,
+      status: "Pending",
+      timestamp: new Date().toISOString()
+    };
+
+    setRideProposals(prev => {
+      const updated = [newProposal, ...prev];
+      rideProposalsRef.current = updated;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_ride_proposals", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("ride_proposals", updated);
+      }
+      return updated;
+    });
+
+    logSecurityEvent("RIDE_PROPOSAL_SEND", "INFO", `Driver offered pickup proposal for request ${requestId} with offset ${proposedTimeOffset} mins`);
+    
+    const commReq = commuteRequests.find(c => c.id === requestId);
+    if (commReq) {
+      addNotification({
+        id: `n-prop-send-${Date.now()}`,
+        title: "Proposal Sent! ✉️",
+        message: `Your ride offer has been successfully sent to ${commReq.requesterName}.`,
+        timestamp: "Just now",
+        type: "success",
+        read: false
+      });
+    }
+  };
+
+  const acceptRideProposal = async (proposalId: string) => {
+    const proposal = rideProposals.find(p => p.id === proposalId);
+    if (!proposal) return;
+
+    // Update proposal status
+    const updatedProposals = rideProposals.map(p => {
+      if (p.id === proposalId) return { ...p, status: "Accepted" };
+      if (p.requestId === proposal.requestId) return { ...p, status: "Declined" };
+      return p;
+    });
+
+    // Update commute request status
+    const updatedCommuteRequests = commuteRequests.map(cr => {
+      if (cr.id === proposal.requestId) return { ...cr, status: "Matched" };
+      return cr;
+    });
+
+    const commReq = commuteRequests.find(c => c.id === proposal.requestId);
+    if (!commReq) return;
+
+    let targetRide: Ride | undefined;
+    if (proposal.rideId) {
+      targetRide = rides.find(r => r.id === proposal.rideId);
+    }
+
+    if (!targetRide) {
+      const hostUser = employees.find(e => e.id === proposal.hostId);
+      const rideId = `r-${Date.now()}`;
+      const newRide: Ride = {
+        id: rideId,
+        hostId: proposal.hostId,
+        hostName: proposal.hostName,
+        hostAvatar: proposal.hostAvatar || "🚗",
+        hostDept: proposal.hostDept || "",
+        hostRating: 5.0,
+        pickup: commReq.pickup,
+        destination: commReq.destination,
+        departureTime: proposal.proposedDepartureTime,
+        rideDate: commReq.rideDate,
+        vehicleModel: hostUser?.vehicle?.model || "Standard Hybrid",
+        vehiclePlate: hostUser?.vehicle?.plateNumber || "TEMP-PLT",
+        vehicleType: hostUser?.vehicle?.type || "Hybrid",
+        seatsAvailable: (hostUser?.vehicle?.capacity || 4) - 1,
+        seatsTotal: hostUser?.vehicle?.capacity || 4,
+        recurring: false,
+        status: "Published",
+        passengers: [currentUser.id],
+        boardedPassengers: [],
+        city: commReq.city,
+        detourRadius: 3,
+        co2Saved: 5.0,
+        esgCredits: 50,
+        luggageAllowed: true
+      };
+
+      setRides(prev => {
+        const updated = [newRide, ...prev];
+        ridesRef.current = updated;
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("rides", updated);
+        }
+        return updated;
+      });
+
+      targetRide = newRide;
+    } else {
+      setRides(prev => {
+        const updated = prev.map(r => {
+          if (r.id === targetRide!.id) {
+            const currentPsgrs = r.passengers || [];
+            return {
+              ...r,
+               passengers: [...currentPsgrs.filter(id => id !== currentUser.id), currentUser.id],
+               seatsAvailable: Math.max(0, r.seatsAvailable - 1)
+            };
+          }
+          return r;
+        });
+        ridesRef.current = updated;
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("rides", updated);
+        }
+        return updated;
+      });
+    }
+
+    const newRideRequest: RideRequest = {
+      id: `req-${Date.now()}`,
+      rideId: targetRide.id,
+      requesterId: currentUser.id,
+      requesterName: currentUser.name,
+      requesterAvatar: currentUser.avatar,
+      requesterDept: currentUser.department,
+      requesterRating: 5.0,
+      pickup: commReq.pickup,
+      pickupLat: commReq.pickupLat,
+      pickupLng: commReq.pickupLng,
+      dropPoint: commReq.destination,
+      dropLat: commReq.destLat,
+      dropLng: commReq.destLng,
+      status: "Accepted",
+      timestamp: new Date().toISOString(),
+      boardingPin: Math.floor(1000 + Math.random() * 9000).toString(),
+      deviationKm: 0.00
+    };
+
+    setRequests(prev => {
+      const updated = [newRideRequest, ...prev];
+      requestsRef.current = updated;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_requests", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("requests", updated);
+      }
+      return updated;
+    });
+
+    setCommuteRequests(updatedCommuteRequests);
+    commuteRequestsRef.current = updatedCommuteRequests;
+    setRideProposals(updatedProposals);
+    rideProposalsRef.current = updatedProposals;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_commute_requests", JSON.stringify(updatedCommuteRequests));
+      localStorage.setItem("ecoride_ride_proposals", JSON.stringify(updatedProposals));
+    }
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("commute_requests", updatedCommuteRequests);
+      supabaseSync.set("ride_proposals", updatedProposals);
+    }
+
+    logSecurityEvent("RIDE_PROPOSAL_ACCEPT", "INFO", `Passenger accepted ride proposal ${proposalId}`);
+    addNotification({
+      id: `n-prop-acc-${Date.now()}`,
+      title: "Proposal Accepted! 🚗",
+      message: `You have matched with your colleague ${proposal.hostName}. The commute details are now on your dashboard.`,
+      timestamp: "Just now",
+      type: "success",
+      read: false
+    });
+  };
+
+  const declineRideProposal = async (proposalId: string) => {
+    const updatedProposals = rideProposals.map(p => {
+      if (p.id === proposalId) return { ...p, status: "Declined" };
+      return p;
+    });
+
+    setRideProposals(updatedProposals);
+    rideProposalsRef.current = updatedProposals;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_ride_proposals", JSON.stringify(updatedProposals));
+    }
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("ride_proposals", updatedProposals);
+    }
+
+    logSecurityEvent("RIDE_PROPOSAL_DECLINE", "INFO", `Passenger declined ride proposal ${proposalId}`);
+  };
+
   return (
     <StateContext.Provider
       value={{
@@ -2415,7 +2925,13 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         activeCity,
         setActiveCity,
         addNotification,
-        sendGlobalAnnouncement
+        sendGlobalAnnouncement,
+        commuteRequests,
+        rideProposals,
+        postCommuteRequest,
+        sendRideProposal,
+        acceptRideProposal,
+        declineRideProposal
       }}
     >
       {children}

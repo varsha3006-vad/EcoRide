@@ -299,7 +299,13 @@ export default function HomePage() {
     addNotification,
     sendGlobalAnnouncement,
     notifications,
-    markNotificationsRead
+    markNotificationsRead,
+    commuteRequests,
+    rideProposals,
+    postCommuteRequest,
+    sendRideProposal,
+    acceptRideProposal,
+    declineRideProposal
   } = useAppState();
 
   // Helper to filter time options dynamically for future times only when scheduling for today
@@ -350,7 +356,7 @@ export default function HomePage() {
   const [safetyPassengerId, setSafetyPassengerId] = useState<string | null>(null);
 
   // Wizard state: null | "host" | "join"
-  const [activeWizard, setActiveWizard] = useState<null | "host" | "join">(null);
+  const [activeWizard, setActiveWizard] = useState<null | "host" | "join" | "commute-request">(null);
   const [activeChatRideId, setActiveChatRideId] = useState<string | null>(null);
 
   // Search filter states
@@ -374,6 +380,18 @@ export default function HomePage() {
   const [womenOnly, setWomenOnly] = useState(false);
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
+
+  // Commute Request Form states
+  const [commutePickup, setCommutePickup] = useState("");
+  const [commuteDest, setCommuteDest] = useState("");
+  const [commuteDate, setCommuteDate] = useState(getLocalDateString());
+  const [commuteTime, setCommuteTime] = useState("");
+  const [commuteSeats, setCommuteSeats] = useState(1);
+
+  // Proposal states
+  const [proposingToRequest, setProposingToRequest] = useState<any | null>(null);
+  const [proposedTimeOffset, setProposedTimeOffset] = useState<number>(0);
+  const [proposalRideId, setProposalRideId] = useState<string>("new");
 
 
   // Reset form error when switching wizards
@@ -848,6 +866,36 @@ export default function HomePage() {
     setDest("");
     setTime("");
     setWomenOnly(false);
+    setActiveWizard(null);
+  };
+
+  const handleCommuteRequestSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commutePickup || !commuteDest || !commuteTime) {
+      setFormError("Please fill in all required fields.");
+      return;
+    }
+
+    const overlapResult = checkRideOverlap(commuteDate, commuteTime, currentUser.id);
+    if (overlapResult.hasOverlap) {
+      setFormError(`Scheduling Overlap: This request overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${formatRideDate(overlapResult.overlappingRide?.rideDate)}).`);
+      return;
+    }
+
+    setFormError("");
+    postCommuteRequest({
+      pickup: commutePickup,
+      destination: commuteDest,
+      rideDate: commuteDate,
+      desiredTime: commuteTime,
+      seatsNeeded: commuteSeats,
+      city: activeCity
+    });
+
+    setCommutePickup("");
+    setCommuteDest("");
+    setCommuteTime("");
+    setCommuteSeats(1);
     setActiveWizard(null);
   };
 
@@ -1866,12 +1914,124 @@ export default function HomePage() {
                   </div>
                 )}
 
+                {activeWizard === "commute-request" && (
+                  <div className="glass-panel p-6 rounded-3xl border-2 border-brand-green-500/20 bg-white dark:bg-slate-950 animate-slide-up space-y-4 shadow-xl">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm sm:text-base">
+                        <Plus className="h-5 w-5 text-brand-green-600" /> Post a Pickup Request
+                      </h3>
+                    </div>
+
+                    <form onSubmit={handleCommuteRequestSubmit} className="space-y-4">
+                      {/* Map Route preview inside wizard */}
+                      <InteractiveMap key="commute-map" pickup={commutePickup} destination={commuteDest} onLocationDetected={setCommutePickup} />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-30">
+                        <div>
+                          <AddressAutocomplete
+                            value={commutePickup}
+                            onChange={setCommutePickup}
+                            placeholder="Type pickup point..."
+                            label="Your Pickup Point"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <AddressAutocomplete
+                            value={commuteDest}
+                            onChange={setCommuteDest}
+                            placeholder="Type destination point..."
+                            label="Your Destination Point"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Departure Date</label>
+                          <input
+                            type="date"
+                            min={getLocalDateString()}
+                            value={commuteDate}
+                            onChange={e => setCommuteDate(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Desired Pickup Time</label>
+                          <select
+                            value={commuteTime}
+                            onChange={e => setCommuteTime(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                            required
+                          >
+                            <option value="">Select pickup time...</option>
+                            {getFilteredTimeOptions(commuteDate).map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Seats Needed</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={6}
+                            value={commuteSeats}
+                            onChange={e => setCommuteSeats(Number(e.target.value))}
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      {formError && (
+                        <p className="text-[10px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/30 px-3.5 py-2.5 rounded-2xl text-center">
+                          ⚠️ {formError}
+                        </p>
+                      )}
+
+                      <div className="flex justify-end gap-2 border-t pt-3">
+                        <button
+                          type="button"
+                          onClick={() => setActiveWizard(null)}
+                          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-xs font-bold cursor-pointer"
+                        >
+                          Submit Request
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
                 {activeWizard === "join" && (
                   <div className="glass-panel p-6 rounded-3xl border-2 border-brand-blue-500/20 bg-white dark:bg-slate-950 animate-slide-up space-y-4 shadow-xl">
                     <div className="flex items-center justify-between border-b pb-3">
                       <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm sm:text-base">
                         <Search className="h-5 w-5 text-brand-blue-600" /> Search &amp; Join Colleague's Ride
                       </h3>
+                    </div>
+
+                    {/* Fallback to post custom pickup request */}
+                    <div className="p-4 rounded-2xl bg-brand-green-500/5 border border-brand-green-500/10 flex items-center justify-between gap-3 text-left">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-850 dark:text-slate-205 text-slate-800">Can't find a matched commute?</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Post your own pickup request and let host drivers offer to pick you up!</p>
+                      </div>
+                      <button
+                        onClick={() => setActiveWizard("commute-request")}
+                        className="px-3 py-1.5 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold transition-all flex-shrink-0 cursor-pointer"
+                      >
+                        Post Request
+                      </button>
                     </div>
 
                     {/* Deviation-based search block */}
@@ -2552,6 +2712,165 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
+
+                {/* My Pickup Requests & Received Proposals */}
+                {commuteRequests.filter(cr => cr.requesterId === currentUser.id).length > 0 && (
+                  <div className="glass-panel p-5 rounded-3xl border border-slate-200/50 dark:border-slate-800/40 space-y-5 bg-white dark:bg-slate-950/20">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <Plus className="h-4 w-4 text-brand-green-500" /> My Pickup Requests & Proposals
+                      </h3>
+                    </div>
+
+                    <div className="space-y-4 divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {commuteRequests
+                        .filter(cr => cr.requesterId === currentUser.id)
+                        .map((cr, idx) => {
+                          const proposalsForThisRequest = rideProposals.filter(p => p.requestId === cr.id);
+                          return (
+                            <div key={cr.id} className={`space-y-3 ${idx > 0 ? "pt-4" : ""}`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-800 dark:text-white">
+                                    {cr.pickup} → {cr.destination}
+                                  </h4>
+                                  <p className="text-[9px] text-slate-505 dark:text-slate-350 text-slate-500 font-semibold mt-0.5">
+                                    Desired pickup: {formatRideDate(cr.rideDate)} at {cr.desiredTime} • Seats: {cr.seatsNeeded} • Status:{" "}
+                                    <span className={`font-bold ${cr.status === "Matched" ? "text-emerald-600" : "text-amber-500"}`}>{cr.status}</span>
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Received Proposals list */}
+                              {proposalsForThisRequest.length > 0 && (
+                                <div className="pl-4 border-l-2 border-brand-green-500/20 space-y-2 mt-2">
+                                  <h5 className="text-[10px] font-bold text-brand-green-600 uppercase tracking-wider">Received Driver Offers</h5>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {proposalsForThisRequest.map(prop => (
+                                      <div key={prop.id} className="p-3 rounded-xl bg-slate-550 dark:bg-slate-905 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/40 flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-lg">{prop.hostAvatar || "🚗"}</span>
+                                          <div>
+                                            <h6 className="text-[10px] font-bold text-slate-800 dark:text-white">
+                                              {prop.hostName} <span className="text-[8px] text-slate-500 font-normal">({prop.hostDept})</span>
+                                            </h6>
+                                            <p className="text-[9px] text-slate-500 mt-0.5">
+                                              Proposed time: <strong className="text-slate-700 dark:text-slate-300">{prop.proposedDepartureTime}</strong>{" "}
+                                              ({prop.proposedTimeOffset === 0 ? "on time" : `${prop.proposedTimeOffset > 0 ? "+" : ""}${prop.proposedTimeOffset} mins`})
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5">
+                                          {prop.status === "Pending" && cr.status === "Pending" ? (
+                                            <>
+                                              <button
+                                                onClick={() => acceptRideProposal(prop.id)}
+                                                className="px-2.5 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[9px] font-bold cursor-pointer transition-all"
+                                              >
+                                                Accept
+                                              </button>
+                                              <button
+                                                onClick={() => declineRideProposal(prop.id)}
+                                                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[9px] font-bold cursor-pointer transition-all"
+                                              >
+                                                Decline
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${
+                                              prop.status === "Accepted"
+                                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400"
+                                                : "bg-slate-100 text-slate-400 dark:bg-slate-900"
+                                            }`}>
+                                              {prop.status}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Colleagues Looking for Pickup Feed */}
+                <div className="glass-panel p-5 rounded-3xl border border-slate-200/50 dark:border-slate-800/40 space-y-5 bg-white dark:bg-slate-950/20">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                      <Users className="h-4 w-4 text-brand-green-500" /> Colleagues Looking for Pickup ({activeCity})
+                    </h3>
+                  </div>
+
+                  {commuteRequests.filter(cr => cr.city === activeCity && cr.status === "Pending" && cr.requesterId !== currentUser.id).length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      No pending pickup requests in {activeCity}. Share your route or invite colleagues!
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                      {commuteRequests
+                        .filter(cr => cr.city === activeCity && cr.status === "Pending" && cr.requesterId !== currentUser.id)
+                        .map(cr => {
+                          const myProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id);
+                          return (
+                            <div key={cr.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/40 flex items-center justify-between gap-4 animate-fade-in">
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{cr.requesterAvatar || "👤"}</span>
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1">
+                                    {cr.requesterName} <span className="text-[9px] text-slate-500 font-normal">({cr.requesterDept})</span>
+                                  </h4>
+                                  <p className="text-[10px] text-slate-550 dark:text-slate-350 font-bold">{cr.pickup} → {cr.destination}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[9px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 px-1.5 py-0.5 rounded font-bold">
+                                      📅 {formatRideDate(cr.rideDate)}
+                                    </span>
+                                    <span className="text-[9px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 px-1.5 py-0.5 rounded font-bold">
+                                      ⏰ Desired: {cr.desiredTime}
+                                    </span>
+                                    <span className="text-[9px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 px-1.5 py-0.5 rounded font-bold">
+                                      👥 Seats: {cr.seatsNeeded}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-right">
+                                {myProposal ? (
+                                  <span className={`inline-block text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
+                                    myProposal.status === "Accepted"
+                                      ? "bg-emerald-50 text-emerald-600 border-emerald-200/30"
+                                      : myProposal.status === "Declined"
+                                      ? "bg-slate-100 text-slate-400 border-slate-200/10"
+                                      : "bg-amber-50 text-amber-600 border-amber-200/30"
+                                  }`}>
+                                    Offer Sent ({myProposal.status})
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setProposingToRequest(cr);
+                                      setProposedTimeOffset(0);
+                                      setProposalRideId("new");
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold transition-all cursor-pointer"
+                                  >
+                                    Offer Ride
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
 
@@ -2705,6 +3024,131 @@ export default function HomePage() {
                   </div>
                 </div>
               ) : null;
+            })()}
+
+            {proposingToRequest && (() => {
+              const computeProposedTime = (baseTimeStr: string, offsetMins: number) => {
+                const [timePart, ampm] = baseTimeStr.split(" ");
+                let [hours, minutes] = timePart.split(":").map(Number);
+                if (ampm === "PM" && hours < 12) hours += 12;
+                if (ampm === "AM" && hours === 12) hours = 0;
+                
+                const d = new Date();
+                d.setHours(hours, minutes + offsetMins, 0, 0);
+                
+                let outHours = d.getHours();
+                const outMins = String(d.getMinutes()).padStart(2, "0");
+                const outAmPm = outHours >= 12 ? "PM" : "AM";
+                if (outHours > 12) outHours -= 12;
+                if (outHours === 0) outHours = 12;
+                return `${String(outHours).padStart(2, "0")}:${outMins} ${outAmPm}`;
+              };
+
+              const computedTime = computeProposedTime(proposingToRequest.desiredTime, proposedTimeOffset);
+              const matchingRides = rides.filter(r => r.hostId === currentUser.id && r.rideDate === proposingToRequest.rideDate && r.status === "Published");
+
+              const handleSendProposalSubmit = (e: React.FormEvent) => {
+                e.preventDefault();
+                const selectedRide = matchingRides.find(r => r.id === proposalRideId);
+                sendRideProposal(
+                  proposingToRequest.id,
+                  proposedTimeOffset,
+                  computedTime,
+                  selectedRide ? selectedRide.id : undefined
+                );
+                setProposingToRequest(null);
+              };
+
+              return (
+                <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <div className="glass-panel max-w-md w-full p-6 rounded-3xl border-2 border-brand-green-500/20 bg-white dark:bg-slate-950 animate-scale-up space-y-4 shadow-2xl text-left">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm sm:text-base">
+                        ✉️ Offer a Ride Proposal
+                      </h3>
+                      <button
+                        onClick={() => setProposingToRequest(null)}
+                        className="p-1 text-slate-400 hover:bg-slate-150 rounded-lg cursor-pointer"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSendProposalSubmit} className="space-y-4">
+                      <div>
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-900 text-slate-500 px-2 py-0.5 rounded font-semibold uppercase tracking-wider">Passenger Request</span>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-white mt-1">
+                          {proposingToRequest.requesterName} ({proposingToRequest.requesterDept})
+                        </h4>
+                        <p className="text-[10px] text-slate-500 leading-normal mt-0.5">
+                          Route: {proposingToRequest.pickup} → {proposingToRequest.destination}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Requested desired pickup time: <strong>{proposingToRequest.desiredTime}</strong>
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Proposal Route Type</label>
+                        <select
+                          value={proposalRideId}
+                          onChange={e => setProposalRideId(e.target.value)}
+                          className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                        >
+                          <option value="new">Create & Host a New Ride matching this route</option>
+                          {matchingRides.map(r => (
+                            <option key={r.id} value={r.id}>
+                              Existing Ride: {r.pickup.slice(0, 15)}... at {r.departureTime} ({r.seatsAvailable} seats left)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          <span>Time Tolerance Offset</span>
+                          <span className="text-brand-green-600 text-xs font-extrabold">{proposedTimeOffset > 0 ? "+" : ""}{proposedTimeOffset} mins</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={-30}
+                          max={30}
+                          step={5}
+                          value={proposedTimeOffset}
+                          onChange={e => setProposedTimeOffset(Number(e.target.value))}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-green-600 dark:bg-slate-800"
+                        />
+                        <div className="flex justify-between text-[8px] font-bold text-slate-450 uppercase">
+                          <span>-30 mins</span>
+                          <span>On Time</span>
+                          <span>+30 mins</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-brand-green-500/5 dark:bg-brand-green-950/10 rounded-xl border border-brand-green-500/10">
+                        <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Your Proposed Pickup Time</span>
+                        <span className="text-sm font-extrabold text-brand-green-600 dark:text-brand-green-400 mt-1 block">{computedTime}</span>
+                      </div>
+
+                      <div className="flex justify-end gap-2 border-t pt-3">
+                        <button
+                          type="button"
+                          onClick={() => setProposingToRequest(null)}
+                          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-xs font-bold cursor-pointer"
+                        >
+                          Send Offer
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              );
             })()}
 
           </div>
