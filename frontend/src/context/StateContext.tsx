@@ -919,6 +919,75 @@ const mergeRidesSafely = (currentRides: Ride[], incomingRides: Ride[]): Ride[] =
   return merged;
 };
 
+const filterPurgedRequests = (reqList: RideRequest[]): RideRequest[] => {
+  if (!reqList || !Array.isArray(reqList)) return [];
+  return reqList.filter(req => {
+    if (!req || !req.id) return false;
+    let reqTimeMs = 0;
+    const rawReq = req as any;
+    if (rawReq.createdAt) {
+      reqTimeMs = new Date(rawReq.createdAt).getTime();
+    } else if (req.id.includes("-")) {
+      const parts = req.id.split("-");
+      const tsStr = parts.find(p => p.length >= 13 && !isNaN(Number(p)));
+      if (tsStr) reqTimeMs = Number(tsStr);
+    }
+    if (reqTimeMs > 0 && reqTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
+      return false;
+    }
+    if (req.id.startsWith("req-1") || req.id.startsWith("r-") || req.id.startsWith("req-alex")) {
+      return false;
+    }
+    return true;
+  });
+};
+
+const filterPurgedCommuteRequests = (crList: CommuteRequest[]): CommuteRequest[] => {
+  if (!crList || !Array.isArray(crList)) return [];
+  return crList.filter(cr => {
+    if (!cr || !cr.id) return false;
+    let crTimeMs = 0;
+    const rawCr = cr as any;
+    if (rawCr.createdAt) {
+      crTimeMs = new Date(rawCr.createdAt).getTime();
+    } else if (cr.id.includes("-")) {
+      const parts = cr.id.split("-");
+      const tsStr = parts.find(p => p.length >= 13 && !isNaN(Number(p)));
+      if (tsStr) crTimeMs = Number(tsStr);
+    }
+    if (crTimeMs > 0 && crTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
+      return false;
+    }
+    if (cr.id.startsWith("cr-1") || cr.id.startsWith("cr-2") || cr.id.startsWith("cr-3")) {
+      return false;
+    }
+    return true;
+  });
+};
+
+const filterPurgedProposals = (propList: RideProposal[]): RideProposal[] => {
+  if (!propList || !Array.isArray(propList)) return [];
+  return propList.filter(p => {
+    if (!p || !p.id) return false;
+    let pTimeMs = 0;
+    const rawP = p as any;
+    if (rawP.createdAt) {
+      pTimeMs = new Date(rawP.createdAt).getTime();
+    } else if (p.id.includes("-")) {
+      const parts = p.id.split("-");
+      const tsStr = parts.find(pt => pt.length >= 13 && !isNaN(Number(pt)));
+      if (tsStr) pTimeMs = Number(tsStr);
+    }
+    if (pTimeMs > 0 && pTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
+      return false;
+    }
+    if (p.id.startsWith("prop-1") || p.id.startsWith("p-1")) {
+      return false;
+    }
+    return true;
+  });
+};
+
 const mergeRequestsSafely = (current: RideRequest[], incoming: RideRequest[]): RideRequest[] => {
   const map = new Map<string, RideRequest>();
   if (typeof window !== "undefined") {
@@ -937,7 +1006,7 @@ const mergeRequestsSafely = (current: RideRequest[], incoming: RideRequest[]): R
       map.set(r.id, existing ? { ...existing, ...r } : r);
     }
   });
-  const merged = Array.from(map.values());
+  const merged = filterPurgedRequests(Array.from(map.values()));
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem("ecoride_requests", JSON.stringify(merged));
@@ -970,7 +1039,7 @@ const mergeCommuteRequestsSafely = (current: CommuteRequest[], incoming: Commute
       }
     }
   });
-  const merged = Array.from(map.values());
+  const merged = filterPurgedCommuteRequests(Array.from(map.values()));
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem("ecoride_commute_requests", JSON.stringify(merged));
@@ -997,7 +1066,7 @@ const mergeRideProposalsSafely = (current: RideProposal[], incoming: RideProposa
       map.set(r.id, existing ? { ...existing, ...r } : r);
     }
   });
-  const merged = Array.from(map.values());
+  const merged = filterPurgedProposals(Array.from(map.values()));
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem("ecoride_ride_proposals", JSON.stringify(merged));
@@ -1874,7 +1943,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!isLoaded) return;
 
     // Detect new requests for the host, or status updates for the passenger
-    requests.forEach(req => {
+    const validActiveRequests = filterPurgedRequests(requests);
+    validActiveRequests.forEach(req => {
       // A. Passenger gets notification if their request was accepted/declined
       if (req.requesterId === currentUserId) {
         if (req.status === "Accepted") {
