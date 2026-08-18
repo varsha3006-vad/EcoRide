@@ -2679,6 +2679,11 @@ export default function HomePage() {
                                       </span>
                                     </span>
                                     <span>• Seats: <strong>{trip.seatsAvailable} of {trip.seatsTotal} {trip.vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "pillion vacant" : "vacant"}</strong></span>
+                                    {trip.status === "Started" && (
+                                      <span className="text-[10px] font-black text-brand-green-600 dark:text-brand-green-400 bg-brand-green-500/10 px-2 py-0.5 rounded-full inline-flex items-center gap-1 border border-brand-green-500/20 animate-pulse ml-1">
+                                        🚘 Live Odometer: {trip.actualDrivenKm ? trip.actualDrivenKm.toFixed(1) : "0.0"} km driven
+                                      </span>
+                                    )}
                                     {trip.womenOnly && (
                                       <span className="text-purple-600 dark:text-purple-400 font-bold">• 👩‍👧‍👧 Female-Only</span>
                                     )}

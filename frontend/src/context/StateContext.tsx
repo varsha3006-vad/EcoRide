@@ -348,6 +348,7 @@ export interface Ride {
   passengerLocations?: Record<string, { lat: number; lng: number }>; // passengerId -> live coords
   boardedPassengers?: string[]; // list of passengerIds who have confirmed boarding
   city?: string;
+  actualDrivenKm?: number; // Actual live GPS odometer distance driven during active trip
 }
 
 export interface RideRequest {
@@ -498,6 +499,7 @@ interface StateContextType {
   sendRideProposal: (requestId: string, proposedTimeOffset: number, proposedDepartureTime: string, rideId?: string, vehiclePlate?: string) => Promise<void>;
   acceptRideProposal: (proposalId: string) => Promise<void>;
   declineRideProposal: (proposalId: string, reason?: string) => Promise<void>;
+  purgeAllRideDataAndResetEsg: () => void;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -2624,9 +2626,26 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const updated = prev.map(ride => {
         if (ride.id !== rideId) return ride;
 
-        const totalPassengers = ride.passengers.length;
-        const co2Offset = totalPassengers > 0 ? (ride.co2Saved * totalPassengers) : 0;
-        const earnedCredits = totalPassengers > 0 ? (ride.esgCredits + (totalPassengers * 15)) : 0;
+        const totalPassengers = (ride.passengers || []).filter(pId => pId !== ride.hostId).length;
+        
+        // Use actual live GPS driven distance if available, otherwise fallback to route baseline
+        const drivenKm = (ride.actualDrivenKm && ride.actualDrivenKm > 0.05)
+          ? ride.actualDrivenKm
+          : (ride.co2Saved ? Number((ride.co2Saved / 0.17).toFixed(1)) : 10.0);
+
+        const vType = ride.vehicleType || "Electric";
+        const vehicleEmissionFactor = vType === "Electric" ? 0.02 : vType === "Hybrid" ? 0.07 : 0.14;
+        
+        // Calculate actual CO2 Saved based on actual driven km
+        const co2Offset = totalPassengers > 0
+          ? Math.max(0.5, Number(((drivenKm * 0.171 * totalPassengers) - (drivenKm * vehicleEmissionFactor)).toFixed(1)))
+          : 0.0;
+
+        // Calculate actual ESG Credits based on actual driven km
+        const vehicleBonus = vType === "Electric" ? 20 : vType === "Hybrid" ? 10 : 0;
+        const earnedCredits = totalPassengers > 0
+          ? Math.max(25, Math.round(drivenKm * 2.5) + (totalPassengers * 15) + vehicleBonus)
+          : 0;
 
         // Award credits to the driver & passengers in the employees array
         setEmployees(prevEmps => prevEmps.map(emp => {
@@ -3041,7 +3060,21 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
           });
 
-          return { ...ride, driverLat: lat, driverLng: lng };
+          let newDrivenKm = ride.actualDrivenKm || 0;
+          if (ride.driverLat && ride.driverLng) {
+            const incrementalKm = getOrthoDistance(ride.driverLat, ride.driverLng, lat, lng);
+            // Only accumulate if movement is realistic (>= 5 meters and <= 5 km per GPS ping)
+            if (incrementalKm >= 0.005 && incrementalKm <= 5.0) {
+              newDrivenKm = Number((newDrivenKm + incrementalKm).toFixed(2));
+            }
+          }
+
+          return { 
+            ...ride, 
+            driverLat: lat, 
+            driverLng: lng,
+            actualDrivenKm: newDrivenKm
+          };
         }
         return ride;
       });
@@ -3698,6 +3731,59 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     logSecurityEvent("RIDE_PROPOSAL_DECLINE", "INFO", `Passenger declined ride proposal ${proposalId}. Reason: ${formattedReason}`);
   };
 
+  const purgeAllRideDataAndResetEsg = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("ecoride_rides");
+      localStorage.removeItem("ecoride_requests");
+      localStorage.removeItem("ecoride_commute_requests");
+      localStorage.removeItem("ecoride_ride_proposals");
+      localStorage.setItem("ecoride_rides", JSON.stringify([]));
+      localStorage.setItem("ecoride_requests", JSON.stringify([]));
+      localStorage.setItem("ecoride_commute_requests", JSON.stringify([]));
+      localStorage.setItem("ecoride_ride_proposals", JSON.stringify([]));
+    }
+
+    setRides([]);
+    setRequests([]);
+    setCommuteRequests([]);
+    setRideProposals([]);
+    ridesRef.current = [];
+    requestsRef.current = [];
+    commuteRequestsRef.current = [];
+    rideProposalsRef.current = [];
+
+    setEmployees(prev => {
+      const resetEmps = prev.map(emp => ({
+        ...emp,
+        credits: 0,
+        carbonSaved: 0.0,
+        esgScore: 0
+      }));
+      employeesRef.current = resetEmps;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_employees", JSON.stringify(resetEmps));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("employees", resetEmps);
+      }
+      return resetEmps;
+    });
+
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("rides", []);
+      supabaseSync.set("requests", []);
+      supabaseSync.set("commute_requests", []);
+      supabaseSync.set("ride_proposals", []);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem("ecoride_data_purged_v2")) {
+      localStorage.setItem("ecoride_data_purged_v2", "true");
+      purgeAllRideDataAndResetEsg();
+    }
+  }, []);
+
   return (
     <StateContext.Provider
       value={{
@@ -3746,7 +3832,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         postCommuteRequest,
         sendRideProposal,
         acceptRideProposal,
-        declineRideProposal
+        declineRideProposal,
+        purgeAllRideDataAndResetEsg
       }}
     >
       {children}
