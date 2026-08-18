@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useAppState } from "@/context/StateContext";
-import { X, Award, Leaf, Calendar, MapPin, User, Mail, Briefcase, ChevronRight } from "lucide-react";
+import { X, Award, Leaf, Calendar, MapPin, User, Mail, Briefcase, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { Employee } from "@/context/StateContext";
 
 interface PastRidesModalProps {
@@ -12,6 +12,7 @@ interface PastRidesModalProps {
 export default function PastRidesModal({ onClose }: PastRidesModalProps) {
   const { rides, currentUser, employees } = useAppState();
   const [selectedColleague, setSelectedColleague] = useState<Employee | null>(null);
+  const [expandedRideId, setExpandedRideId] = useState<string | null>(null);
 
   // Filter completed or cancelled rides where the user was the host or a passenger
   const pastRides = rides.filter(
@@ -126,100 +127,154 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
                   ? (ride.co2Saved * (ride.passengers.length || 1))
                   : ride.co2Saved);
 
+                const isExpanded = expandedRideId === ride.id;
+
                 return (
-                  <div key={ride.id} className="glass-panel p-4 rounded-2xl border border-slate-150 dark:border-slate-800 text-left space-y-3 shadow-sm hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
-                    {/* Date & Role badge */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
-                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                        {rideDateFormatted} at {ride.departureTime}
-                      </div>
-                      <div className="flex items-center gap-1 flex-wrap justify-end">
-                        {isCancelled && (
-                          <span className="inline-flex items-center rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 text-[9px] font-extrabold">
-                            ⚠️ Cancelled
-                          </span>
-                        )}
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold border ${
-                          isHost
-                            ? "bg-brand-green-500/10 text-brand-green-600 dark:text-brand-green-400 border-brand-green-500/20"
-                            : "bg-brand-blue-500/10 text-brand-blue-600 dark:text-brand-blue-400 border-brand-blue-500/20"
-                        }`}>
-                          {isHost ? "🚗 Host Driver" : "👥 Co-Passenger"}
+                  <div
+                    key={ride.id}
+                    className={`glass-panel rounded-2xl border transition-all cursor-pointer overflow-hidden ${
+                      isExpanded
+                        ? "border-brand-green-500/40 bg-white dark:bg-slate-900 shadow-md"
+                        : "border-slate-150 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
+                    }`}
+                  >
+                    {/* Default Clean Summary Row (Destination, Time, Date, Credits) */}
+                    <div
+                      onClick={() => setExpandedRideId(isExpanded ? null : ride.id)}
+                      className="p-3.5 flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-base flex-shrink-0 p-2 rounded-xl bg-brand-green-50 dark:bg-brand-green-950/40 text-brand-green-600 dark:text-brand-green-400 font-bold">
+                          🏁
                         </span>
+                        <div className="min-w-0">
+                          <h4 className="font-extrabold text-slate-850 dark:text-white text-xs truncate">
+                            {ride.destination}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 font-medium flex-wrap">
+                            <span>📅 {rideDateFormatted}</span>
+                            <span>•</span>
+                            <span>⏰ {ride.departureTime}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="text-right">
+                          <span className="text-xs font-black text-brand-blue-600 dark:text-brand-blue-400 block">
+                            {isCancelled ? "0 Credits" : `+${rideCredits} Credits`}
+                          </span>
+                          {isCancelled && (
+                            <span className="block text-[8px] font-black text-rose-500 uppercase">
+                              Cancelled
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400">
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Route */}
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-white">
-                        <span className="h-1.5 w-1.5 rounded-full bg-brand-green-500" />
-                        <span className="truncate">{ride.pickup}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-white">
-                        <span className="h-1.5 w-1.5 rounded-full bg-brand-blue-500" />
-                        <span className="truncate">{ride.destination}</span>
-                      </div>
-                    </div>
+                    {/* Expanded Details Panel */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-3.5 animate-fade-in text-left text-xs bg-slate-50/50 dark:bg-slate-950/30">
+                        {/* Role & Status Badges */}
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-extrabold border ${
+                            isHost
+                              ? "bg-brand-green-500/10 text-brand-green-600 dark:text-brand-green-400 border-brand-green-500/20"
+                              : "bg-brand-blue-500/10 text-brand-blue-600 dark:text-brand-blue-400 border-brand-blue-500/20"
+                          }`}>
+                            {isHost ? "🚗 Colleague Host" : "👥 Co-Passenger"}
+                          </span>
+                          {isCancelled && (
+                            <span className="inline-flex items-center rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 text-[9px] font-extrabold">
+                              ⚠️ Trip Cancelled
+                            </span>
+                          )}
+                        </div>
 
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 dark:border-slate-900 text-center">
-                      <div>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase">Credits</p>
-                        <p className="text-xs font-extrabold text-brand-blue-600 dark:text-brand-blue-400 mt-0.5">
-                          {isCancelled ? "0" : `+${rideCredits}`}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase">CO₂ Saved</p>
-                        <p className="text-xs font-extrabold text-brand-green-600 dark:text-brand-green-400 mt-0.5">
-                          {rideCarbon.toFixed(1)} kg
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase">Distance</p>
-                        <p className="text-xs font-extrabold text-slate-700 dark:text-slate-300 mt-0.5">
-                          {isCancelled ? "0.0 km" : "12.5 km"}
-                        </p>
-                      </div>
-                    </div>
+                        {/* Full Pickup & Drop Addresses */}
+                        <div className="space-y-1.5 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-brand-green-500 flex-shrink-0" />
+                            <span className="text-[10px] text-slate-500 font-semibold uppercase">Pickup:</span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-white truncate">{ride.pickup}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-brand-blue-500 flex-shrink-0" />
+                            <span className="text-[10px] text-slate-500 font-semibold uppercase">Drop-off:</span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-white truncate">{ride.destination}</span>
+                          </div>
+                        </div>
 
-                    {/* Crew List */}
-                    <div className="space-y-1.5">
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Commute Crew</p>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {/* Host */}
-                        <button
-                          onClick={() => handleColleagueClick(ride.hostId)}
-                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
-                            ride.hostId === currentUser.id
-                              ? "bg-slate-50 dark:bg-slate-900 text-slate-650 dark:text-slate-300 border-slate-200 dark:border-slate-800"
-                              : "bg-brand-green-500/10 text-brand-green-700 border-brand-green-500/20 hover:bg-brand-green-500/20"
-                          }`}
-                        >
-                          🚗 {ride.hostId === currentUser.id ? "Me (Host)" : `${ride.hostName} (Host)`}
-                        </button>
-                        
-                        {/* Passengers */}
-                        {ride.passengers.map((pId) => {
-                          const passengerEmp = employees.find((e) => e.id === pId);
-                          if (!passengerEmp) return null;
-                          return (
+                        {/* Detailed Metrics Grid */}
+                        <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 dark:border-slate-800 text-center">
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">Credits Earned</p>
+                            <p className="text-xs font-extrabold text-brand-blue-600 dark:text-brand-blue-400 mt-0.5">
+                              {isCancelled ? "0" : `+${rideCredits}`}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">CO₂ Offset</p>
+                            <p className="text-xs font-extrabold text-brand-green-600 dark:text-brand-green-400 mt-0.5">
+                              {rideCarbon.toFixed(1)} kg
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">Vehicle</p>
+                            <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-0.5 truncate">
+                              {ride.vehicleModel || "Standard Auto"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Commute Crew */}
+                        <div className="space-y-1.5">
+                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Commute Crew</p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {/* Host */}
                             <button
-                              key={pId}
-                              onClick={() => handleColleagueClick(pId)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleColleagueClick(ride.hostId);
+                              }}
                               className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
-                                pId === currentUser.id
-                                  ? "bg-slate-50 dark:bg-slate-900 text-slate-650 dark:text-slate-300 border-slate-200 dark:border-slate-800"
-                                  : "bg-brand-blue-500/10 text-brand-blue-700 border-brand-blue-500/20 hover:bg-brand-blue-500/20"
+                                ride.hostId === currentUser.id
+                                  ? "bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800"
+                                  : "bg-brand-green-500/10 text-brand-green-700 border-brand-green-500/20 hover:bg-brand-green-500/20"
                               }`}
                             >
-                              👤 {pId === currentUser.id ? "Me" : passengerEmp.name}
+                              🚗 {ride.hostId === currentUser.id ? "Me (Host)" : `${ride.hostName} (Host)`}
                             </button>
-                          );
-                        })}
+                            
+                            {/* Passengers */}
+                            {ride.passengers.map((pId) => {
+                              const passengerEmp = employees.find((e) => e.id === pId);
+                              if (!passengerEmp) return null;
+                              return (
+                                <button
+                                  key={pId}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleColleagueClick(pId);
+                                  }}
+                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                                    pId === currentUser.id
+                                      ? "bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800"
+                                      : "bg-brand-blue-500/10 text-brand-blue-700 border-brand-blue-500/20 hover:bg-brand-blue-500/20"
+                                  }`}
+                                >
+                                  👤 {pId === currentUser.id ? "Me" : passengerEmp.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })
