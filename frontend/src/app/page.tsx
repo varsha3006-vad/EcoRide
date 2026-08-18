@@ -308,7 +308,8 @@ export default function HomePage() {
     sendRideProposal,
     acceptRideProposal,
     declineRideProposal,
-    cancelJoinRequest
+    cancelJoinRequest,
+    withdrawCommuteRequest
   } = useAppState();
 
   // Helper to filter time options dynamically for future times only when scheduling for today
@@ -2448,6 +2449,12 @@ export default function HomePage() {
                             </p>
                           </div>
                         </div>
+                        <button
+                          onClick={() => withdrawCommuteRequest(urgentReq.id)}
+                          className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold cursor-pointer transition-all shadow-sm flex items-center gap-1 flex-shrink-0"
+                        >
+                          ✖️ Withdraw Request
+                        </button>
                       </div>
 
                       {altRides.length > 0 && (

@@ -470,6 +470,7 @@ interface StateContextType {
   handleRequestResponse: (requestId: string, accept: boolean) => void;
   checkRideOverlap: (newDate: string | undefined, newTime: string, userId?: string, excludeRideId?: string) => { hasOverlap: boolean; overlappingRide?: Ride; isPendingRequest?: boolean };
   cancelJoinRequest: (requestId: string) => void;
+  withdrawCommuteRequest: (commuteRequestId: string) => void;
   confirmBoarding: (rideId: string, passengerId: string, enteredPin: string) => { success: boolean; message: string };
   sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
   startRide: (rideId: string) => void;
@@ -2107,6 +2108,35 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  // Withdraw / cancel a commute request posted by passenger or auto-reactivated after driver cancel
+  const withdrawCommuteRequest = (commuteRequestId: string) => {
+    setCommuteRequests(prev => {
+      const updated = prev.map(cr => {
+        if (cr.id === commuteRequestId) {
+          return { ...cr, status: "Cancelled" as const, urgent: false };
+        }
+        return cr;
+      });
+      commuteRequestsRef.current = updated;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("commute_requests", updated);
+      }
+      return updated;
+    });
+
+    addNotification({
+      id: `n-withdraw-cr-${Date.now()}`,
+      title: "Pickup Request Withdrawn ✖️",
+      message: "Your urgent pickup request has been withdrawn and removed from colleague driver feeds.",
+      timestamp: "Just now",
+      type: "info",
+      read: false
+    });
+  };
+
   // Create Ride — write OUTSIDE setState callback to avoid race condition
   const createRide = (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => {
     const overlapResult = checkRideOverlap(rideData.rideDate, rideData.departureTime);
@@ -3627,6 +3657,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         handleRequestResponse,
         checkRideOverlap,
         cancelJoinRequest,
+        withdrawCommuteRequest,
         sendMessage,
         startRide,
         completeRide,
