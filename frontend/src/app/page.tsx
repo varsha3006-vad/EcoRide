@@ -2429,7 +2429,12 @@ export default function HomePage() {
 
                 {/* Stranded Passenger Auto-Reactivation Rescue Banner */}
                 {(() => {
-                  const urgentReq = commuteRequests.find(cr => cr.requesterId === currentUser.id && cr.urgent && cr.status === "Pending");
+                  const urgentReq = commuteRequests.find(cr => 
+                    cr.requesterId === currentUser.id && 
+                    cr.urgent && 
+                    cr.status === "Pending" &&
+                    !myUpcomingTrips.some(t => isUserPassenger(t) && (t.status?.toLowerCase() === "published" || t.status?.toLowerCase() === "started"))
+                  );
                   if (!urgentReq) return null;
                   const altRides = rides.filter(r => r.status === "Published" && r.seatsAvailable > 0 && r.hostId !== currentUser.id && (r.destination.toLowerCase().includes(urgentReq.destination.toLowerCase()) || urgentReq.destination.toLowerCase().includes(r.destination.toLowerCase())));
 
@@ -3018,16 +3023,24 @@ export default function HomePage() {
                           const proposalsForThisRequest = rideProposals.filter(p => p.requestId === cr.id);
                           return (
                             <div key={cr.id} className={`space-y-3 ${idx > 0 ? "pt-4" : ""}`}>
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between gap-3">
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-800 dark:text-white">
                                     {cr.pickup} → {cr.destination}
                                   </h4>
-                                  <p className="text-[9px] text-slate-505 dark:text-slate-350 text-slate-500 font-semibold mt-0.5">
+                                  <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
                                     Desired pickup: {formatRideDate(cr.rideDate)} at {cr.desiredTime} • Seats: {cr.seatsNeeded} • Status:{" "}
                                     <span className={`font-bold ${cr.status === "Matched" ? "text-emerald-600" : "text-amber-500"}`}>{cr.status}</span>
                                   </p>
                                 </div>
+                                {cr.status === "Pending" && (
+                                  <button
+                                    onClick={() => withdrawCommuteRequest(cr.id)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-sm flex-shrink-0"
+                                  >
+                                    ✖️ Withdraw Request
+                                  </button>
+                                )}
                               </div>
 
                               {/* Received Proposals list */}

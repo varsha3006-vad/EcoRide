@@ -2360,6 +2360,25 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let updatedRides = [...rides];
 
     if (accept) {
+      // 1. Update passenger's CommuteRequest to Matched
+      setCommuteRequests(prev => {
+        const psgrId = reqToRespond.requesterId;
+        const updated = prev.map(cr => {
+          if (cr.requesterId === psgrId && (cr.status === "Pending" || cr.status === "Matched")) {
+            return { ...cr, status: "Matched" as const, urgent: false, cancelledByDriver: false };
+          }
+          return cr;
+        });
+        commuteRequestsRef.current = updated;
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("commute_requests", updated);
+        }
+        return updated;
+      });
+
       // 2. Deduct available seats in target ride
       updatedRides = rides.map(ride => {
         if (ride.id !== reqToRespond.rideId) return ride;
@@ -2654,6 +2673,25 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           timestamp: "Just now",
           type: "success",
           read: false
+        });
+
+        // Update passenger commute requests to Completed status
+        setCommuteRequests(prev => {
+          const psgrIds = ride.passengers || [];
+          const updated = prev.map(cr => {
+            if (psgrIds.includes(cr.requesterId) && (cr.status === "Matched" || cr.status === "Pending")) {
+              return { ...cr, status: "Completed" as const, urgent: false, cancelledByDriver: false };
+            }
+            return cr;
+          });
+          commuteRequestsRef.current = updated;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("ecoride_commute_requests", JSON.stringify(updated));
+          }
+          if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            supabaseSync.set("commute_requests", updated);
+          }
+          return updated;
         });
 
         // Wipe chat room on completion
@@ -3394,7 +3432,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Update commute request status
     const updatedCommuteRequests = commuteRequests.map(cr => {
-      if (cr.id === proposal.requestId) return { ...cr, status: "Matched" };
+      if (cr.id === proposal.requestId || cr.requesterId === currentUser.id) {
+        return { ...cr, status: "Matched" as const, urgent: false, cancelledByDriver: false };
+      }
       return cr;
     });
 
