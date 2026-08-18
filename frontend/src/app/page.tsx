@@ -1021,12 +1021,31 @@ export default function HomePage() {
     }
   };
 
-  const myCreatedRides = rides.filter(r => r.hostId === currentUser.id);
-  const myJoinedRides = rides.filter(r => r.passengers.includes(currentUser.id));
+  const isUserHost = (ride: Ride) => {
+    if (!currentUser) return false;
+    return ride.hostId === currentUser.id ||
+      (currentUser.name && ride.hostName?.toLowerCase() === currentUser.name.toLowerCase()) ||
+      (currentUser.email && ride.hostId === currentUser.email);
+  };
+
+  const isUserPassenger = (ride: Ride) => {
+    if (!currentUser) return false;
+    const passengersRaw = ride.passengers as any;
+    const passengersArray = Array.isArray(passengersRaw)
+      ? passengersRaw
+      : (typeof passengersRaw === "string" && passengersRaw.startsWith("{")
+        ? passengersRaw.slice(1, -1).split(",").map((s: string) => s.trim().replace(/^"|"$/g, ''))
+        : []);
+    return passengersArray.includes(currentUser.id) ||
+      (currentUser.name && passengersArray.some((p: string) => p.toLowerCase() === currentUser.name.toLowerCase()));
+  };
+
+  const myCreatedRides = rides.filter(isUserHost);
+  const myJoinedRides = rides.filter(isUserPassenger);
   const myPendingRequestedRides = rides.filter(r => 
-    !r.passengers.includes(currentUser.id) &&
-    r.hostId !== currentUser.id &&
-    requests.some(req => req.rideId === r.id && req.requesterId === currentUser.id && req.status === "Pending")
+    !isUserHost(r) &&
+    !isUserPassenger(r) &&
+    requests.some(req => req.rideId === r.id && (req.requesterId === currentUser.id || req.requesterName === currentUser.name) && req.status?.toLowerCase() === "pending")
   );
 
   const rawTrips: Ride[] = [...myCreatedRides, ...myJoinedRides, ...myPendingRequestedRides];
@@ -1034,16 +1053,22 @@ export default function HomePage() {
   const myUpcomingTrips: Ride[] = [];
 
   for (const r of rawTrips) {
-    if ((r.status === "Published" || r.status === "Started") && !seenIds.has(r.id)) {
+    const statusLower = r.status?.toLowerCase();
+    if ((statusLower === "published" || statusLower === "started") && !seenIds.has(r.id)) {
       seenIds.add(r.id);
       myUpcomingTrips.push(r);
     }
   }
 
+  const pendingRequestsForMe = requests.filter(r => {
+    const ride = rides.find(rd => rd.id === r.rideId);
+    return ride && isUserHost(ride) && r.status?.toLowerCase() === "pending";
+  });
+
   // Search/Filter rides list
   const filteredRides = rides.filter(r => {
-    if (r.hostId === currentUser.id) return false; // Hide own rides
-    const isJoinable = r.status === "Published" || (r.status === "Started" && r.seatsAvailable > 0);
+    if (isUserHost(r)) return false; // Hide own rides from discovery feed
+    const isJoinable = r.status?.toLowerCase() === "published" || (r.status?.toLowerCase() === "started" && r.seatsAvailable > 0);
     if (!isJoinable) return false;
 
     // City Geofencing: Only show rides in the user's active city
@@ -1070,11 +1095,7 @@ export default function HomePage() {
     return 0;
   });
 
-  // Find pending requests on the user's hosted rides
-  const pendingRequestsForMe = requests.filter(req => {
-    const ride = rides.find(r => r.id === req.rideId);
-    return ride && ride.hostId === currentUser.id && req.status === "Pending";
-  });
+
 
   // Public SafeCommute Tracking View (bypasses login for shared tracking URL)
   if (isSafetyShareView && safetyRideId && safetyPassengerId) {
@@ -2587,7 +2608,7 @@ export default function HomePage() {
                   ) : (
                     <div className="divide-y divide-slate-100 dark:divide-slate-900/60">
                       {myUpcomingTrips.map((trip: Ride) => {
-                        const isHost = trip.hostId === currentUser.id;
+                        const isHost = isUserHost(trip);
                         const boardedRaw = trip.boardedPassengers as any;
                         const boardedArray = Array.isArray(boardedRaw)
                           ? boardedRaw
@@ -2934,7 +2955,7 @@ export default function HomePage() {
                                         isDriving={true}
                                         waypoints={passengerPickups}
                                         rideId={trip.id}
-                                        isHost={isHost}
+                                        isHost={!!isHost}
                                         passengerId={isHost ? undefined : currentUser.id}
                                       />
                                     </div>
