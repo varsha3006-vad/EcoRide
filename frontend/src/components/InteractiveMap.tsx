@@ -30,8 +30,8 @@ export default function InteractiveMap({
   passengerId
 }: InteractiveMapProps) {
   const { rides, updateRideLocation, updatePassengerLocation } = useAppState();
-  const [eta, setEta] = useState(15);
-  const [distanceStr, setDistanceStr] = useState("4.8 km");
+  const [eta, setEta] = useState<number | null>(null);
+  const [distanceStr, setDistanceStr] = useState<string>("Calculating...");
   const [traffic, setTraffic] = useState<"Low" | "Medium" | "High">("Low");
   
   const mapRef = useRef<HTMLDivElement>(null);
@@ -602,9 +602,43 @@ export default function InteractiveMap({
             programmaticActionRef.current = false;
           }, 100);
         }
+
+        // Real-time directions & ETA calculation for passenger view
+        if (destination) {
+          const directionsService = new google.maps.DirectionsService();
+          const googleWaypoints = (waypoints || []).map((addr: string) => ({
+            location: addr,
+            stopover: true
+          }));
+
+          directionsService.route(
+            {
+              origin: currentLatLng,
+              destination: destination,
+              waypoints: googleWaypoints,
+              optimizeWaypoints: false,
+              travelMode: google.maps.TravelMode.DRIVING
+            },
+            (res: any, status: any) => {
+              if (status === google.maps.DirectionsStatus.OK && res.routes && res.routes[0]) {
+                if (directionsRendererRef.current) {
+                  directionsRendererRef.current.setDirections(res);
+                }
+                let totalDuration = 0;
+                let totalDistance = 0;
+                res.routes[0].legs.forEach((leg: any) => {
+                  if (leg.duration?.value) totalDuration += leg.duration.value;
+                  if (leg.distance?.value) totalDistance += leg.distance.value;
+                });
+                if (totalDuration > 0) setEta(Math.round(totalDuration / 60));
+                if (totalDistance > 0) setDistanceStr((totalDistance / 1000).toFixed(1) + " km");
+              }
+            }
+          );
+        }
       }
     }
-  }, [rides, googleMapsLoaded, isHost, rideId, mapError, isDriving, isAutoCentering]);
+  }, [rides, googleMapsLoaded, isHost, rideId, mapError, isDriving, isAutoCentering, destination, waypoints]);
 
   // 4.5 Passenger GPS Broadcasting — passengers broadcast live location to host's map
   useEffect(() => {
@@ -776,7 +810,7 @@ export default function InteractiveMap({
           <div>
             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Live ETA</p>
             <p className="text-sm font-bold text-white flex items-center gap-1">
-              {eta} mins <span className="text-[10px] font-normal text-slate-400">({distanceStr})</span>
+              {eta !== null ? `${eta} mins` : "Calculating..."} <span className="text-[10px] font-normal text-slate-400">({distanceStr})</span>
             </p>
           </div>
           <div>
