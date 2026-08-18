@@ -468,7 +468,8 @@ interface StateContextType {
   createRide: (ride: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => void;
   requestJoinRide: (rideId: string, pickup: string, pickupLat?: number, pickupLng?: number, dropPoint?: string, dropLat?: number, dropLng?: number, deviationKm?: number) => void;
   handleRequestResponse: (requestId: string, accept: boolean) => void;
-  checkRideOverlap: (newDate: string | undefined, newTime: string, userId?: string, excludeRideId?: string) => { hasOverlap: boolean; overlappingRide?: Ride };
+  checkRideOverlap: (newDate: string | undefined, newTime: string, userId?: string, excludeRideId?: string) => { hasOverlap: boolean; overlappingRide?: Ride; isPendingRequest?: boolean };
+  cancelJoinRequest: (requestId: string) => void;
   confirmBoarding: (rideId: string, passengerId: string, enteredPin: string) => { success: boolean; message: string };
   sendMessage: (rideId: string, content: string, isLocation?: boolean) => void;
   startRide: (rideId: string) => void;
@@ -2029,7 +2030,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     newTime: string,
     userId?: string,
     excludeRideId?: string
-  ): { hasOverlap: boolean; overlappingRide?: Ride } => {
+  ): { hasOverlap: boolean; overlappingRide?: Ride; isPendingRequest?: boolean } => {
     const targetUserId = userId || currentUserIdRef.current;
     const newDateTime = parseRideDateTime(newDate, newTime);
     if (!newDateTime) return { hasOverlap: false };
@@ -2051,7 +2052,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const twoHoursMs = 2 * 60 * 60 * 1000;
 
       if (diffMs < twoHoursMs) {
-        return { hasOverlap: true, overlappingRide: ride };
+        return { hasOverlap: true, overlappingRide: ride, isPendingRequest: false };
       }
     }
 
@@ -2070,7 +2071,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               const diffMs = Math.abs(newDateTime.getTime() - existingDateTime.getTime());
               const twoHoursMs = 2 * 60 * 60 * 1000;
               if (diffMs < twoHoursMs) {
-                return { hasOverlap: true, overlappingRide: ride };
+                return { hasOverlap: true, overlappingRide: ride, isPendingRequest: reqStatusLower === "pending" };
               }
             }
           }
@@ -2081,14 +2082,42 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { hasOverlap: false };
   };
 
+  // Cancel / Withdraw a pending join request sent by passenger
+  const cancelJoinRequest = (requestId: string) => {
+    setRequests(prev => {
+      const updated = prev.filter(r => r.id !== requestId);
+      requestsRef.current = updated;
+      lastRequests = updated;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ecoride_requests", JSON.stringify(updated));
+      }
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        supabaseSync.set("requests", updated);
+      }
+      return updated;
+    });
+
+    addNotification({
+      id: `n-cancel-req-${Date.now()}`,
+      title: "Request Withdrawn ✖️",
+      message: "Your pending join request has been cancelled.",
+      timestamp: "Just now",
+      type: "info",
+      read: false
+    });
+  };
+
   // Create Ride — write OUTSIDE setState callback to avoid race condition
   const createRide = (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => {
     const overlapResult = checkRideOverlap(rideData.rideDate, rideData.departureTime);
     if (overlapResult.hasOverlap) {
+      const isPending = overlapResult.isPendingRequest;
       addNotification({
         id: `n-overlap-${Date.now()}`,
         title: "Scheduling Overlap ⚠️",
-        message: `You cannot host this ride because it overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${overlapResult.overlappingRide?.rideDate}).`,
+        message: isPending
+          ? `You have a pending join request for a ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${overlapResult.overlappingRide?.rideDate}). Please cancel your pending request in "My Rides" if you wish to offer a ride instead.`
+          : `You cannot host this ride because it overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${overlapResult.overlappingRide?.rideDate}).`,
         timestamp: "Just now",
         type: "warning",
         read: false
@@ -2188,10 +2217,13 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const overlapResult = checkRideOverlap(targetRide.rideDate, targetRide.departureTime);
     if (overlapResult.hasOverlap) {
+      const isPending = overlapResult.isPendingRequest;
       addNotification({
         id: `n-overlap-${Date.now()}`,
         title: "Scheduling Overlap ⚠️",
-        message: `You cannot join this ride because it overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${overlapResult.overlappingRide?.rideDate}).`,
+        message: isPending
+          ? `You have a pending join request for a ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${overlapResult.overlappingRide?.rideDate}). Please cancel your pending request in "My Rides" if you wish to join a different ride instead.`
+          : `You cannot join this ride because it overlaps with your scheduled ride to ${overlapResult.overlappingRide?.destination} at ${overlapResult.overlappingRide?.departureTime} (${overlapResult.overlappingRide?.rideDate}).`,
         timestamp: "Just now",
         type: "warning",
         read: false
@@ -3594,6 +3626,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         requestJoinRide,
         handleRequestResponse,
         checkRideOverlap,
+        cancelJoinRequest,
         sendMessage,
         startRide,
         completeRide,

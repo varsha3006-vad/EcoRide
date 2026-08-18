@@ -307,7 +307,8 @@ export default function HomePage() {
     postCommuteRequest,
     sendRideProposal,
     acceptRideProposal,
-    declineRideProposal
+    declineRideProposal,
+    cancelJoinRequest
   } = useAppState();
 
   // Helper to filter time options dynamically for future times only when scheduling for today
@@ -1022,7 +1023,22 @@ export default function HomePage() {
 
   const myCreatedRides = rides.filter(r => r.hostId === currentUser.id);
   const myJoinedRides = rides.filter(r => r.passengers.includes(currentUser.id));
-  const myUpcomingTrips = [...myCreatedRides, ...myJoinedRides].filter(r => r.status === "Published" || r.status === "Started");
+  const myPendingRequestedRides = rides.filter(r => 
+    !r.passengers.includes(currentUser.id) &&
+    r.hostId !== currentUser.id &&
+    requests.some(req => req.rideId === r.id && req.requesterId === currentUser.id && req.status === "Pending")
+  );
+
+  const rawTrips: Ride[] = [...myCreatedRides, ...myJoinedRides, ...myPendingRequestedRides];
+  const seenIds = new Set<string>();
+  const myUpcomingTrips: Ride[] = [];
+
+  for (const r of rawTrips) {
+    if ((r.status === "Published" || r.status === "Started") && !seenIds.has(r.id)) {
+      seenIds.add(r.id);
+      myUpcomingTrips.push(r);
+    }
+  }
 
   // Search/Filter rides list
   const filteredRides = rides.filter(r => {
@@ -2570,7 +2586,7 @@ export default function HomePage() {
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-100 dark:divide-slate-900/60">
-                      {myUpcomingTrips.map(trip => {
+                      {myUpcomingTrips.map((trip: Ride) => {
                         const isHost = trip.hostId === currentUser.id;
                         const boardedRaw = trip.boardedPassengers as any;
                         const boardedArray = Array.isArray(boardedRaw)
@@ -2591,7 +2607,7 @@ export default function HomePage() {
                                     {trip.pickup} → {trip.destination}
                                   </h4>
                                   <div className="flex flex-wrap gap-2 mt-1 text-[9px] text-slate-500 font-semibold">
-                                    {trip.rideDate && (
+                            {trip.rideDate && (
                                       <span className="flex items-center gap-0.5">
                                         <Calendar className="h-3 w-3 text-slate-400" /> {formatRideDate(trip.rideDate)}
                                       </span>
@@ -2599,8 +2615,16 @@ export default function HomePage() {
                                     <span className="flex items-center gap-0.5">
                                       <Clock className="h-3 w-3" /> {trip.departureTime}
                                     </span>
-                                    <span>• Status: <strong className="text-brand-green-600">{trip.status}</strong></span>
-                                    <span>• Role: {isHost ? "Host" : "Passenger"}</span>
+                                    {(() => {
+                                      const isPassenger = trip.passengers && trip.passengers.includes(currentUser.id);
+                                      const myPendingReq = requests.find(r => r.rideId === trip.id && r.requesterId === currentUser.id && r.status === "Pending");
+                                      return (
+                                        <>
+                                          <span>• Status: <strong className={myPendingReq ? "text-amber-600 dark:text-amber-400 font-bold" : "text-brand-green-600"}>{myPendingReq ? "Awaiting Host Approval" : trip.status}</strong></span>
+                                          <span>• Role: {isHost ? "Host" : isPassenger ? "Passenger" : "⏳ Pending Request"}</span>
+                                        </>
+                                      );
+                                    })()}
                                     <span className="flex items-center gap-1">
                                       <span>• Vehicle: {trip.vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "🛵 2-Wheeler" : "🚘 Car"} ({trip.vehicleModel} - {trip.vehicleType})</span>
                                       <span className="inline-flex items-center px-2 py-0.5 rounded border border-slate-350 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-[11px] font-black text-slate-800 dark:text-slate-200 tracking-wider font-mono shadow-sm ml-0.5">
@@ -2794,15 +2818,32 @@ export default function HomePage() {
                                   </button>
                                 )}
 
-                                {/* Cancel action */}
-                                {trip.status?.toLowerCase() !== "completed" && trip.status?.toLowerCase() !== "cancelled" && (
-                                  <button
-                                    onClick={() => cancelRide(trip.id, currentUser.id)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer"
-                                  >
-                                    Cancel
-                                  </button>
-                                )}
+                                 {/* Withdraw Pending Join Request */}
+                                 {(() => {
+                                   const isPassenger = trip.passengers && trip.passengers.includes(currentUser.id);
+                                   const myPendingReq = requests.find(r => r.rideId === trip.id && r.requesterId === currentUser.id && r.status === "Pending");
+                                   if (myPendingReq && !isHost && !isPassenger) {
+                                     return (
+                                       <button
+                                         onClick={() => cancelJoinRequest(myPendingReq.id)}
+                                         className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                       >
+                                         ✖️ Withdraw Request
+                                       </button>
+                                     );
+                                   }
+                                   return null;
+                                 })()}
+
+                                 {/* Cancel action */}
+                                 {(isHost || (trip.passengers && trip.passengers.includes(currentUser.id))) && trip.status?.toLowerCase() !== "completed" && trip.status?.toLowerCase() !== "cancelled" && (
+                                   <button
+                                     onClick={() => cancelRide(trip.id, currentUser.id)}
+                                     className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer"
+                                   >
+                                     Cancel
+                                   </button>
+                                 )}
                               </div>
                             </div>
 
