@@ -185,7 +185,7 @@ export default function InteractiveMap({
           position: google.maps.ControlPosition.RIGHT_CENTER
         },
         scrollwheel: true,
-        gestureHandling: "cooperative",
+        gestureHandling: "greedy",
         rotateControl: true,
         scaleControl: true,
         styles: MAP_STYLES
@@ -785,21 +785,11 @@ export default function InteractiveMap({
         </div>
       </div>
 
-      {/* Auto-Follow / Pan Mode Indicator Badge */}
-      <div className="absolute top-3 right-3 z-10">
-        <span className={`px-2.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider backdrop-blur-md border shadow-md flex items-center gap-1 ${
-          isAutoCentering
-            ? "bg-emerald-950/80 text-emerald-400 border-emerald-500/30"
-            : "bg-amber-950/80 text-amber-300 border-amber-500/30 animate-pulse"
-        }`}>
-          {isAutoCentering ? "🎯 Vehicle Locked" : "🖐️ Manual Pan Mode"}
-        </span>
-      </div>
-
-      {/* Floating Recenter Button */}
+      {/* Floating Recenter Button on Left Side of Map */}
       {!isAutoCentering && (
         <button
           onClick={() => {
+            programmaticActionRef.current = true;
             setIsAutoCentering(true);
             if (googleMapInstanceRef.current) {
               const map = googleMapInstanceRef.current;
@@ -811,7 +801,6 @@ export default function InteractiveMap({
                 targetPos = new (window as any).google.maps.LatLng(currentCoords.lat, currentCoords.lng);
               }
 
-              programmaticActionRef.current = true;
               if (targetPos) {
                 map.panTo(targetPos);
                 map.setZoom(18); // Close-up vehicle tracking view
@@ -821,14 +810,16 @@ export default function InteractiveMap({
                   map.fitBounds(dirs.routes[0].bounds);
                 }
               }
-              setTimeout(() => {
-                programmaticActionRef.current = false;
-              }, 200);
             }
+            // 1.2s guard so intermediate zoom_changed & directions route renders don't unlock auto-centering!
+            setTimeout(() => {
+              programmaticActionRef.current = false;
+            }, 1200);
           }}
-          className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-brand-green-600 hover:bg-brand-green-700 text-white font-extrabold text-[10px] tracking-wider uppercase px-4 py-2 rounded-full shadow-xl border border-brand-green-400 hover:scale-105 transition-all cursor-pointer animate-slide-up"
+          className="absolute bottom-16 left-3 z-20 flex items-center gap-1.5 bg-brand-green-600 hover:bg-brand-green-700 text-white font-extrabold text-[10px] tracking-wider uppercase px-3 py-1.5 rounded-xl shadow-xl border border-brand-green-400 hover:scale-105 transition-all cursor-pointer animate-slide-up"
+          title="Recenter map on vehicle"
         >
-          🎯 Recenter (Close-up View)
+          🎯 Recenter
         </button>
       )}
 
