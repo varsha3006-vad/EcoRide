@@ -185,7 +185,9 @@ export default function InteractiveMap({
           position: google.maps.ControlPosition.RIGHT_CENTER
         },
         scrollwheel: true,
-        gestureHandling: "greedy",
+        gestureHandling: "cooperative",
+        rotateControl: true,
+        scaleControl: true,
         styles: MAP_STYLES
       });
       googleMapInstanceRef.current = map;
@@ -432,16 +434,16 @@ export default function InteractiveMap({
           }
         }
         
-        // Pan map to center on driver
+        // Pan map to center on driver (close-up vehicle tracking view)
         if (isAutoCentering && googleMapInstanceRef.current) {
           programmaticActionRef.current = true;
           googleMapInstanceRef.current.panTo(currentLatLng);
-          if (googleMapInstanceRef.current.getZoom() !== 17) {
-            googleMapInstanceRef.current.setZoom(17);
+          if (googleMapInstanceRef.current.getZoom() < 17) {
+            googleMapInstanceRef.current.setZoom(18);
           }
           setTimeout(() => {
             programmaticActionRef.current = false;
-          }, 100);
+          }, 150);
         }
 
         // Push coordinates to shared state
@@ -756,13 +758,13 @@ export default function InteractiveMap({
   }, [rides, isHost, googleMapsLoaded, rideId, mapError]);
 
   return (
-    <div className="relative w-full h-[320px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-inner">
+    <div className="relative w-full h-[320px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-inner touch-manipulation">
       
       {googleMapsLoaded && !mapError ? (
         /* Real Google Map */
         <div
           ref={mapRef}
-          className="w-full h-full absolute inset-0 z-0"
+          className="w-full h-full absolute inset-0 z-0 touch-manipulation"
         />
       ) : (
         /* Loading / error fallback */
@@ -783,28 +785,50 @@ export default function InteractiveMap({
         </div>
       </div>
 
-      {/* Simulation Toggle Controls Removed as Real-time GPS is active */}
+      {/* Auto-Follow / Pan Mode Indicator Badge */}
+      <div className="absolute top-3 right-3 z-10">
+        <span className={`px-2.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider backdrop-blur-md border shadow-md flex items-center gap-1 ${
+          isAutoCentering
+            ? "bg-emerald-950/80 text-emerald-400 border-emerald-500/30"
+            : "bg-amber-950/80 text-amber-300 border-amber-500/30 animate-pulse"
+        }`}>
+          {isAutoCentering ? "🎯 Vehicle Locked" : "🖐️ Manual Pan Mode"}
+        </span>
+      </div>
 
       {/* Floating Recenter Button */}
-      {!isAutoCentering && isDriving && (
+      {!isAutoCentering && (
         <button
           onClick={() => {
             setIsAutoCentering(true);
-            if (googleMapInstanceRef.current && carMarkerRef.current) {
-              const pos = carMarkerRef.current.getPosition();
-              if (pos) {
-                programmaticActionRef.current = true;
-                googleMapInstanceRef.current.panTo(pos);
-                googleMapInstanceRef.current.setZoom(17);
-                setTimeout(() => {
-                  programmaticActionRef.current = false;
-                }, 100);
+            if (googleMapInstanceRef.current) {
+              const map = googleMapInstanceRef.current;
+              let targetPos: any = null;
+
+              if (carMarkerRef.current && carMarkerRef.current.getPosition()) {
+                targetPos = carMarkerRef.current.getPosition();
+              } else if (currentCoords) {
+                targetPos = new (window as any).google.maps.LatLng(currentCoords.lat, currentCoords.lng);
               }
+
+              programmaticActionRef.current = true;
+              if (targetPos) {
+                map.panTo(targetPos);
+                map.setZoom(18); // Close-up vehicle tracking view
+              } else if (directionsRendererRef.current && directionsRendererRef.current.getDirections()) {
+                const dirs = directionsRendererRef.current.getDirections();
+                if (dirs && dirs.routes && dirs.routes[0]) {
+                  map.fitBounds(dirs.routes[0].bounds);
+                }
+              }
+              setTimeout(() => {
+                programmaticActionRef.current = false;
+              }, 200);
             }
           }}
-          className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-brand-green-600 hover:bg-brand-green-700 text-white font-extrabold text-[10px] tracking-wider uppercase px-4 py-2 rounded-full shadow-lg border border-brand-green-500 hover:scale-105 transition-all cursor-pointer"
+          className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-brand-green-600 hover:bg-brand-green-700 text-white font-extrabold text-[10px] tracking-wider uppercase px-4 py-2 rounded-full shadow-xl border border-brand-green-400 hover:scale-105 transition-all cursor-pointer animate-slide-up"
         >
-          🎯 Recenter
+          🎯 Recenter (Close-up View)
         </button>
       )}
 
