@@ -400,6 +400,7 @@ export interface Ride {
   boardedPassengers?: string[]; // list of passengerIds who have confirmed boarding
   city?: string;
   actualDrivenKm?: number; // Actual live GPS odometer distance driven during active trip
+  createdAt?: string;
 }
 
 export interface RideRequest {
@@ -420,6 +421,7 @@ export interface RideRequest {
   timestamp: string;
   boardingPin?: string;
   deviationKm?: number;
+  createdAt?: string;
 }
 
 export interface ChatMessage {
@@ -862,24 +864,23 @@ const SYSTEM_PURGE_CUTOFF_MS = new Date("2026-08-18T19:30:00.000Z").getTime();
 
 const filterPurgedRides = (rideList: Ride[]): Ride[] => {
   if (!rideList || !Array.isArray(rideList)) return [];
+  const LEGACY_STATIC_RIDE_IDS = ["r-1", "r-2", "r-3", "r-4", "r-5", "ride-1", "ride-2", "ride-3", "ride-101", "ride-102"];
   return rideList.filter(ride => {
     if (!ride || !ride.id) return false;
+    if (LEGACY_STATIC_RIDE_IDS.includes(ride.id)) return false;
+
     let rideTimeMs = 0;
     const rawRide = ride as any;
     if (rawRide.createdAt) {
       rideTimeMs = new Date(rawRide.createdAt).getTime();
-    } else if (ride.id.startsWith("ride-")) {
-      const tsStr = ride.id.replace("ride-", "").split("-")[0];
-      const parsed = Number(tsStr);
-      if (!isNaN(parsed) && parsed > 1000000000000) rideTimeMs = parsed;
+    } else if (ride.id.includes("-")) {
+      const parts = ride.id.split("-");
+      const tsStr = parts.find(p => p.length >= 13 && !isNaN(Number(p)));
+      if (tsStr) rideTimeMs = Number(tsStr);
     }
     
-    // If ride timestamp is prior to cutoff, drop it completely
+    // If ride timestamp is prior to cutoff, drop it
     if (rideTimeMs > 0 && rideTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
-      return false;
-    }
-    // Drop legacy mock static ride IDs
-    if (ride.id.startsWith("r-") || ride.id.startsWith("ride-1")) {
       return false;
     }
     return true;
@@ -922,8 +923,11 @@ const mergeRidesSafely = (currentRides: Ride[], incomingRides: Ride[]): Ride[] =
 
 const filterPurgedRequests = (reqList: RideRequest[]): RideRequest[] => {
   if (!reqList || !Array.isArray(reqList)) return [];
+  const LEGACY_STATIC_REQ_IDS = ["req-1", "req-2", "req-3", "req-alex"];
   return reqList.filter(req => {
     if (!req || !req.id) return false;
+    if (LEGACY_STATIC_REQ_IDS.includes(req.id)) return false;
+
     let reqTimeMs = 0;
     const rawReq = req as any;
     if (rawReq.createdAt) {
@@ -936,17 +940,17 @@ const filterPurgedRequests = (reqList: RideRequest[]): RideRequest[] => {
     if (reqTimeMs > 0 && reqTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
       return false;
     }
-    if (req.id.startsWith("req-1") || req.id.startsWith("r-") || req.id.startsWith("req-alex")) {
-      return false;
-    }
     return true;
   });
 };
 
 const filterPurgedCommuteRequests = (crList: CommuteRequest[]): CommuteRequest[] => {
   if (!crList || !Array.isArray(crList)) return [];
+  const LEGACY_STATIC_CR_IDS = ["cr-1", "cr-2", "cr-3"];
   return crList.filter(cr => {
     if (!cr || !cr.id) return false;
+    if (LEGACY_STATIC_CR_IDS.includes(cr.id)) return false;
+
     let crTimeMs = 0;
     const rawCr = cr as any;
     if (rawCr.createdAt) {
@@ -959,17 +963,17 @@ const filterPurgedCommuteRequests = (crList: CommuteRequest[]): CommuteRequest[]
     if (crTimeMs > 0 && crTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
       return false;
     }
-    if (cr.id.startsWith("cr-1") || cr.id.startsWith("cr-2") || cr.id.startsWith("cr-3")) {
-      return false;
-    }
     return true;
   });
 };
 
 const filterPurgedProposals = (propList: RideProposal[]): RideProposal[] => {
   if (!propList || !Array.isArray(propList)) return [];
+  const LEGACY_STATIC_PROP_IDS = ["prop-1", "p-1"];
   return propList.filter(p => {
     if (!p || !p.id) return false;
+    if (LEGACY_STATIC_PROP_IDS.includes(p.id)) return false;
+
     let pTimeMs = 0;
     const rawP = p as any;
     if (rawP.createdAt) {
@@ -980,9 +984,6 @@ const filterPurgedProposals = (propList: RideProposal[]): RideProposal[] => {
       if (tsStr) pTimeMs = Number(tsStr);
     }
     if (pTimeMs > 0 && pTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
-      return false;
-    }
-    if (p.id.startsWith("prop-1") || p.id.startsWith("p-1")) {
       return false;
     }
     return true;
@@ -2358,7 +2359,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const newRide: Ride = {
       ...rideData,
-      id: `r-${Date.now()}`,
+      id: `ride-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      createdAt: new Date().toISOString(),
       hostId: currentUser.id,
       hostName: currentUser.name,
       hostAvatar: currentUser.avatar,
@@ -2463,7 +2465,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const newRequest: RideRequest = {
-      id: `req-${Date.now()}`,
+      id: `req-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      createdAt: new Date().toISOString(),
       rideId,
       requesterId: currentUser.id,
       requesterName: currentUser.name,
@@ -3713,9 +3716,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (!targetRide) {
       const hostUser = employees.find(e => e.id === proposal.hostId);
-      const rideId = `r-${Date.now()}`;
+      const rideId = `ride-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const newRide: Ride = {
         id: rideId,
+        createdAt: new Date().toISOString(),
         hostId: proposal.hostId,
         hostName: proposal.hostName,
         hostAvatar: proposal.hostAvatar || "🚗",
