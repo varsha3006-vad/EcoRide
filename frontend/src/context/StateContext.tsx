@@ -1086,6 +1086,15 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [requests, setRequests] = useState<RideRequest[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [clearedNotifIds, setClearedNotifIds] = useState<Set<string>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("ecoride_cleared_notif_ids");
+        return saved ? new Set(JSON.parse(saved)) : new Set();
+      } catch (e) {}
+    }
+    return new Set();
+  });
   const [leaderboard, setLeaderboard] = useState<Employee[]>([]);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>([]);
   const [activeCity, setActiveCity] = useState<string>("Bangalore");
@@ -1950,11 +1959,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // A. Passenger gets notification if their request was accepted/declined
       if (req.requesterId === currentUserId) {
         if (req.status === "Accepted") {
-          const hasNotif = notifications.some(n => n.id === `n-req-acc-${req.id}`);
+          const notifId = `n-req-acc-${req.id}`;
+          const hasNotif = notifications.some(n => n.id === notifId) || clearedNotifIds.has(notifId);
           if (!hasNotif) {
             const ride = rides.find(r => r.id === req.rideId);
             addNotification({
-              id: `n-req-acc-${req.id}`,
+              id: notifId,
               title: "Ride Request Approved! 🎉",
               message: `${ride ? ride.hostName : "The host"} accepted your ride request. Ready to commute!`,
               timestamp: "Just now",
@@ -1963,11 +1973,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
           }
         } else if (req.status === "Rejected") {
-          const hasNotif = notifications.some(n => n.id === `n-req-rej-${req.id}`);
+          const notifId = `n-req-rej-${req.id}`;
+          const hasNotif = notifications.some(n => n.id === notifId) || clearedNotifIds.has(notifId);
           if (!hasNotif) {
             const ride = rides.find(r => r.id === req.rideId);
             addNotification({
-              id: `n-req-rej-${req.id}`,
+              id: notifId,
               title: "Ride Request Declined ❌",
               message: `${ride ? ride.hostName : "The host"} declined your join request.`,
               timestamp: "Just now",
@@ -1982,10 +1993,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (req.status === "Pending" && req.requesterId !== currentUserId) {
         const ride = rides.find(r => r.id === req.rideId);
         if (ride && ride.hostId === currentUserId) {
-          const hasNotif = notifications.some(n => n.id === `n-new-req-${req.id}`);
+          const notifId = `n-new-req-${req.id}`;
+          const hasNotif = notifications.some(n => n.id === notifId) || clearedNotifIds.has(notifId);
           if (!hasNotif) {
             addNotification({
-              id: `n-new-req-${req.id}`,
+              id: notifId,
               title: `Ride Join Request from ${req.requesterName} ✉️`,
               message: `${req.requesterName} wants to join your ride to ${ride.destination}.`,
               timestamp: "Just now",
@@ -2007,10 +2019,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Notify passenger when host acts
         if (isPassenger && !isHost) {
           if (ride.status === "Started") {
-            const hasNotif = notifications.some(n => n.id === `n-ride-start-${ride.id}-${ride.status}`);
+            const notifId = `n-ride-start-${ride.id}-${ride.status}`;
+            const hasNotif = notifications.some(n => n.id === notifId) || clearedNotifIds.has(notifId);
             if (!hasNotif) {
               addNotification({
-                id: `n-ride-start-${ride.id}-${ride.status}`,
+                id: notifId,
                 title: "Carpool Started! 🚗",
                 message: `${ride.hostName} has started the commute to ${ride.destination}. Meet at your boarding point!`,
                 timestamp: "Just now",
@@ -2019,10 +2032,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               });
             }
           } else if (ride.status === "Completed") {
-            const hasNotif = notifications.some(n => n.id === `n-ride-comp-${ride.id}-${ride.status}`);
+            const notifId = `n-ride-comp-${ride.id}-${ride.status}`;
+            const hasNotif = notifications.some(n => n.id === notifId) || clearedNotifIds.has(notifId);
             if (!hasNotif) {
               addNotification({
-                id: `n-ride-comp-${ride.id}-${ride.status}`,
+                id: notifId,
                 title: "Carpool Completed! 🌱",
                 message: `You arrived at ${ride.destination}. ESG credits and CO₂ savings have been updated!`,
                 timestamp: "Just now",
@@ -2038,7 +2052,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Update comparison cache refs
     prevRequestsRef.current = requests;
     prevRidesRef.current = rides;
-  }, [requests, rides, isLoaded, currentUserId, notifications]);
+  }, [requests, rides, isLoaded, currentUserId, notifications, clearedNotifIds]);
 
   const currentUser = employees.find(e => e.id === currentUserId) || employees[0];
 
@@ -2224,7 +2238,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addNotification = (notif: Notification) => {
-    setNotifications(prev => [notif, ...prev]);
+    if (clearedNotifIds.has(notif.id)) return;
+    setNotifications(prev => {
+      if (prev.some(n => n.id === notif.id)) return prev;
+      return [notif, ...prev];
+    });
     playNotificationSound();
   };
 
@@ -3434,7 +3452,23 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const clearNotifications = () => {
-    setNotifications([]);
+    setNotifications(prev => {
+      const currentIds = prev.map(n => n.id);
+      if (currentIds.length > 0) {
+        setClearedNotifIds(oldSet => {
+          const updated = new Set(oldSet);
+          currentIds.forEach(id => updated.add(id));
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("ecoride_cleared_notif_ids", JSON.stringify(Array.from(updated)));
+            } catch (e) {}
+          }
+          return updated;
+        });
+      }
+      return [];
+    });
+
     if (typeof window !== "undefined") {
       localStorage.setItem("ecoride_notifications", JSON.stringify([]));
     }
