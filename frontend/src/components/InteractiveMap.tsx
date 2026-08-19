@@ -16,6 +16,7 @@ interface InteractiveMapProps {
   isHost?: boolean;
   passengerId?: string; // current user's id when they are a passenger
   vehicleCategory?: "4-Wheeler (Car)" | "2-Wheeler (Bike/Scooter)";
+  focusedStopCoords?: { lat: number; lng: number } | null;
 }
 
 export default function InteractiveMap({ 
@@ -29,7 +30,8 @@ export default function InteractiveMap({
   rideId,
   isHost = false,
   passengerId,
-  vehicleCategory
+  vehicleCategory,
+  focusedStopCoords
 }: InteractiveMapProps) {
   const { rides, updateRideLocation, updatePassengerLocation } = useAppState();
   const [eta, setEta] = useState<number | null>(null);
@@ -38,6 +40,18 @@ export default function InteractiveMap({
   
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapInstanceRef = useRef<any>(null);
+
+  // Zoom to focused stop location (Level 19 close-up view)
+  useEffect(() => {
+    if (focusedStopCoords && googleMapInstanceRef.current) {
+      const google = (window as any).google;
+      if (google && google.maps) {
+        const latLng = new google.maps.LatLng(focusedStopCoords.lat, focusedStopCoords.lng);
+        googleMapInstanceRef.current.panTo(latLng);
+        googleMapInstanceRef.current.setZoom(19);
+      }
+    }
+  }, [focusedStopCoords]);
   const carMarkerRef = useRef<any>(null);
   const directionsRendererRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);

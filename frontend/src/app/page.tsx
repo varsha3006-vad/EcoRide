@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useAppState, Ride, RideRequest } from "@/context/StateContext";
+import { useAppState, Ride, RideRequest, Employee } from "@/context/StateContext";
 import Navbar from "@/components/Navbar";
 import InteractiveMap from "@/components/InteractiveMap";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
@@ -435,6 +435,18 @@ export default function HomePage() {
   const [proposalRideId, setProposalRideId] = useState<string>("new");
   const [hostSelectedPlate, setHostSelectedPlate] = useState("");
   const [proposalSelectedPlate, setProposalSelectedPlate] = useState("");
+
+  // Sequential Pickup Arrival & Destination Completion Modals
+  const [activeArrivalPickup, setActiveArrivalPickup] = useState<{
+    ride: Ride;
+    req: RideRequest;
+    stopIndex: number;
+    totalStops: number;
+    passengerUser?: Employee;
+  } | null>(null);
+
+  const [activeArrivalDestination, setActiveArrivalDestination] = useState<Ride | null>(null);
+  const [focusedMapStopCoords, setFocusedMapStopCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // Sync selected vehicle from current user's registered list and auto-set vehicle properties
   useEffect(() => {
@@ -3006,18 +3018,124 @@ export default function HomePage() {
 
                                   {/* Conditional Map View */}
                                   {(mapViewPreferences[trip.id] || "embedded") === "embedded" ? (
-                                    <div className="rounded-2xl overflow-hidden border border-brand-green-500/20 shadow-md">
-                                      <InteractiveMap
-                                        pickup={trip.pickup}
-                                        destination={trip.destination}
-                                        passengerPickup={myReq?.pickup}
-                                        passengerDrop={myReq?.dropPoint}
-                                        isDriving={true}
-                                        waypoints={passengerPickups}
-                                        rideId={trip.id}
-                                        isHost={!!isHost}
-                                        passengerId={isHost ? undefined : currentUser.id}
-                                      />
+                                    <div className="space-y-3">
+                                      <div className="rounded-2xl overflow-hidden border border-brand-green-500/20 shadow-md">
+                                        <InteractiveMap
+                                          pickup={trip.pickup}
+                                          destination={trip.destination}
+                                          passengerPickup={myReq?.pickup}
+                                          passengerDrop={myReq?.dropPoint}
+                                          isDriving={true}
+                                          waypoints={passengerPickups}
+                                          rideId={trip.id}
+                                          isHost={!!isHost}
+                                          passengerId={isHost ? undefined : currentUser.id}
+                                          focusedStopCoords={focusedMapStopCoords}
+                                        />
+                                      </div>
+
+                                      {/* Host Turn-by-Turn Sequential Navigation Stepper & Arrival Triggers */}
+                                      {isHost && (
+                                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5 text-left text-white shadow-md">
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                                              <Navigation className="h-3 w-3 text-emerald-400" /> Turn-by-Turn Pickup Navigation
+                                            </span>
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {(trip.boardedPassengers || []).length} of {(trip.passengers || []).length} Passengers Boarded
+                                            </span>
+                                          </div>
+
+                                          <div className="space-y-2">
+                                            {(() => {
+                                              const approvedReqs = requests.filter(r => r.rideId === trip.id && r.status === "Accepted");
+                                              const boarded = trip.boardedPassengers || [];
+                                              
+                                              return approvedReqs.map((req, sIdx) => {
+                                                const isBoarded = boarded.includes(req.requesterId);
+                                                const psgrUser = employees.find(e => e.id === req.requesterId);
+
+                                                return (
+                                                  <div
+                                                    key={req.id}
+                                                    className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all ${
+                                                      isBoarded
+                                                        ? "bg-emerald-950/20 border-emerald-500/20 text-slate-400"
+                                                        : "bg-slate-950 border-slate-800 text-white hover:border-brand-green-500/40"
+                                                    }`}
+                                                  >
+                                                    <div className="flex items-center gap-2">
+                                                      <span className={`h-5 w-5 rounded-full text-[9px] font-black flex items-center justify-center ${
+                                                        isBoarded ? "bg-emerald-500/20 text-emerald-400" : "bg-brand-green-500 text-white"
+                                                      }`}>
+                                                        {sIdx + 1}
+                                                      </span>
+                                                      <div>
+                                                        <p className="font-bold text-[11px] flex items-center gap-1">
+                                                          <span>{psgrUser?.avatar || "👤"}</span>
+                                                          <span>Pickup {psgrUser?.name || req.requesterName}</span>
+                                                          {isBoarded && <span className="text-emerald-400 text-[9px] font-black">✓ Boarded</span>}
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 font-semibold truncate max-w-[180px]">
+                                                          📍 {req.pickup}
+                                                        </p>
+                                                      </div>
+                                                    </div>
+
+                                                    {!isBoarded ? (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          if (req.pickupLat && req.pickupLng) {
+                                                            setFocusedMapStopCoords({ lat: req.pickupLat, lng: req.pickupLng });
+                                                          }
+                                                          setActiveArrivalPickup({
+                                                            ride: trip,
+                                                            req,
+                                                            stopIndex: sIdx + 1,
+                                                            totalStops: approvedReqs.length,
+                                                            passengerUser: psgrUser
+                                                          });
+                                                        }}
+                                                        className="px-3 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-black tracking-wider uppercase shadow-md transition-all cursor-pointer flex items-center gap-1"
+                                                      >
+                                                        📍 Reached Stop {sIdx + 1}
+                                                      </button>
+                                                    ) : (
+                                                      <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-0.5">
+                                                        ✓ Verified
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              });
+                                            })()}
+
+                                            {/* Destination Final Stop Trigger */}
+                                            <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3 text-xs">
+                                              <div className="flex items-center gap-2">
+                                                <span className="h-5 w-5 rounded-full text-[9px] font-black bg-brand-blue-500 text-white flex items-center justify-center">
+                                                  🏁
+                                                </span>
+                                                <div>
+                                                  <p className="font-bold text-[11px] text-white">Final Destination</p>
+                                                  <p className="text-[9px] text-slate-400 font-semibold truncate max-w-[180px]">
+                                                    🏁 {trip.destination}
+                                                  </p>
+                                                </div>
+                                              </div>
+
+                                              <button
+                                                type="button"
+                                                onClick={() => setActiveArrivalDestination(trip)}
+                                                className="px-3 py-1.5 rounded-lg bg-brand-blue-600 hover:bg-brand-blue-700 text-white text-[10px] font-black tracking-wider uppercase shadow-md transition-all cursor-pointer flex items-center gap-1"
+                                              >
+                                                🏁 Reached Destination
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   ) : (
                                     <div className="p-5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col items-center justify-center text-center gap-2.5 py-6">
@@ -3919,6 +4037,128 @@ export default function HomePage() {
         isOpen={showCreditModal}
         onClose={() => setShowCreditModal(false)}
       />
+
+      {/* Pickup Stop Arrival & PIN Verification Modal */}
+      {activeArrivalPickup && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in select-none">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-950 rounded-3xl border-2 border-brand-green-500/80 p-6 shadow-2xl space-y-5 text-left relative overflow-hidden">
+            <div className="absolute -top-12 -right-12 h-36 w-36 bg-brand-green-500/10 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-brand-green-600 dark:text-brand-green-400 bg-brand-green-500/10 px-2.5 py-0.5 rounded-full border border-brand-green-500/20">
+                  Stop {activeArrivalPickup.stopIndex} of {activeArrivalPickup.totalStops}
+                </span>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base mt-1 flex items-center gap-2">
+                  <span>📍</span> Reached Pickup Location
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setActiveArrivalPickup(null);
+                  setFocusedMapStopCoords(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer rounded-xl bg-slate-100 dark:bg-slate-900"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="text-3xl">{activeArrivalPickup.passengerUser?.avatar || "👤"}</div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {activeArrivalPickup.passengerUser?.name || activeArrivalPickup.req.requesterName}
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-semibold">
+                    {activeArrivalPickup.passengerUser?.department || activeArrivalPickup.req.requesterDept}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2 text-xs space-y-1 text-slate-700 dark:text-slate-300 font-medium">
+                <p>📍 <strong>Pickup Point:</strong> {activeArrivalPickup.req.pickup}</p>
+                <p>🏁 <strong>Drop-off Point:</strong> {activeArrivalPickup.req.dropPoint}</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-3">
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <span>🔑</span> Enter 4-Digit Onboarding PIN from Passenger
+              </p>
+
+              <PassengerPinVerifyForm
+                rideId={activeArrivalPickup.ride.id}
+                passengerId={activeArrivalPickup.req.requesterId}
+                confirmBoarding={(rId, pId, pin) => {
+                  const res = confirmBoarding(rId, pId, pin);
+                  if (res.success) {
+                    setActiveArrivalPickup(null);
+                    setFocusedMapStopCoords(null);
+                  }
+                  return res;
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Destination Final Arrival & Completion Screen */}
+      {activeArrivalDestination && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in select-none">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-950 rounded-3xl border-2 border-brand-blue-500/80 p-6 shadow-2xl space-y-5 text-left relative overflow-hidden">
+            <div className="absolute -top-12 -right-12 h-36 w-36 bg-brand-blue-500/10 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-brand-blue-600 dark:text-brand-blue-400 bg-brand-blue-500/10 px-2.5 py-0.5 rounded-full border border-brand-blue-500/20">
+                  Destination Reached 🏁
+                </span>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base mt-1 flex items-center gap-2">
+                  <span>🚗</span> Arrived at Final Destination
+                </h3>
+              </div>
+              <button
+                onClick={() => setActiveArrivalDestination(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer rounded-xl bg-slate-100 dark:bg-slate-900"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 space-y-3">
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                You have arrived at <strong>{activeArrivalDestination.destination}</strong>. All co-passengers arrived safely!
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800">
+                  <span className="text-slate-400 text-[9px] block uppercase">Distance Driven</span>
+                  <span>{(activeArrivalDestination.actualDrivenKm || 10.0).toFixed(1)} km</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800">
+                  <span className="text-slate-400 text-[9px] block uppercase">Co-Passengers</span>
+                  <span>{activeArrivalDestination.passengers?.length || 0} Colleagues</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                const targetRide = activeArrivalDestination;
+                setActiveArrivalDestination(null);
+                completeRide(targetRide.id, { safety: 5, comfort: 5, punctuality: 5 });
+              }}
+              className="w-full py-3.5 px-4 rounded-2xl bg-brand-green-600 hover:bg-brand-green-700 active:scale-[0.98] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-brand-green-600/30 transition-all cursor-pointer text-center"
+            >
+              <Check className="h-5 w-5 stroke-[3]" />
+              Complete Ride &amp; Collect ESG Credits
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Mother Earth Hero Celebration Modal */}
       <RideCompletionCelebrationModal
