@@ -287,7 +287,7 @@ export default function InteractiveMap({
 
     const directionsRenderer = new google.maps.DirectionsRenderer({
       map: map,
-      preserveViewport: !isAutoCentering,
+      preserveViewport: true,
       suppressMarkers: true,
       polylineOptions: { strokeColor: "#10b981", strokeOpacity: 0.8, strokeWeight: 6 }
     });
@@ -369,7 +369,7 @@ export default function InteractiveMap({
         }
 
         placeStaticMarkers();
-        if (isAutoCentering) {
+        if (!isDriving && isAutoCentering) {
           const bounds = new google.maps.LatLngBounds();
           bounds.extend(startLatLng); bounds.extend(endLatLng);
           if (passengerPickupLatLng) bounds.extend(passengerPickupLatLng);
