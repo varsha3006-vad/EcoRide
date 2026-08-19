@@ -1616,10 +1616,25 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Helper to apply incoming row to local state
     const applyRow = (key: string, value: any) => {
       if (!key || !value) return;
-      if (key === "employees") {
-        setEmployees(value);
-        employeesRef.current = value;
-        lastEmployees = value;
+      if (key === "employees" && Array.isArray(value)) {
+        setEmployees(prev => {
+          const merged = prev.map(emp => {
+            const incoming = value.find((v: any) => v.id === emp.id);
+            if (!incoming) return emp;
+            return {
+              ...incoming,
+              credits: Math.max(emp.credits || 0, incoming.credits || 0),
+              carbonSaved: Math.max(emp.carbonSaved || 0, incoming.carbonSaved || 0),
+              esgScore: Math.max(emp.esgScore || 0, incoming.esgScore || 0)
+            };
+          });
+          value.forEach((v: any) => {
+            if (!merged.some(m => m.id === v.id)) merged.push(v);
+          });
+          employeesRef.current = merged;
+          lastEmployees = merged;
+          return merged;
+        });
       } else if (key === "rides") {
         setRides(prev => {
           const merged = mergeRidesSafely(prev, value);
@@ -2862,40 +2877,52 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           : 0;
 
         // Award credits to the driver & passengers in the employees array
-        setEmployees(prevEmps => prevEmps.map(emp => {
-          const isDriver = emp.id === ride.hostId;
-          const isPassenger = ride.passengers.includes(emp.id);
+        setEmployees(prevEmps => {
+          const updatedEmps = prevEmps.map(emp => {
+            const isDriver = emp.id === ride.hostId;
+            const isPassenger = (ride.passengers || []).includes(emp.id);
 
-          if (isDriver) {
-            const newCarbon = Number((emp.carbonSaved + co2Offset).toFixed(1));
-            const newCredits = emp.credits + earnedCredits;
-            
-            // Badge achievements
-            const updatedBadges = [...emp.badgeIds];
-            if (totalPassengers > 0 && newCarbon >= 100 && !updatedBadges.includes("3")) {
-              updatedBadges.push("3"); // Carbon Warrior
+            if (isDriver) {
+              const newCarbon = Number((emp.carbonSaved + co2Offset).toFixed(1));
+              const newCredits = emp.credits + earnedCredits;
+              
+              // Badge achievements
+              const updatedBadges = [...(emp.badgeIds || [])];
+              if (totalPassengers > 0 && newCarbon >= 100 && !updatedBadges.includes("3")) {
+                updatedBadges.push("3"); // Carbon Warrior
+              }
+
+              return {
+                ...emp,
+                carbonSaved: newCarbon,
+                credits: newCredits,
+                badgeIds: updatedBadges,
+                esgScore: totalPassengers > 0 ? Math.min(100, emp.esgScore + 5) : emp.esgScore
+              };
+            } else if (isPassenger) {
+              const newCarbon = Number((emp.carbonSaved + co2Offset).toFixed(1));
+              const newCredits = emp.credits + Math.round(earnedCredits * 0.5); // Passenger gets 50% credits share
+
+              return {
+                ...emp,
+                carbonSaved: newCarbon,
+                credits: newCredits,
+                esgScore: totalPassengers > 0 ? Math.min(100, emp.esgScore + 3) : emp.esgScore
+              };
             }
+            return emp;
+          });
 
-            return {
-              ...emp,
-              carbonSaved: newCarbon,
-              credits: newCredits,
-              badgeIds: updatedBadges,
-              esgScore: totalPassengers > 0 ? Math.min(100, emp.esgScore + 5) : emp.esgScore
-            };
-          } else if (isPassenger) {
-            const newCarbon = Number((emp.carbonSaved + (ride.co2Saved)).toFixed(1));
-            const newCredits = emp.credits + Math.round(earnedCredits * 0.5); // Passenger gets 50% credits share
-
-            return {
-              ...emp,
-              carbonSaved: newCarbon,
-              credits: newCredits,
-              esgScore: totalPassengers > 0 ? Math.min(100, emp.esgScore + 3) : emp.esgScore
-            };
+          employeesRef.current = updatedEmps;
+          lastEmployees = updatedEmps;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("ecoride_employees", JSON.stringify(updatedEmps));
           }
-          return emp;
-        }));
+          if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            supabaseSync.set("employees", updatedEmps);
+          }
+          return updatedEmps;
+        });
 
         addNotification({
           id: `n-comp-${Date.now()}`,
