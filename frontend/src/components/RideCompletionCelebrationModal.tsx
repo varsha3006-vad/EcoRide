@@ -98,13 +98,13 @@ export const RideCompletionCelebrationModal: React.FC<RideCompletionCelebrationM
           </div>
 
           {/* Distance Driven */}
-          <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex flex-col items-center text-center">
+          <div className="p-4 bg-slate-950/60 border border-brand-blue-500/30 rounded-2xl flex flex-col items-center text-center">
             <div className="p-2 rounded-xl bg-brand-blue-500/10 text-brand-blue-400 mb-1.5">
               <Fuel className="h-5 w-5" />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Petrol Saved</span>
-            <span className="text-sm font-black text-slate-200 mt-0.5">~{petrolSavedLiters} Liters</span>
-            <span className="text-[9px] text-slate-500">{data.drivenKm} km on-road</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Distance Driven</span>
+            <span className="text-xl font-black text-brand-blue-400 mt-0.5">{data.drivenKm.toFixed(1)} km</span>
+            <span className="text-[9px] text-slate-500 font-semibold">~{petrolSavedLiters} L fuel saved</span>
           </div>
         </div>
 

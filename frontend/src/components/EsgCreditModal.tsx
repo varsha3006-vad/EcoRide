@@ -55,6 +55,13 @@ export const EsgCreditModal: React.FC<EsgCreditModalProps> = ({ isOpen, onClose 
   const totalCompletedCount = hostedCompletedRides.length + joinedCompletedRides.length;
   const totalCancelledCount = hostedCancelledRides.length;
 
+  const totalDrivenKm = [...hostedCompletedRides, ...joinedCompletedRides].reduce((acc, r) => {
+    const dist = r.actualDrivenKm && r.actualDrivenKm > 0
+      ? r.actualDrivenKm
+      : (r.co2Saved ? Number((r.co2Saved / 0.17).toFixed(1)) : 0);
+    return acc + dist;
+  }, 0);
+
   const totalHostCredits = hostedCompletedRides.reduce((acc, r) => {
     const pCount = (r.passengers || []).filter((p: string) => p !== r.hostId).length;
     return acc + 50 + (pCount * 15);
@@ -72,29 +79,35 @@ export const EsgCreditModal: React.FC<EsgCreditModalProps> = ({ isOpen, onClose 
     ...hostedCompletedRides.map(r => {
       const pCount = (r.passengers || []).filter((p: string) => p !== r.hostId).length;
       const creditsEarned = 50 + (pCount * 15);
+      const rDist = r.actualDrivenKm && r.actualDrivenKm > 0 ? r.actualDrivenKm : (r.co2Saved ? Number((r.co2Saved / 0.17).toFixed(1)) : 0);
       return {
         id: `audit-${r.id}`,
         date: r.rideDate || "Recent",
         type: "HOST_EARNED",
-        description: `Hosted commute: ${r.pickup} → ${r.destination}`,
+        description: `Hosted commute (${rDist.toFixed(1)} km): ${r.pickup} → ${r.destination}`,
         passengersCount: pCount,
         co2: r.co2Saved || 5.0,
+        drivenKm: rDist,
         creditsChange: `+${creditsEarned}`,
         isPositive: true,
-        details: `Base +50 credits + ${pCount * 15} passenger bonus`
+        details: `Base +50 credits + ${pCount * 15} passenger bonus (${rDist.toFixed(1)} km driven)`
       };
     }),
-    ...joinedCompletedRides.map(r => ({
-      id: `audit-${r.id}`,
-      date: r.rideDate || "Recent",
-      type: "PASSENGER_EARNED",
-      description: `Carpooled with ${r.hostName}: ${r.pickup} → ${r.destination}`,
-      passengersCount: 1,
-      co2: r.co2Saved || 5.0,
-      creditsChange: "+25",
-      isPositive: true,
-      details: "Passenger 50% carbon share credits"
-    })),
+    ...joinedCompletedRides.map(r => {
+      const rDist = r.actualDrivenKm && r.actualDrivenKm > 0 ? r.actualDrivenKm : (r.co2Saved ? Number((r.co2Saved / 0.17).toFixed(1)) : 0);
+      return {
+        id: `audit-${r.id}`,
+        date: r.rideDate || "Recent",
+        type: "PASSENGER_EARNED",
+        description: `Carpooled with ${r.hostName} (${rDist.toFixed(1)} km): ${r.pickup} → ${r.destination}`,
+        passengersCount: 1,
+        co2: r.co2Saved || 5.0,
+        drivenKm: rDist,
+        creditsChange: "+25",
+        isPositive: true,
+        details: `Passenger 50% carbon share credits (${rDist.toFixed(1)} km driven)`
+      };
+    }),
     ...hostedCancelledRides.map(r => ({
       id: `audit-can-${r.id}`,
       date: r.rideDate || "Recent",
@@ -102,6 +115,7 @@ export const EsgCreditModal: React.FC<EsgCreditModalProps> = ({ isOpen, onClose 
       description: `Cancelled hosted ride to ${r.destination}`,
       passengersCount: 0,
       co2: 0,
+      drivenKm: 0,
       creditsChange: "-25",
       isPositive: false,
       details: "Late cancellation penalty (-25 Credits, -5 ESG score)"

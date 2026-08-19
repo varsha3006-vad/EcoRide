@@ -2946,7 +2946,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         return {
           ...ride,
-          status: "Completed" as const
+          status: "Completed" as const,
+          actualDrivenKm: drivenKm,
+          co2Saved: co2Offset,
+          esgCredits: earnedCredits
         };
       });
 

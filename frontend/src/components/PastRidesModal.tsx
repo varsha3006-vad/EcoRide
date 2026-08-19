@@ -47,8 +47,14 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
     }
   }, 0);
 
-  // Average distance per completed commute is 12.5km if not explicitly tracked
-  const totalDistance = pastRides.filter(r => r.status === "Completed").length * 12.5;
+  // Total actual driven distance for completed commutes
+  const totalDistance = pastRides.reduce((acc, ride) => {
+    if (ride.status === "Cancelled") return acc;
+    const rDist = ride.actualDrivenKm && ride.actualDrivenKm > 0
+      ? ride.actualDrivenKm
+      : (ride.co2Saved ? Number((ride.co2Saved / 0.17).toFixed(1)) : 0);
+    return acc + rDist;
+  }, 0);
 
   const handleColleagueClick = (empId: string) => {
     const found = employees.find((emp) => emp.id === empId);
@@ -210,7 +216,13 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
                         </div>
 
                         {/* Detailed Metrics Grid */}
-                        <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 dark:border-slate-800 text-center">
+                        <div className="grid grid-cols-4 gap-1.5 py-2 border-y border-slate-100 dark:border-slate-800 text-center">
+                          <div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">Driven Dist.</p>
+                            <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">
+                              {(ride.actualDrivenKm && ride.actualDrivenKm > 0 ? ride.actualDrivenKm : (ride.co2Saved ? Number((ride.co2Saved / 0.17).toFixed(1)) : 0)).toFixed(1)} km
+                            </p>
+                          </div>
                           <div>
                             <p className="text-[8px] font-bold text-slate-400 uppercase">Credits Earned</p>
                             <p className="text-xs font-extrabold text-brand-blue-600 dark:text-brand-blue-400 mt-0.5">
