@@ -50,9 +50,7 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
   // Total actual driven distance for completed commutes
   const totalDistance = pastRides.reduce((acc, ride) => {
     if (ride.status === "Cancelled") return acc;
-    const rDist = ride.actualDrivenKm && ride.actualDrivenKm > 0
-      ? ride.actualDrivenKm
-      : (ride.co2Saved ? Number((ride.co2Saved / 0.17).toFixed(1)) : 0);
+    const rDist = ride.actualDrivenKm && ride.actualDrivenKm > 0 ? ride.actualDrivenKm : 12.5;
     return acc + rDist;
   }, 0);
 
@@ -220,7 +218,7 @@ export default function PastRidesModal({ onClose }: PastRidesModalProps) {
                           <div>
                             <p className="text-[8px] font-bold text-slate-400 uppercase">Driven Dist.</p>
                             <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">
-                              {(ride.actualDrivenKm && ride.actualDrivenKm > 0 ? ride.actualDrivenKm : (ride.co2Saved ? Number((ride.co2Saved / 0.17).toFixed(1)) : 0)).toFixed(1)} km
+                              {(ride.actualDrivenKm && ride.actualDrivenKm > 0 ? ride.actualDrivenKm : 12.5).toFixed(1)} km
                             </p>
                           </div>
                           <div>

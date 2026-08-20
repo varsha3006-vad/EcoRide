@@ -2875,7 +2875,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Use actual live GPS driven distance if available, otherwise fallback to route baseline
         const drivenKm = (ride.actualDrivenKm && ride.actualDrivenKm > 0.05)
           ? ride.actualDrivenKm
-          : (ride.co2Saved ? Number((ride.co2Saved / 0.17).toFixed(1)) : 10.0);
+          : 12.5;
 
         const vType = ride.vehicleType || "Electric";
         const vehicleEmissionFactor = vType === "Electric" ? 0.02 : vType === "Hybrid" ? 0.07 : 0.14;

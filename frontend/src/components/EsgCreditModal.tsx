@@ -56,9 +56,7 @@ export const EsgCreditModal: React.FC<EsgCreditModalProps> = ({ isOpen, onClose 
   const totalCancelledCount = hostedCancelledRides.length;
 
   const totalDrivenKm = [...hostedCompletedRides, ...joinedCompletedRides].reduce((acc, r) => {
-    const dist = r.actualDrivenKm && r.actualDrivenKm > 0
-      ? r.actualDrivenKm
-      : (r.co2Saved ? Number((r.co2Saved / 0.17).toFixed(1)) : 0);
+    const dist = r.actualDrivenKm && r.actualDrivenKm > 0 ? r.actualDrivenKm : 12.5;
     return acc + dist;
   }, 0);
 
@@ -79,7 +77,7 @@ export const EsgCreditModal: React.FC<EsgCreditModalProps> = ({ isOpen, onClose 
     ...hostedCompletedRides.map(r => {
       const pCount = (r.passengers || []).filter((p: string) => p !== r.hostId).length;
       const creditsEarned = 50 + (pCount * 15);
-      const rDist = r.actualDrivenKm && r.actualDrivenKm > 0 ? r.actualDrivenKm : (r.co2Saved ? Number((r.co2Saved / 0.17).toFixed(1)) : 0);
+      const rDist = r.actualDrivenKm && r.actualDrivenKm > 0 ? r.actualDrivenKm : 12.5;
       return {
         id: `audit-${r.id}`,
         date: r.rideDate || "Recent",
@@ -94,7 +92,7 @@ export const EsgCreditModal: React.FC<EsgCreditModalProps> = ({ isOpen, onClose 
       };
     }),
     ...joinedCompletedRides.map(r => {
-      const rDist = r.actualDrivenKm && r.actualDrivenKm > 0 ? r.actualDrivenKm : (r.co2Saved ? Number((r.co2Saved / 0.17).toFixed(1)) : 0);
+      const rDist = r.actualDrivenKm && r.actualDrivenKm > 0 ? r.actualDrivenKm : 12.5;
       return {
         id: `audit-${r.id}`,
         date: r.rideDate || "Recent",
