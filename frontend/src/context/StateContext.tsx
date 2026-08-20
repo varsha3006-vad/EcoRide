@@ -2416,6 +2416,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       hostRating: 4.8,
       status: "Published",
       passengers: [],
+      actualDrivenKm: 0.0,
       city: rideData.city || activeCity
     };
 
@@ -2872,10 +2873,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         const totalPassengers = (ride.passengers || []).filter(pId => pId !== ride.hostId).length;
         
-        // Use actual live GPS driven distance if available, otherwise fallback to route baseline
-        const drivenKm = (ride.actualDrivenKm && ride.actualDrivenKm > 0.05)
+        // Use actual live GPS driven distance if available, default to 0.0 if not driven
+        const drivenKm = typeof ride.actualDrivenKm === "number"
           ? ride.actualDrivenKm
-          : 12.5;
+          : 0.0;
 
         const vType = ride.vehicleType || "Electric";
         const vehicleEmissionFactor = vType === "Electric" ? 0.02 : vType === "Hybrid" ? 0.07 : 0.14;

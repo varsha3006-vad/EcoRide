@@ -4409,7 +4409,7 @@ export default function HomePage() {
               <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-800 dark:text-slate-200">
                 <div className="p-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800">
                   <span className="text-slate-400 text-[9px] block uppercase">Distance Driven</span>
-                  <span>{(activeArrivalDestination.actualDrivenKm || 10.0).toFixed(1)} km</span>
+                  <span>{(typeof activeArrivalDestination.actualDrivenKm === "number" ? activeArrivalDestination.actualDrivenKm : 0.0).toFixed(1)} km</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800">
                   <span className="text-slate-400 text-[9px] block uppercase">Co-Passengers</span>
