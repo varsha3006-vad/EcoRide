@@ -466,6 +466,16 @@ export default function HomePage() {
     return parts[0];
   };
 
+  const checkIsInterCity = (pickupStr: string, destStr: string, rideCommuteType?: string): boolean => {
+    if (rideCommuteType === "inter_city") return true;
+    const fromC = extractCityName(pickupStr).trim().toLowerCase();
+    const toC = extractCityName(destStr).trim().toLowerCase();
+    if (fromC && toC && fromC !== toC && !fromC.includes(toC) && !toC.includes(fromC)) {
+      return true;
+    }
+    return false;
+  };
+
   // Detect GPS location on mount for geofencing address predictions
   useEffect(() => {
     if (typeof window !== "undefined" && navigator.geolocation) {
@@ -2333,6 +2343,40 @@ export default function HomePage() {
                       </h3>
                     </div>
 
+                    {/* Commute Mode Selector */}
+                    <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800">
+                      <div className="space-y-0.5 text-left">
+                        <p className="text-xs font-bold text-slate-800 dark:text-white">Filter Commute Scope</p>
+                        <p className="text-[10px] text-slate-500">
+                          {commuteType === "intra_city" ? "Local city commute (Rides within 50 km)" : "Inter-city long distance commute across cities"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 dark:bg-slate-800 rounded-xl border border-slate-200/40 dark:border-slate-700/40">
+                        <button
+                          type="button"
+                          onClick={() => setCommuteType("intra_city")}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                            commuteType === "intra_city"
+                              ? "bg-white dark:bg-slate-900 text-brand-green-600 dark:text-brand-green-400 shadow-sm"
+                              : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          🏙️ Intra-City
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCommuteType("inter_city")}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                            commuteType === "inter_city"
+                              ? "bg-white dark:bg-slate-900 text-brand-blue-600 dark:text-brand-blue-400 shadow-sm"
+                              : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          🛣️ Inter-City
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Fallback to post custom pickup request */}
                     <div className="p-4 rounded-2xl bg-brand-green-500/5 border border-brand-green-500/10 flex items-center justify-between gap-3 text-left">
                       <div>
@@ -2445,10 +2489,54 @@ export default function HomePage() {
                               <div className="flex items-center gap-3">
                                 <span className="text-2xl">{getMaskedHostAvatar(ride, currentUser.id)}</span>
                                 <div>
-                                  <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1">
-                                    {getMaskedHostName(ride, currentUser.id)} <span className="text-[9px] text-slate-500 font-normal">({ride.hostDept})</span>
-                                  </h4>
-                                  <p className="text-[10px] text-slate-500 font-semibold">{ride.pickup} → {ride.destination}</p>
+                                  {(() => {
+                                    const isInterCity = checkIsInterCity(ride.pickup, ride.destination, ride.commuteType);
+                                    const fromCity = extractCityName(ride.pickup);
+                                    const toCity = extractCityName(ride.destination);
+                                    const isExpanded = !!expandedAddressIds[ride.id];
+
+                                    return (
+                                      <div className="space-y-1">
+                                        <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1">
+                                          {getMaskedHostName(ride, currentUser.id)} <span className="text-[9px] text-slate-500 font-normal">({ride.hostDept})</span>
+                                        </h4>
+                                        {isInterCity ? (
+                                          <div className="space-y-1 mt-0.5">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <span className="text-xs font-extrabold text-slate-800 dark:text-white flex items-center gap-1">
+                                                <span className="text-brand-blue-600 dark:text-brand-blue-400">{fromCity}</span>
+                                                <span className="text-slate-400">➔</span>
+                                                <span className="text-brand-green-600 dark:text-brand-green-400">{toCity}</span>
+                                              </span>
+                                              <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full bg-brand-blue-500/10 text-brand-blue-600 dark:text-brand-blue-400 border border-brand-blue-500/20">
+                                                🛣️ Inter-City
+                                              </span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => setExpandedAddressIds(prev => ({ ...prev, [ride.id]: !prev[ride.id] }))}
+                                              className="text-[9px] font-bold text-slate-500 hover:text-brand-blue-600 dark:hover:text-brand-blue-400 flex items-center gap-0.5 transition-colors cursor-pointer"
+                                            >
+                                              <MapPin className="h-2.5 w-2.5 text-brand-blue-500" />
+                                              {isExpanded ? "Hide Full Address Details ▴" : "View Full Address Details ▾"}
+                                            </button>
+                                            {isExpanded && (
+                                              <div className="mt-1.5 p-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 text-[9px] space-y-0.5 shadow-sm">
+                                                <p className="text-slate-700 dark:text-slate-300 font-medium">
+                                                  <strong className="text-brand-green-600 dark:text-brand-green-400 font-bold">📍 Pickup:</strong> {ride.pickup}
+                                                </p>
+                                                <p className="text-slate-700 dark:text-slate-300 font-medium">
+                                                  <strong className="text-brand-blue-600 dark:text-brand-blue-400 font-bold">🏁 Destination:</strong> {ride.destination}
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <p className="text-[10px] text-slate-500 font-semibold">{ride.pickup} → {ride.destination}</p>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                   <div className="flex items-center gap-2 mt-1">
                                     {ride.rideDate && (
                                       <span className="text-[9px] bg-white dark:bg-slate-800 border px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1">
@@ -2810,7 +2898,7 @@ export default function HomePage() {
                                 </span>
                                 <div>
                                   {(() => {
-                                    const isInterCity = trip.commuteType === "inter_city" || (trip.actualDrivenKm && trip.actualDrivenKm > 50);
+                                    const isInterCity = checkIsInterCity(trip.pickup, trip.destination, trip.commuteType);
                                     const fromCity = extractCityName(trip.pickup);
                                     const toCity = extractCityName(trip.destination);
                                     const isExpanded = !!expandedAddressIds[trip.id];
