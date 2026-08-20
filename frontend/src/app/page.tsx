@@ -3012,7 +3012,10 @@ export default function HomePage() {
                                if (trip.driverLat && trip.driverLng && myReq?.pickupLat && myReq?.pickupLng) {
                                  const distKm = getDistance(trip.driverLat, trip.driverLng, myReq.pickupLat, myReq.pickupLng);
                                  const etaMins = Math.max(1, Math.round((distKm / 35) * 60));
-                                 liveTickerText = `${vehIconStr} Colleague Host ${trip.hostName} is ${distKm.toFixed(1)} km away from your pickup point (~${etaMins} mins ETA)`;
+                                 const formattedDuration = etaMins < 60 
+                                   ? `${etaMins} mins` 
+                                   : `${Math.floor(etaMins / 60)} ${Math.floor(etaMins / 60) === 1 ? "hr" : "hrs"}${etaMins % 60 > 0 ? ` ${etaMins % 60} mins` : ""}`;
+                                 liveTickerText = `${vehIconStr} Colleague Host ${trip.hostName} is ${distKm.toFixed(1)} km away from your pickup point (~${formattedDuration} ETA)`;
                                } else if (trip.driverLat && trip.driverLng) {
                                  liveTickerText = `📡 Colleague Host ${trip.hostName} is active & en-route — Live GPS Tracking Connected`;
                                } else {

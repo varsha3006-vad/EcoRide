@@ -771,6 +771,15 @@ export default function InteractiveMap({
     });
   }, [rides, isHost, googleMapsLoaded, rideId, mapError]);
 
+  const formatEtaDisplay = (minutes: number | null): string => {
+    if (minutes === null) return "Calculating...";
+    if (minutes < 60) return `${minutes} mins`;
+    const hrs = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (mins === 0) return `${hrs} ${hrs === 1 ? "hr" : "hrs"}`;
+    return `${hrs} ${hrs === 1 ? "hr" : "hrs"} ${mins} mins`;
+  };
+
   return (
     <div className="relative w-full h-[320px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-inner touch-manipulation">
       
@@ -843,7 +852,7 @@ export default function InteractiveMap({
           <div>
             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Live ETA</p>
             <p className="text-sm font-bold text-white flex items-center gap-1">
-              {eta !== null ? `${eta} mins` : "Calculating..."} <span className="text-[10px] font-normal text-slate-400">({distanceStr})</span>
+              {formatEtaDisplay(eta)} <span className="text-[10px] font-normal text-slate-400">({distanceStr})</span>
             </p>
           </div>
           <div>
