@@ -87,29 +87,29 @@ const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => 
   return R * c;
 };
 
-const getMaskedHostName = (ride: Ride, currentUserId: string) => {
-  if (ride.hostId === currentUserId || ride.status === "Started" || ride.status === "Completed") {
+const getMaskedHostName = (ride: Ride, currentUserId: string, isAccepted?: boolean) => {
+  if (ride.hostId === currentUserId || isAccepted || ride.status === "Started" || ride.status === "Completed") {
     return ride.hostName;
   }
-  return "Verified Colleague";
+  return `Verified Colleague (${ride.hostDept || "Corporate"})`;
 };
 
-const getMaskedHostAvatar = (ride: Ride, currentUserId: string) => {
-  if (ride.hostId === currentUserId || ride.status === "Started" || ride.status === "Completed") {
+const getMaskedHostAvatar = (ride: Ride, currentUserId: string, isAccepted?: boolean) => {
+  if (ride.hostId === currentUserId || isAccepted || ride.status === "Started" || ride.status === "Completed") {
     return ride.hostAvatar;
   }
   return "🚗";
 };
 
-const getMaskedRequesterName = (req: RideRequest, currentUserId: string) => {
-  if (req.requesterId === currentUserId) {
+const getMaskedRequesterName = (req: RideRequest, currentUserId: string, isAccepted?: boolean) => {
+  if (req.requesterId === currentUserId || req.status === "Accepted" || isAccepted) {
     return req.requesterName;
   }
-  return "Colleague";
+  return `Colleague Passenger (${req.requesterDept || "Corporate"})`;
 };
 
-const getMaskedRequesterAvatar = (req: RideRequest, currentUserId: string) => {
-  if (req.requesterId === currentUserId) {
+const getMaskedRequesterAvatar = (req: RideRequest, currentUserId: string, isAccepted?: boolean) => {
+  if (req.requesterId === currentUserId || req.status === "Accepted" || isAccepted) {
     return req.requesterAvatar;
   }
   return "👤";
@@ -2153,8 +2153,8 @@ export default function HomePage() {
                           <AddressAutocomplete
                             value={dest}
                             onChange={setDest}
-                            placeholder="Type destination location..."
-                            label="Destination Office"
+                            placeholder="Type drop point location..."
+                            label="Drop Point"
                             required
                             commuteType={commuteType}
                             userLocation={activeUserLocation}
@@ -2232,17 +2232,23 @@ export default function HomePage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                                {((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? "🛵 Available Pillion Seat" : "Available Passenger Seats"}
+                                {((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? "🛵 Available Pillion Seat" : "Available Passenger Seats (1 to Max Capacity)"}
                               </label>
-                              <input
-                                type="number"
-                                min="1"
-                                max={((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? 1 : (((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.capacity) || 6)}
-                                value={((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? 1 : capacity}
-                                disabled={((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)"}
+                              <select
+                                value={capacity}
                                 onChange={e => setCapacity(Number(e.target.value))}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none disabled:opacity-60 cursor-not-allowed"
-                              />
+                                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                              >
+                                {Array.from({ 
+                                  length: ((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" 
+                                    ? 1 
+                                    : (((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.capacity) || 6)
+                                }, (_, i) => i + 1).map(num => (
+                                  <option key={num} value={num}>
+                                    {num} {num === 1 ? "Seat Offered" : "Seats Offered"}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           </div>
                         </>
@@ -2319,8 +2325,8 @@ export default function HomePage() {
                           <AddressAutocomplete
                             value={commuteDest}
                             onChange={setCommuteDest}
-                            placeholder="Type destination point..."
-                            label="Your Destination Point"
+                            placeholder="Type drop point location..."
+                            label="Your Drop Point"
                             required
                             commuteType="intra_city"
                             userLocation={activeUserLocation}
@@ -3532,7 +3538,7 @@ export default function HomePage() {
                                           <span className="text-lg">{prop.hostAvatar || "🚗"}</span>
                                           <div>
                                             <h6 className="text-[10px] font-bold text-slate-800 dark:text-white">
-                                              {prop.hostName} <span className="text-[8px] text-slate-500 font-normal">({prop.hostDept})</span>
+                                              {prop.status === "Accepted" ? prop.hostName : `Verified Driver (${prop.hostDept || "Corporate"})`}
                                             </h6>
                                             <p className="text-[9px] text-slate-500 mt-0.5">
                                               Proposed time: <strong className="text-slate-700 dark:text-slate-300">{prop.proposedDepartureTime}</strong>{" "}
@@ -3621,8 +3627,7 @@ export default function HomePage() {
                                 <span className="text-2xl">{cr.requesterAvatar || "👤"}</span>
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 flex-wrap">
-                                    <span>{cr.requesterName}</span>
-                                    <span className="text-[9px] text-slate-500 font-normal">({cr.requesterDept})</span>
+                                    <span>Colleague Passenger ({cr.requesterDept || "Corporate"})</span>
                                     {cr.urgent && (
                                       <span className="text-[8px] bg-amber-500 text-white dark:bg-amber-600 px-2 py-0.5 rounded-full font-black animate-pulse flex items-center gap-1">
                                         🚨 Urgent (Colleague Cancelled)
