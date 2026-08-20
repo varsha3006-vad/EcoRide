@@ -44,6 +44,7 @@ export const viewport: Viewport = {
 };
 
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import PwaUpdateModal from "@/components/PwaUpdateModal";
 
 export default function RootLayout({
   children,
@@ -55,6 +56,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <StateProvider>
           <ServiceWorkerRegister />
+          <PwaUpdateModal />
           {children}
         </StateProvider>
       </body>
