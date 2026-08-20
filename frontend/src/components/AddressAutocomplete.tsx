@@ -118,29 +118,38 @@ export default function AddressAutocomplete({
 
     const google = (window as any).google;
     if (autocompleteServiceRef.current && google && google.maps) {
-      const options: any = { 
-        input: text,
-        componentRestrictions: { country: "in" } // Geofence to national level by default
-      };
+      const options: any = { input: text };
 
-      if (userLocation && userLocation.lat && userLocation.lng) {
+      if (commuteType === "intra_city" && userLocation && userLocation.lat && userLocation.lng) {
         const latLng = new google.maps.LatLng(userLocation.lat, userLocation.lng);
         options.location = latLng;
         options.origin = latLng;
-
-        if (commuteType === "intra_city") {
-          options.radius = 50000; // 50 km proximity bias for local city commutes
-        }
+        options.radius = 50000; // 50 km proximity bias for local city commutes
+        options.componentRestrictions = { country: "in" };
+      } else if (commuteType === "inter_city") {
+        // Inter-city mode: No local GPS origin bias so distant city names (Mumbai, Delhi, Pune, etc.) autocomplete nationwide!
+        options.componentRestrictions = { country: "in" };
       }
 
       autocompleteServiceRef.current.getPlacePredictions(
         options,
         (results: any, status: any) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+          if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
             setPredictions(results);
             setIsOpen(true);
           } else {
-            setPredictions([]);
+            // Fallback retry without strict componentRestrictions if initial query returned empty
+            autocompleteServiceRef.current.getPlacePredictions(
+              { input: text },
+              (fallbackResults: any, fallbackStatus: any) => {
+                if (fallbackStatus === google.maps.places.PlacesServiceStatus.OK && fallbackResults && fallbackResults.length > 0) {
+                  setPredictions(fallbackResults);
+                  setIsOpen(true);
+                } else {
+                  setPredictions([]);
+                }
+              }
+            );
           }
         }
       );
