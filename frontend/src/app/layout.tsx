@@ -19,6 +19,16 @@ export const metadata: Metadata = {
   title: "EcoRide Enterprise | Smart Corporate Commute & ESG Platform",
   description: "Secure, verified carpooling platform for corporate employees. Track CO₂ savings, earn ESG credits, and claim rewards.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon.png", type: "image/png" }
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
