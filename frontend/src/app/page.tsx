@@ -448,6 +448,23 @@ export default function HomePage() {
   const [activeArrivalDestination, setActiveArrivalDestination] = useState<Ride | null>(null);
   const [focusedMapStopCoords, setFocusedMapStopCoords] = useState<{ lat: number; lng: number } | null>(null);
 
+  // Commute Mode: Intra-City vs Inter-City
+  const [commuteType, setCommuteType] = useState<"intra_city" | "inter_city">("intra_city");
+  const [userGpsLocation, setUserGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Detect GPS location on mount for geofencing address predictions
+  useEffect(() => {
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserGpsLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        (err) => {},
+        { timeout: 8000 }
+      );
+    }
+  }, []);
+
   // Sync selected vehicle from current user's registered list and auto-set vehicle properties
   useEffect(() => {
     if (currentUser?.vehicles && currentUser.vehicles.length > 0) {
@@ -1959,6 +1976,40 @@ export default function HomePage() {
                     </div>
 
                     <form onSubmit={handleHostSubmit} className="space-y-4">
+                      {/* Commute Mode Selector */}
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800">
+                        <div className="space-y-0.5 text-left">
+                          <p className="text-xs font-bold text-slate-800 dark:text-white">Commute Geographic Scope</p>
+                          <p className="text-[10px] text-slate-500">
+                            {commuteType === "intra_city" ? "Local city commute (Location predictions ordered by GPS proximity)" : "Inter-city long distance commute across states/cities"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 dark:bg-slate-800 rounded-xl border border-slate-200/40 dark:border-slate-700/40">
+                          <button
+                            type="button"
+                            onClick={() => setCommuteType("intra_city")}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                              commuteType === "intra_city"
+                                ? "bg-white dark:bg-slate-900 text-brand-green-600 dark:text-brand-green-400 shadow-sm"
+                                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                            }`}
+                          >
+                            🏙️ Intra-City
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCommuteType("inter_city")}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                              commuteType === "inter_city"
+                                ? "bg-white dark:bg-slate-900 text-brand-blue-600 dark:text-brand-blue-400 shadow-sm"
+                                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                            }`}
+                          >
+                            🛣️ Inter-City
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Map Route preview inside wizard */}
                       <InteractiveMap key="offer-map" pickup={pickup} destination={dest} onLocationDetected={setPickup} />
 
@@ -1970,6 +2021,8 @@ export default function HomePage() {
                             placeholder="Type pickup point..."
                             label="Pickup Point"
                             required
+                            commuteType={commuteType}
+                            userLocation={userGpsLocation}
                           />
                         </div>
                         <div>
@@ -1979,6 +2032,8 @@ export default function HomePage() {
                             placeholder="Type destination location..."
                             label="Destination Office"
                             required
+                            commuteType={commuteType}
+                            userLocation={userGpsLocation}
                           />
                         </div>
                       </div>
@@ -2129,6 +2184,8 @@ export default function HomePage() {
                             placeholder="Type pickup point..."
                             label="Your Pickup Point"
                             required
+                            commuteType={commuteType}
+                            userLocation={userGpsLocation}
                           />
                         </div>
                         <div>
@@ -2138,6 +2195,8 @@ export default function HomePage() {
                             placeholder="Type destination point..."
                             label="Your Destination Point"
                             required
+                            commuteType={commuteType}
+                            userLocation={userGpsLocation}
                           />
                         </div>
                       </div>

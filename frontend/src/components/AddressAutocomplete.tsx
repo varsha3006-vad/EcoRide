@@ -9,6 +9,8 @@ interface AddressAutocompleteProps {
   placeholder: string;
   label: string;
   required?: boolean;
+  commuteType?: "intra_city" | "inter_city";
+  userLocation?: { lat: number; lng: number } | null;
 }
 
 export default function AddressAutocomplete({ 
@@ -16,7 +18,9 @@ export default function AddressAutocomplete({
   onChange, 
   placeholder, 
   label, 
-  required = false 
+  required = false,
+  commuteType = "intra_city",
+  userLocation
 }: AddressAutocompleteProps) {
   const [predictions, setPredictions] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -114,8 +118,23 @@ export default function AddressAutocomplete({
 
     const google = (window as any).google;
     if (autocompleteServiceRef.current && google && google.maps) {
+      const options: any = { 
+        input: text,
+        componentRestrictions: { country: "in" } // Geofence to national level by default
+      };
+
+      if (userLocation && userLocation.lat && userLocation.lng) {
+        const latLng = new google.maps.LatLng(userLocation.lat, userLocation.lng);
+        options.location = latLng;
+        options.origin = latLng;
+
+        if (commuteType === "intra_city") {
+          options.radius = 50000; // 50 km proximity bias for local city commutes
+        }
+      }
+
       autocompleteServiceRef.current.getPlacePredictions(
-        { input: text },
+        options,
         (results: any, status: any) => {
           if (status === google.maps.places.PlacesServiceStatus.OK && results) {
             setPredictions(results);

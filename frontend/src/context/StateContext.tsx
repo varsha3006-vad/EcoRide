@@ -908,7 +908,21 @@ const mergeRidesSafely = (currentRides: Ride[], incomingRides: Ride[]): Ride[] =
   (incomingRides || []).forEach(r => {
     if (r && r.id) {
       const existing = map.get(r.id);
-      map.set(r.id, normalizeRide(existing ? { ...existing, ...r } : r));
+      if (existing) {
+        // Protect terminal ride statuses (Completed / Cancelled) from being reverted by stale remote polling
+        const isLocalTerminal = existing.status === "Completed" || existing.status === "Cancelled";
+        const isIncomingActive = r.status === "Started" || r.status === "Published" || r.status === "Created";
+        const finalStatus = (isLocalTerminal && isIncomingActive) ? existing.status : r.status;
+        
+        map.set(r.id, normalizeRide({
+          ...existing,
+          ...r,
+          status: finalStatus,
+          actualDrivenKm: Math.max(existing.actualDrivenKm || 0, r.actualDrivenKm || 0)
+        }));
+      } else {
+        map.set(r.id, normalizeRide(r));
+      }
     }
   });
 
@@ -3003,7 +3017,25 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       if (SUPABASE_URL && SUPABASE_ANON_KEY) {
         supabaseSync.set("rides", updated);
+        try {
+          const completedRideObj = updated.find(r => r.id === rideId);
+          if (completedRideObj && supabase) {
+            supabase
+              .from("ecoride_rides")
+              .upsert({
+                id: rideId,
+                status: "Completed",
+                actualDrivenKm: completedRideObj.actualDrivenKm,
+                co2Saved: completedRideObj.co2Saved,
+                esgCredits: completedRideObj.esgCredits,
+                updated_at: new Date().toISOString()
+              }, { onConflict: "id" })
+              .then(() => {});
+          }
+        } catch (dbErr) {}
       }
+      ridesRef.current = updated;
+      lastRides = updated;
       return updated;
     });
   };
