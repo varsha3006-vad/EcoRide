@@ -399,6 +399,7 @@ export interface Ride {
   passengerLocations?: Record<string, { lat: number; lng: number }>; // passengerId -> live coords
   boardedPassengers?: string[]; // list of passengerIds who have confirmed boarding
   city?: string;
+  commuteType?: "intra_city" | "inter_city";
   actualDrivenKm?: number; // Actual live GPS odometer distance driven during active trip
   createdAt?: string;
 }

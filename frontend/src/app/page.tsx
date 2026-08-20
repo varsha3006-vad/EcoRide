@@ -451,6 +451,20 @@ export default function HomePage() {
   // Commute Mode: Intra-City vs Inter-City
   const [commuteType, setCommuteType] = useState<"intra_city" | "inter_city">("intra_city");
   const [userGpsLocation, setUserGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [expandedAddressIds, setExpandedAddressIds] = useState<Record<string, boolean>>({});
+
+  const extractCityName = (fullAddress: string): string => {
+    if (!fullAddress) return "Unknown";
+    const parts = fullAddress.split(",").map(p => p.trim());
+    if (parts.length === 1) return parts[0];
+    for (let i = parts.length - 2; i >= 0; i--) {
+      const clean = parts[i].replace(/\d+/g, "").trim();
+      if (clean && !["india", "bharat", "in"].includes(clean.toLowerCase())) {
+        return clean;
+      }
+    }
+    return parts[0];
+  };
 
   // Detect GPS location on mount for geofencing address predictions
   useEffect(() => {
@@ -2795,9 +2809,55 @@ export default function HomePage() {
                                   {trip.vehicleCategory === "2-Wheeler (Bike/Scooter)" ? "🛵" : "🚗"}
                                 </span>
                                 <div>
-                                  <h4 className="text-xs font-bold text-slate-800 dark:text-white">
-                                    {trip.pickup} → {trip.destination}
-                                  </h4>
+                                  {(() => {
+                                    const isInterCity = trip.commuteType === "inter_city" || (trip.actualDrivenKm && trip.actualDrivenKm > 50);
+                                    const fromCity = extractCityName(trip.pickup);
+                                    const toCity = extractCityName(trip.destination);
+                                    const isExpanded = !!expandedAddressIds[trip.id];
+
+                                    return (
+                                      <div className="space-y-1">
+                                        {isInterCity ? (
+                                          <div className="space-y-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <h4 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5">
+                                                <span className="text-brand-blue-600 dark:text-brand-blue-400">{fromCity}</span>
+                                                <span className="text-slate-400">➔</span>
+                                                <span className="text-brand-green-600 dark:text-brand-green-400">{toCity}</span>
+                                              </h4>
+                                              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-brand-blue-500/10 text-brand-blue-600 dark:text-brand-blue-400 border border-brand-blue-500/20">
+                                                🛣️ Inter-City
+                                              </span>
+                                            </div>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => setExpandedAddressIds(prev => ({ ...prev, [trip.id]: !prev[trip.id] }))}
+                                              className="text-[10px] font-bold text-slate-500 hover:text-brand-blue-600 dark:hover:text-brand-blue-400 flex items-center gap-1 transition-colors cursor-pointer"
+                                            >
+                                              <MapPin className="h-3 w-3 text-brand-blue-500" />
+                                              {isExpanded ? "Hide Full Address Details ▴" : "View Full Address Details ▾"}
+                                            </button>
+
+                                            {isExpanded && (
+                                              <div className="mt-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 text-[10px] space-y-1 animate-fade-in shadow-sm">
+                                                <p className="text-slate-700 dark:text-slate-300 font-medium">
+                                                  <strong className="text-brand-green-600 dark:text-brand-green-400 font-bold">📍 Pickup:</strong> {trip.pickup}
+                                                </p>
+                                                <p className="text-slate-700 dark:text-slate-300 font-medium">
+                                                  <strong className="text-brand-blue-600 dark:text-brand-blue-400 font-bold">🏁 Destination:</strong> {trip.destination}
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <h4 className="text-xs font-bold text-slate-800 dark:text-white">
+                                            {trip.pickup} → {trip.destination}
+                                          </h4>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                   <div className="flex flex-wrap gap-2 mt-1 text-[9px] text-slate-500 font-semibold">
                             {trip.rideDate && (
                                       <span className="flex items-center gap-0.5">
