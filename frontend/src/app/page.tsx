@@ -457,11 +457,21 @@ export default function HomePage() {
     if (!fullAddress) return "Unknown";
     const parts = fullAddress.split(",").map(p => p.trim());
     if (parts.length === 1) return parts[0];
-    for (let i = parts.length - 2; i >= 0; i--) {
-      const clean = parts[i].replace(/\d+/g, "").trim();
-      if (clean && !["india", "bharat", "in"].includes(clean.toLowerCase())) {
-        return clean;
+
+    const INDIAN_STATES = [
+      "maharashtra", "karnataka", "tamil nadu", "telangana", "andhra pradesh", "kerala",
+      "gujarat", "rajasthan", "madhya pradesh", "uttar pradesh", "west bengal", "punjab",
+      "haryana", "bihar", "jharkhand", "odisha", "assam", "goa", "uttarakhand", "himachal pradesh",
+      "chhattisgarh", "india", "bharat", "in", "ncr", "state", "province"
+    ];
+
+    for (let i = parts.length - 1; i >= 0; i--) {
+      let raw = parts[i];
+      let clean = raw.replace(/\d+/g, "").trim().toLowerCase();
+      if (!clean || INDIAN_STATES.some(state => clean === state || clean.startsWith(state))) {
+        continue;
       }
+      return parts[i].replace(/\d+/g, "").trim();
     }
     return parts[0];
   };
@@ -1212,6 +1222,11 @@ export default function HomePage() {
     const statusLower = r.status?.toLowerCase();
     const isJoinable = statusLower === "published" || statusLower === "started";
     if (!isJoinable) return false;
+
+    // Commute Scope Filter: Intra-City vs Inter-City
+    const isInter = checkIsInterCity(r.pickup, r.destination, r.commuteType);
+    if (commuteType === "intra_city" && isInter) return false;
+    if (commuteType === "inter_city" && !isInter) return false;
 
     // City Geofencing: Only show rides in the user's active city
     const rideCity = r.city || "";
@@ -2239,6 +2254,9 @@ export default function HomePage() {
                       <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm sm:text-base">
                         <Plus className="h-5 w-5 text-brand-green-600" /> Post a Pickup Request
                       </h3>
+                      <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-brand-green-500/10 text-brand-green-600 dark:text-brand-green-400 border border-brand-green-500/20">
+                        🏙️ Intra-City Local Only
+                      </span>
                     </div>
 
                     <form onSubmit={handleCommuteRequestSubmit} className="space-y-4">
@@ -2253,7 +2271,7 @@ export default function HomePage() {
                             placeholder="Type pickup point..."
                             label="Your Pickup Point"
                             required
-                            commuteType={commuteType}
+                            commuteType="intra_city"
                             userLocation={activeUserLocation}
                           />
                         </div>
@@ -2264,7 +2282,7 @@ export default function HomePage() {
                             placeholder="Type destination point..."
                             label="Your Destination Point"
                             required
-                            commuteType={commuteType}
+                            commuteType="intra_city"
                             userLocation={activeUserLocation}
                           />
                         </div>
