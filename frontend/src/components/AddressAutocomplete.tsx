@@ -124,7 +124,8 @@ export default function AddressAutocomplete({
         const latLng = new google.maps.LatLng(userLocation.lat, userLocation.lng);
         options.location = latLng;
         options.origin = latLng;
-        options.radius = 50000; // 50 km proximity bias for local city commutes
+        options.radius = 50000; // 50 km boundary box
+        options.strictBounds = true; // STRICTLY GEOFENCE & BLOCK places outside 50km
         options.componentRestrictions = { country: "in" };
       } else if (commuteType === "inter_city") {
         // Inter-city mode: No local GPS origin bias so distant city names (Mumbai, Delhi, Pune, etc.) autocomplete nationwide!
@@ -137,8 +138,8 @@ export default function AddressAutocomplete({
           if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
             setPredictions(results);
             setIsOpen(true);
-          } else {
-            // Fallback retry without strict componentRestrictions if initial query returned empty
+          } else if (commuteType === "inter_city") {
+            // Fallback retry without strict componentRestrictions for inter-city mode if initial query returned empty
             autocompleteServiceRef.current.getPlacePredictions(
               { input: text },
               (fallbackResults: any, fallbackStatus: any) => {
@@ -150,6 +151,8 @@ export default function AddressAutocomplete({
                 }
               }
             );
+          } else {
+            setPredictions([]);
           }
         }
       );

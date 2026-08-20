@@ -976,6 +976,29 @@ export default function HomePage() {
       return;
     }
 
+    // Geocode distance check for 50km Intra-City enforcement
+    const win = window as any;
+    if (commuteType === "intra_city" && win.google && win.google.maps) {
+      const geocoder = new win.google.maps.Geocoder();
+      geocoder.geocode({ address: pickup }, (pRes: any, pStatus: any) => {
+        if (pStatus === "OK" && pRes[0]) {
+          const pLat = pRes[0].geometry.location.lat();
+          const pLng = pRes[0].geometry.location.lng();
+          geocoder.geocode({ address: dest }, (dRes: any, dStatus: any) => {
+            if (dStatus === "OK" && dRes[0]) {
+              const dLat = dRes[0].geometry.location.lat();
+              const dLng = dRes[0].geometry.location.lng();
+              const distKm = getDistance(pLat, pLng, dLat, dLng);
+              if (distKm > 50) {
+                setFormError(`📍 Selected route distance is ${distKm.toFixed(1)} km. Intra-City mode is strictly limited to local commutes within 50 km. Please toggle to Inter-City (Long Distance) mode to publish this ride.`);
+                return;
+              }
+            }
+          });
+        }
+      });
+    }
+
     const is2W = activeVeh.category === "2-Wheeler (Bike/Scooter)";
     const rideSeats = is2W ? 1 : Math.max(1, capacity);
 
