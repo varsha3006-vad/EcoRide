@@ -19,6 +19,43 @@ let lastMessages: any[] = [];
 let lastCommuteRequests: any[] = [];
 let lastRideProposals: any[] = [];
 
+export interface CreditVaultEntry {
+  id: string;
+  timestamp: string;
+  rideId: string;
+  amount: number;
+  reason: string;
+}
+
+export const getVaultCreditsForUser = (userId: string): number => {
+  if (typeof window === "undefined" || !userId) return 0;
+  try {
+    const key = `ecoride_credit_vault_${userId}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return 0;
+    const entries: CreditVaultEntry[] = JSON.parse(raw);
+    return Array.isArray(entries) ? entries.reduce((sum, e) => sum + (e.amount || 0), 0) : 0;
+  } catch (e) {
+    return 0;
+  }
+};
+
+export const appendVaultCreditForUser = (userId: string, entry: Omit<CreditVaultEntry, "id" | "timestamp">) => {
+  if (typeof window === "undefined" || !userId) return;
+  try {
+    const key = `ecoride_credit_vault_${userId}`;
+    const raw = localStorage.getItem(key);
+    let entries: CreditVaultEntry[] = raw ? JSON.parse(raw) : [];
+    const newEntry: CreditVaultEntry = {
+      id: `vault-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString(),
+      ...entry
+    };
+    entries.push(newEntry);
+    localStorage.setItem(key, JSON.stringify(entries));
+  } catch (e) {}
+};
+
 const supabaseSync = {
   clearAllData: async () => {
     if (!supabase) return;
@@ -1476,8 +1513,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           ? baseEmp.vehicles
           : (baseEmp.vehicle ? [baseEmp.vehicle] : []);
 
+        const vaultCredits = getVaultCreditsForUser(emp.id);
+        const protectedCredits = Math.max(emp.credits || 0, vaultCredits);
+
         return {
           ...baseEmp,
+          credits: protectedCredits,
           vehicles: resolvedVehicles
         };
       });
@@ -2900,7 +2941,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             if (isDriver) {
               const newCarbon = Number((emp.carbonSaved + co2Offset).toFixed(1));
-              const newCredits = emp.credits + earnedCredits;
+              if (earnedCredits > 0) {
+                appendVaultCreditForUser(emp.id, { rideId: ride.id, amount: earnedCredits, reason: "Carpool Host Commute Credits" });
+              }
+              const vaultTotal = getVaultCreditsForUser(emp.id);
+              const newCredits = Math.max(emp.credits + earnedCredits, vaultTotal);
               
               // Badge achievements
               const updatedBadges = [...(emp.badgeIds || [])];
@@ -2917,7 +2962,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               };
             } else if (isPassenger) {
               const newCarbon = Number((emp.carbonSaved + co2Offset).toFixed(1));
-              const newCredits = emp.credits + Math.round(earnedCredits * 0.5); // Passenger gets 50% credits share
+              const psgrEarned = Math.round(earnedCredits * 0.5);
+              if (psgrEarned > 0) {
+                appendVaultCreditForUser(emp.id, { rideId: ride.id, amount: psgrEarned, reason: "Carpool Passenger Commute Credits" });
+              }
+              const vaultTotal = getVaultCreditsForUser(emp.id);
+              const newCredits = Math.max(emp.credits + psgrEarned, vaultTotal);
 
               return {
                 ...emp,
