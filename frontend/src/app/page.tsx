@@ -913,7 +913,19 @@ export default function HomePage() {
     mockDistance * 1.5 + (vehicleType === "Electric" ? 25 : vehicleType === "Hybrid" ? 15 : 0) + (recurring ? 10 : 0)
   );
 
-  const handleHostSubmit = (e: React.FormEvent) => {
+  // Default fallback city center coordinates for strict geofencing
+  const CITY_CENTER_COORDS: Record<string, { lat: number; lng: number }> = {
+    "Bangalore": { lat: 12.9716, lng: 77.5946 },
+    "Mumbai": { lat: 19.0760, lng: 72.8777 },
+    "Delhi NCR": { lat: 28.6139, lng: 77.2090 },
+    "Pune": { lat: 18.5204, lng: 73.8567 },
+    "Hyderabad": { lat: 17.3850, lng: 78.4867 },
+    "Chennai": { lat: 13.0827, lng: 80.2707 }
+  };
+
+  const activeUserLocation = userGpsLocation || CITY_CENTER_COORDS[activeCity] || CITY_CENTER_COORDS["Bangalore"];
+
+  const handleHostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -976,27 +988,37 @@ export default function HomePage() {
       return;
     }
 
-    // Geocode distance check for 50km Intra-City enforcement
+    // Awaited geocode distance check for 50km Intra-City enforcement
     const win = window as any;
     if (commuteType === "intra_city" && win.google && win.google.maps) {
       const geocoder = new win.google.maps.Geocoder();
-      geocoder.geocode({ address: pickup }, (pRes: any, pStatus: any) => {
-        if (pStatus === "OK" && pRes[0]) {
-          const pLat = pRes[0].geometry.location.lat();
-          const pLng = pRes[0].geometry.location.lng();
-          geocoder.geocode({ address: dest }, (dRes: any, dStatus: any) => {
-            if (dStatus === "OK" && dRes[0]) {
-              const dLat = dRes[0].geometry.location.lat();
-              const dLng = dRes[0].geometry.location.lng();
-              const distKm = getDistance(pLat, pLng, dLat, dLng);
-              if (distKm > 50) {
-                setFormError(`📍 Selected route distance is ${distKm.toFixed(1)} km. Intra-City mode is strictly limited to local commutes within 50 km. Please toggle to Inter-City (Long Distance) mode to publish this ride.`);
-                return;
-              }
+      const checkDist = (): Promise<number | null> => {
+        return new Promise((resolve) => {
+          geocoder.geocode({ address: pickup }, (pRes: any, pStatus: any) => {
+            if (pStatus === "OK" && pRes[0]) {
+              const pLat = pRes[0].geometry.location.lat();
+              const pLng = pRes[0].geometry.location.lng();
+              geocoder.geocode({ address: dest }, (dRes: any, dStatus: any) => {
+                if (dStatus === "OK" && dRes[0]) {
+                  const dLat = dRes[0].geometry.location.lat();
+                  const dLng = dRes[0].geometry.location.lng();
+                  resolve(getDistance(pLat, pLng, dLat, dLng));
+                } else {
+                  resolve(null);
+                }
+              });
+            } else {
+              resolve(null);
             }
           });
-        }
-      });
+        });
+      };
+
+      const distKm = await checkDist();
+      if (distKm !== null && distKm > 50) {
+        setFormError(`📍 Selected route distance is ${distKm.toFixed(1)} km. Intra-City mode is strictly limited to local commutes within 50 km. Please toggle to Inter-City (Long Distance) mode to publish this ride.`);
+        return; // STRICTLY RETURN & BLOCK PUBLISHING!
+      }
     }
 
     const is2W = activeVeh.category === "2-Wheeler (Bike/Scooter)";
@@ -2045,7 +2067,7 @@ export default function HomePage() {
                             label="Pickup Point"
                             required
                             commuteType={commuteType}
-                            userLocation={userGpsLocation}
+                            userLocation={activeUserLocation}
                           />
                         </div>
                         <div>
@@ -2056,7 +2078,7 @@ export default function HomePage() {
                             label="Destination Office"
                             required
                             commuteType={commuteType}
-                            userLocation={userGpsLocation}
+                            userLocation={activeUserLocation}
                           />
                         </div>
                       </div>
@@ -2208,7 +2230,7 @@ export default function HomePage() {
                             label="Your Pickup Point"
                             required
                             commuteType={commuteType}
-                            userLocation={userGpsLocation}
+                            userLocation={activeUserLocation}
                           />
                         </div>
                         <div>
@@ -2219,7 +2241,7 @@ export default function HomePage() {
                             label="Your Destination Point"
                             required
                             commuteType={commuteType}
-                            userLocation={userGpsLocation}
+                            userLocation={activeUserLocation}
                           />
                         </div>
                       </div>
