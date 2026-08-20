@@ -4138,12 +4138,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("ecoride_total_wipe_v5")) {
-      localStorage.setItem("ecoride_total_wipe_v5", "true");
-      purgeAllRideDataAndResetEsg();
-    }
-  }, []);
+
 
   return (
     <StateContext.Provider
