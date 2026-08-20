@@ -763,8 +763,36 @@ export default function HomePage() {
 
   // PWA installation states
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(true);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+
+  // Check if running as installed shortcut (standalone) or previously installed/dismissed
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes("android-app://");
+
+      const isInstalled = localStorage.getItem("ecoride_pwa_installed") === "true";
+      const isDismissed = localStorage.getItem("ecoride_pwa_dismissed") === "true";
+
+      if (!isStandalone && !isInstalled && !isDismissed) {
+        setShowInstallBanner(true);
+      } else {
+        setShowInstallBanner(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleAppInstalled = () => {
+      localStorage.setItem("ecoride_pwa_installed", "true");
+      setShowInstallBanner(false);
+    };
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => window.removeEventListener("appinstalled", handleAppInstalled);
+  }, []);
 
   // Notification Preferences states
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
@@ -808,7 +836,16 @@ export default function HomePage() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setShowInstallBanner(true);
+
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true;
+      const isInstalled = localStorage.getItem("ecoride_pwa_installed") === "true";
+      const isDismissed = localStorage.getItem("ecoride_pwa_dismissed") === "true";
+
+      if (!isStandalone && !isInstalled && !isDismissed) {
+        setShowInstallBanner(true);
+      }
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -820,6 +857,9 @@ export default function HomePage() {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       console.log(`User response to install: ${outcome}`);
+      if (outcome === "accepted") {
+        localStorage.setItem("ecoride_pwa_installed", "true");
+      }
       setDeferredPrompt(null);
       setShowInstallBanner(false);
     } else {
@@ -2692,7 +2732,10 @@ export default function HomePage() {
                         Install
                       </button>
                       <button
-                        onClick={() => setShowInstallBanner(false)}
+                        onClick={() => {
+                          setShowInstallBanner(false);
+                          localStorage.setItem("ecoride_pwa_dismissed", "true");
+                        }}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-slate-650 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors flex-shrink-0"
                         title="Dismiss"
                       >
