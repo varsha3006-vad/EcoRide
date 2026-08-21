@@ -1489,6 +1489,19 @@ export default function HomePage() {
                 "Share Your Ride. Reduce Your Footprint. Build Your Community"
               </p>
               <p className="text-[10px] text-slate-500 mt-1">Smart Corporate Ride Sharing & ESG Portal</p>
+
+              {/* Option 2: Minimalist 3-Pill AI Capability Bar */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 pt-2.5 border-t border-slate-800/60">
+                <span className="text-[9px] font-extrabold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                  🤖 Neural Route Engine
+                </span>
+                <span className="text-[9px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                  ⚡ 1-Tap Pickup
+                </span>
+                <span className="text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                  🌱 ESG Intelligence
+                </span>
+              </div>
             </div>
           </div>
 
