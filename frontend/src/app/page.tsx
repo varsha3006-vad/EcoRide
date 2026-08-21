@@ -400,9 +400,10 @@ export default function HomePage() {
     }
   }, [currentUser]);
 
-  // Wizard state: null | "host" | "join"
+  // Wizard & Tab states
   const [activeWizard, setActiveWizard] = useState<null | "host" | "join" | "commute-request">(null);
   const [activeChatRideId, setActiveChatRideId] = useState<string | null>(null);
+  const [activeMobileTab, setActiveMobileTab] = useState<"find_offer" | "my_rides" | "colleagues" | "my_requests">("my_rides");
 
   // Search filter states
   const [searchPickup, setSearchPickup] = useState("");
@@ -3088,7 +3089,11 @@ export default function HomePage() {
                                           </div>
                                         ) : (
                                           <h4 className="text-xs font-bold text-slate-800 dark:text-white">
-                                            {trip.pickup} → {trip.destination}
+                                            {trip.status?.toLowerCase() === "started" ? (
+                                              <span>🏁 <span className="text-brand-green-600 dark:text-brand-green-400 font-extrabold">{trip.destination}</span></span>
+                                            ) : (
+                                              `${trip.pickup} → ${trip.destination}`
+                                            )}
                                           </h4>
                                         )}
                                       </div>
@@ -3135,7 +3140,7 @@ export default function HomePage() {
                                     if (!hostEmployee) return null;
                                     return (
                                       <div className="mt-2 text-[11px] text-slate-650 dark:text-slate-350 font-bold flex items-center gap-2.5 bg-slate-100/40 dark:bg-slate-900/30 px-2.5 py-1.5 rounded-lg border border-slate-200/20 dark:border-slate-800/10 w-fit">
-                                        <span>Host: {hostEmployee.avatar} {hostEmployee.name} ({hostEmployee.department})</span>
+                                        <span>Host: {hostEmployee.avatar} {hostEmployee.name}</span>
                                         {hostEmployee.phone && (
                                           <a
                                             href={`tel:${hostEmployee.phone}`}
@@ -3198,7 +3203,7 @@ export default function HomePage() {
                                                   </div>
                                                   {pReq && (
                                                     <div className="text-[8px] text-slate-500 dark:text-slate-400 font-semibold space-y-0.5 pl-5">
-                                                      <p>📍 Pickup: <span className="font-bold">{pReq.pickup}</span></p>
+                                                      {!hasBoarded && <p>📍 Pickup: <span className="font-bold">{pReq.pickup}</span></p>}
                                                       <p>🏁 Drop-off: <span className="font-bold">{pReq.dropPoint}</span></p>
                                                     </div>
                                                   )}
@@ -3695,7 +3700,7 @@ export default function HomePage() {
                                 <span className="text-2xl">{cr.requesterAvatar || "👤"}</span>
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 flex-wrap">
-                                    <span>Colleague Passenger ({cr.requesterDept || "Corporate"})</span>
+                                    <span>{cr.requesterName || "Colleague Passenger"}</span>
                                     {cr.urgent && (
                                       <span className="text-[8px] bg-amber-500 text-white dark:bg-amber-600 px-2 py-0.5 rounded-full font-black animate-pulse flex items-center gap-1">
                                         🚨 Urgent (Colleague Cancelled)
@@ -4616,6 +4621,92 @@ export default function HomePage() {
           </button>
         </div>
       </footer>
+
+      {/* Mobile App-Style Bottom Navigation Bar (sm:hidden) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-950/95 border-t border-slate-200/80 dark:border-slate-800/80 backdrop-blur-xl shadow-2xl px-2 py-1.5 flex items-center justify-around sm:hidden">
+        {/* Tab 1: Find & Offer */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMobileTab("find_offer");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            activeMobileTab === "find_offer"
+              ? "text-brand-green-600 dark:text-brand-green-400 font-extrabold"
+              : "text-slate-500 dark:text-slate-400 font-medium"
+          }`}
+        >
+          <Car className={`h-5 w-5 ${activeMobileTab === "find_offer" ? "scale-110" : ""}`} />
+          <span className="text-[9px]">Find & Offer</span>
+        </button>
+
+        {/* Tab 2: My Rides */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMobileTab("my_rides");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer relative ${
+            activeMobileTab === "my_rides"
+              ? "text-brand-green-600 dark:text-brand-green-400 font-extrabold"
+              : "text-slate-500 dark:text-slate-400 font-medium"
+          }`}
+        >
+          <Calendar className={`h-5 w-5 ${activeMobileTab === "my_rides" ? "scale-110" : ""}`} />
+          <span className="text-[9px]">My Rides</span>
+          {myUpcomingTrips.length > 0 && (
+            <span className="absolute -top-0.5 right-1.5 h-4 w-4 rounded-full bg-brand-green-600 text-white text-[9px] font-black flex items-center justify-center shadow-sm">
+              {myUpcomingTrips.length}
+            </span>
+          )}
+        </button>
+
+        {/* Tab 3: Colleague Pickups */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMobileTab("colleagues");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer relative ${
+            activeMobileTab === "colleagues"
+              ? "text-brand-green-600 dark:text-brand-green-400 font-extrabold"
+              : "text-slate-500 dark:text-slate-400 font-medium"
+          }`}
+        >
+          <Users className={`h-5 w-5 ${activeMobileTab === "colleagues" ? "scale-110" : ""}`} />
+          <span className="text-[9px]">Colleagues</span>
+          {commuteRequests.filter(c => c.status === "Pending" && c.requesterId !== currentUser?.id).length > 0 && (
+            <span className="absolute -top-0.5 right-1.5 h-4 w-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center shadow-sm">
+              {commuteRequests.filter(c => c.status === "Pending" && c.requesterId !== currentUser?.id).length}
+            </span>
+          )}
+        </button>
+
+        {/* Tab 4: My Requests */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMobileTab("my_requests");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer relative ${
+            activeMobileTab === "my_requests"
+              ? "text-brand-green-600 dark:text-brand-green-400 font-extrabold"
+              : "text-slate-500 dark:text-slate-400 font-medium"
+          }`}
+        >
+          <Clock className={`h-5 w-5 ${activeMobileTab === "my_requests" ? "scale-110" : ""}`} />
+          <span className="text-[9px]">My Requests</span>
+          {requests.filter(r => r.requesterId === currentUser?.id && r.status === "Pending").length > 0 && (
+            <span className="absolute -top-0.5 right-1.5 h-4 w-4 rounded-full bg-brand-blue-600 text-white text-[9px] font-black flex items-center justify-center shadow-sm">
+              {requests.filter(r => r.requesterId === currentUser?.id && r.status === "Pending").length}
+            </span>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
