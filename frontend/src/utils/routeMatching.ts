@@ -108,7 +108,7 @@ export const findSmartMatchesForDriver = (
   commuteRequests: CommuteRequest[],
   rideProposals: RideProposal[] = []
 ): RouteMatchResult[] => {
-  if (!driverRide || !commuteRequests || commuteRequests.length === 0) return [];
+  if (!driverRide || driverRide.seatsAvailable <= 0 || !commuteRequests || commuteRequests.length === 0) return [];
 
   const matches: RouteMatchResult[] = [];
   const driverTimeMins = parseTimeToMinutes(driverRide.departureTime);

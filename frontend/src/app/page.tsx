@@ -3718,21 +3718,33 @@ export default function HomePage() {
                                   }`}>
                                     Offer Sent ({activeProposal.status})
                                   </span>
-                                ) : (
-                                  <button
-                                    onClick={() => {
-                                      setProposingToRequest(cr);
-                                      setProposedTimeOffset(0);
-                                      setProposalRideId("new");
-                                      if (currentUser?.vehicles && currentUser.vehicles.length > 0) {
-                                        setProposalSelectedPlate(currentUser.vehicles[0].plateNumber);
-                                      }
-                                    }}
-                                    className="px-3 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold transition-all cursor-pointer"
-                                  >
-                                    Offer Ride
-                                  </button>
-                                )}
+                                ) : (() => {
+                                  const driverActiveRides = rides.filter(r => r.hostId === currentUser.id && r.status !== "Completed" && r.status !== "Cancelled");
+                                  const hasSeatsAvailable = driverActiveRides.length === 0 || driverActiveRides.some(r => r.seatsAvailable > 0);
+                                  if (!hasSeatsAvailable) {
+                                    return (
+                                      <span className="inline-block text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-200/20" title="Your published ride is full">
+                                        ⚠️ Ride Full (0 Seats)
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <button
+                                      onClick={() => {
+                                        setProposingToRequest(cr);
+                                        setProposedTimeOffset(0);
+                                        const availableRide = driverActiveRides.find(r => r.seatsAvailable > 0);
+                                        setProposalRideId(availableRide ? availableRide.id : "new");
+                                        if (currentUser?.vehicles && currentUser.vehicles.length > 0) {
+                                          setProposalSelectedPlate(currentUser.vehicles[0].plateNumber);
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] font-bold transition-all cursor-pointer"
+                                    >
+                                      Offer Ride
+                                    </button>
+                                  );
+                                })()}
                               </div>
                             </div>
                           );

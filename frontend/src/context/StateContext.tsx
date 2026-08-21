@@ -3830,13 +3830,22 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return p;
     });
 
-    // Update commute request status
+    // Update commute request status specifically for this proposal's requestId
     const updatedCommuteRequests = commuteRequests.map(cr => {
-      if (cr.id === proposal.requestId || cr.requesterId === currentUser.id) {
+      if (cr.id === proposal.requestId) {
         return { ...cr, status: "Matched" as const, urgent: false, cancelledByDriver: false };
       }
       return cr;
     });
+
+    setCommuteRequests(updatedCommuteRequests);
+    commuteRequestsRef.current = updatedCommuteRequests;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ecoride_commute_requests", JSON.stringify(updatedCommuteRequests));
+    }
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      supabaseSync.set("commute_requests", updatedCommuteRequests);
+    }
 
     const commReq = commuteRequests.find(c => c.id === proposal.requestId);
     if (!commReq) return;
@@ -3853,6 +3862,20 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       targetRide = allRides.find(r => r.hostId === proposal.hostId && r.status !== "Completed" && r.status !== "Cancelled");
     }
 
+    // Guard: Prevent acceptance if target ride is already full
+    if (targetRide && targetRide.seatsAvailable <= 0 && !(targetRide.passengers || []).includes(currentUser.id)) {
+      addNotification({
+        id: `n-full-${Date.now()}`,
+        recipientId: currentUser.id,
+        title: "Ride Full ⚠️",
+        message: `This ride with ${targetRide.hostName} has reached maximum seating capacity and can no longer accept new passengers.`,
+        timestamp: "Just now",
+        type: "warning",
+        read: false
+      });
+      return;
+    }
+
     // Fallback 2: Re-use proposal.rideId if present to avoid generating a duplicate random ride ID
     const rideIdToTarget = targetRide ? targetRide.id : (proposal.rideId || `ride-${Date.now()}`);
 
@@ -3862,11 +3885,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const updated = prev.map(r => {
           if (r.id === targetRide!.id) {
             const currentPsgrs = r.passengers || [];
-            const newPassengers = [...currentPsgrs.filter(id => id !== currentUser.id), currentUser.id];
+            const newPassengers = Array.from(new Set([...currentPsgrs, currentUser.id]));
+            const totalCapacity = r.seatsTotal || 4;
             return {
               ...r,
               passengers: newPassengers,
-              seatsAvailable: Math.max(0, (r.seatsTotal || 4) - newPassengers.length)
+              seatsAvailable: Math.max(0, totalCapacity - newPassengers.length)
             };
           }
           return r;
