@@ -74,24 +74,20 @@ export default function SmartRouteMatchesWidget({
           <span className="p-2.5 rounded-2xl bg-gradient-to-br from-cyan-500/30 to-emerald-500/30 text-cyan-300 text-xl flex items-center justify-center border border-cyan-500/30 shadow-lg shadow-cyan-500/10">
             <Cpu className="h-5 w-5 animate-pulse text-cyan-400" />
           </span>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
-                EcoRide AI Neural Engine v2.0 <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-              </h3>
-              <span className="text-[9px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                🤖 AI Adaptive Matcher
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-300 font-medium mt-0.5">
-              Dual-Mode Adaptive Engine • Intracity (≤4km/30m) &amp; Intercity Highway (≤15km/90m)
-            </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
+              EcoRide AI Neural Engine v2.0 <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+            </h3>
+            <span className="text-[9px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+              🤖 AI Adaptive Matcher
+            </span>
           </div>
         </div>
 
+        {/* High-Visibility Flashing Orange Best Match Found Badge */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full font-black uppercase flex items-center gap-1">
-            <Zap className="h-3 w-3 text-emerald-400" /> {allMatches.length} Best {allMatches.length === 1 ? "Match" : "Matches"} Found
+          <span className="text-[10px] bg-orange-500/25 text-orange-300 border border-orange-500/50 px-3.5 py-1 rounded-full font-black uppercase flex items-center gap-1.5 shadow-lg shadow-orange-500/20 animate-pulse">
+            <Zap className="h-3.5 w-3.5 text-orange-400 fill-orange-400 animate-bounce" /> {allMatches.length} Best {allMatches.length === 1 ? "Match" : "Matches"} Found
           </span>
         </div>
       </div>
@@ -126,16 +122,6 @@ export default function SmartRouteMatchesWidget({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-white flex items-center gap-1.5">
                     Verified Colleague ({req.requesterDept || "Engineering"})
-                  </span>
-                  <span className="text-[9px] bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
-                    ⚡ {match.aiConfidenceScore}% AI Match Confidence
-                  </span>
-                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-black border ${
-                    isIntercity
-                      ? "bg-indigo-500/20 text-indigo-300 border-indigo-400/40"
-                      : "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
-                  }`}>
-                    {isIntercity ? "🛣️ Intercity Highway Match" : "🏙️ Local Commute Match"}
                   </span>
                 </div>
 
