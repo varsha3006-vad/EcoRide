@@ -63,22 +63,22 @@ export default function SmartRouteMatchesWidget({
   };
 
   return (
-    <div className="glass-panel p-5.5 rounded-3xl border-2 border-cyan-500/40 bg-gradient-to-r from-cyan-950/40 via-slate-950/95 to-emerald-950/40 text-white shadow-2xl space-y-4 animate-fade-in relative overflow-hidden backdrop-blur-xl">
+    <div className="p-5.5 rounded-3xl border-2 border-cyan-500/60 bg-slate-950 text-white shadow-2xl space-y-4 animate-fade-in relative overflow-hidden">
       {/* Decorative AI Neural Background Accent Glow */}
-      <div className="absolute -top-12 -right-12 w-44 h-44 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -top-12 -right-12 w-44 h-44 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
 
       {/* Hero Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-3.5 relative z-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/30 pb-3.5 relative z-10">
         <div className="flex items-center gap-3">
-          <span className="p-2.5 rounded-2xl bg-gradient-to-br from-cyan-500/30 to-emerald-500/30 text-cyan-300 text-xl flex items-center justify-center border border-cyan-500/30 shadow-lg shadow-cyan-500/10">
+          <span className="p-2.5 rounded-2xl bg-cyan-950 text-cyan-300 text-xl flex items-center justify-center border border-cyan-400/50 shadow-lg shadow-cyan-500/20">
             <Cpu className="h-5 w-5 animate-pulse text-cyan-400" />
           </span>
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
               EcoRide AI Neural Engine v2.0 <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
             </h3>
-            <span className="text-[9px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="text-[9px] font-extrabold bg-cyan-950/90 text-cyan-300 border border-cyan-400/50 px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
               🤖 AI Adaptive Matcher
             </span>
           </div>
@@ -86,8 +86,8 @@ export default function SmartRouteMatchesWidget({
 
         {/* High-Visibility Flashing Orange Best Match Found Badge */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] bg-orange-500/25 text-orange-300 border border-orange-500/50 px-3.5 py-1 rounded-full font-black uppercase flex items-center gap-1.5 shadow-lg shadow-orange-500/20 animate-pulse">
-            <Zap className="h-3.5 w-3.5 text-orange-400 fill-orange-400 animate-bounce" /> {allMatches.length} Best {allMatches.length === 1 ? "Match" : "Matches"} Found
+          <span className="text-[10px] bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-300/60 px-3.5 py-1 rounded-full font-black uppercase flex items-center gap-1.5 shadow-lg shadow-orange-500/30 animate-pulse">
+            <Zap className="h-3.5 w-3.5 text-amber-200 fill-amber-200 animate-bounce" /> {allMatches.length} Best {allMatches.length === 1 ? "Match" : "Matches"} Found
           </span>
         </div>
       </div>
@@ -102,10 +102,10 @@ export default function SmartRouteMatchesWidget({
           return (
             <div
               key={`${req.id}-${ride.id}`}
-              className={`p-4 rounded-2xl bg-slate-900/90 border transition-all space-y-3 shadow-lg group relative ${
+              className={`p-4 rounded-2xl bg-slate-900 border transition-all space-y-3 shadow-lg group relative ${
                 isIntercity
-                  ? "border-indigo-500/40 hover:border-indigo-400/70"
-                  : "border-cyan-500/30 hover:border-cyan-400/60"
+                  ? "border-indigo-500/50 hover:border-indigo-400/80"
+                  : "border-cyan-500/40 hover:border-cyan-400/70"
               }`}
             >
               {/* Dismiss button for individual match */}
@@ -127,17 +127,17 @@ export default function SmartRouteMatchesWidget({
 
                 {/* Deviation & Time Proximity Tags */}
                 <div className="flex items-center gap-2 text-[9px] font-extrabold">
-                  <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full">
                     📍 {match.deviationKm.toFixed(1)} km deviation
                   </span>
-                  <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <Clock className="h-2.5 w-2.5" /> {match.timeDiffMins === 0 ? "Exact Time Match" : `${match.timeDiffMins} min window`}
                   </span>
                 </div>
               </div>
 
               {/* Route Summary */}
-              <p className="text-[10px] text-slate-300 font-medium flex items-center gap-1.5 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
+              <p className="text-[10px] text-slate-300 font-medium flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
                 <Navigation className="h-3 w-3 text-cyan-400 flex-shrink-0" />
                 <span className="font-semibold text-white">{req.pickup}</span>
                 <ArrowRight className="h-2.5 w-2.5 text-slate-500 flex-shrink-0" />
@@ -159,8 +159,8 @@ export default function SmartRouteMatchesWidget({
                   onClick={() => handleProposeClick(req, ride)}
                   className={`py-2 px-3.5 rounded-xl text-white text-xs font-black cursor-pointer transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 border ${
                     isIntercity
-                      ? "bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 border-indigo-400/40"
-                      : "bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 border-cyan-400/40"
+                      ? "bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 border-indigo-400/50"
+                      : "bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 border-cyan-400/50"
                   }`}
                 >
                   <Sparkles className="h-3.5 w-3.5 text-amber-300" /> 🚀 AI One-Tap Pickup Proposal
