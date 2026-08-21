@@ -3841,22 +3841,50 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const commReq = commuteRequests.find(c => c.id === proposal.requestId);
     if (!commReq) return;
 
+    const allRides = (ridesRef.current && ridesRef.current.length > 0) ? ridesRef.current : rides;
     let targetRide: Ride | undefined;
+
     if (proposal.rideId) {
-      targetRide = rides.find(r => r.id === proposal.rideId) || (ridesRef.current || []).find(r => r.id === proposal.rideId);
+      targetRide = allRides.find(r => r.id === proposal.rideId) || rides.find(r => r.id === proposal.rideId);
     }
 
-    // Fallback: If no explicit rideId attached to proposal, check if host has an active existing ride to merge with
-    if (!targetRide) {
-      const allRides = ridesRef.current && ridesRef.current.length > 0 ? ridesRef.current : rides;
+    // Fallback 1: Match host's active published/scheduled ride
+    if (!targetRide && proposal.hostId) {
       targetRide = allRides.find(r => r.hostId === proposal.hostId && r.status !== "Completed" && r.status !== "Cancelled");
     }
 
-    if (!targetRide) {
+    // Fallback 2: Re-use proposal.rideId if present to avoid generating a duplicate random ride ID
+    const rideIdToTarget = targetRide ? targetRide.id : (proposal.rideId || `ride-${Date.now()}`);
+
+    if (targetRide) {
+      // MERGE passenger into existing targetRide
+      setRides(prev => {
+        const updated = prev.map(r => {
+          if (r.id === targetRide!.id) {
+            const currentPsgrs = r.passengers || [];
+            const newPassengers = [...currentPsgrs.filter(id => id !== currentUser.id), currentUser.id];
+            return {
+              ...r,
+              passengers: newPassengers,
+              seatsAvailable: Math.max(0, (r.seatsTotal || 4) - newPassengers.length)
+            };
+          }
+          return r;
+        });
+        ridesRef.current = updated;
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ecoride_rides", JSON.stringify(updated));
+        }
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseSync.set("rides", updated);
+        }
+        return updated;
+      });
+    } else {
+      // Reconstruct single ride instance using proposal.rideId
       const hostUser = employees.find(e => e.id === proposal.hostId);
-      const rideId = `ride-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const newRide: Ride = {
-        id: rideId,
+        id: rideIdToTarget,
         createdAt: new Date().toISOString(),
         hostId: proposal.hostId,
         hostName: proposal.hostName,
@@ -3884,7 +3912,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       setRides(prev => {
-        const updated = [newRide, ...prev];
+        const existingIndex = prev.findIndex(r => r.id === rideIdToTarget);
+        let updated: Ride[];
+        if (existingIndex >= 0) {
+          updated = prev.map(r => r.id === rideIdToTarget ? {
+            ...r,
+            passengers: [...(r.passengers || []).filter(id => id !== currentUser.id), currentUser.id],
+            seatsAvailable: Math.max(0, r.seatsAvailable - 1)
+          } : r);
+        } else {
+          updated = [newRide, ...prev];
+        }
         ridesRef.current = updated;
         if (typeof window !== "undefined") {
           localStorage.setItem("ecoride_rides", JSON.stringify(updated));
@@ -3896,28 +3934,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
 
       targetRide = newRide;
-    } else {
-      setRides(prev => {
-        const updated = prev.map(r => {
-          if (r.id === targetRide!.id) {
-            const currentPsgrs = r.passengers || [];
-            return {
-              ...r,
-               passengers: [...currentPsgrs.filter(id => id !== currentUser.id), currentUser.id],
-               seatsAvailable: Math.max(0, r.seatsAvailable - 1)
-            };
-          }
-          return r;
-        });
-        ridesRef.current = updated;
-        if (typeof window !== "undefined") {
-          localStorage.setItem("ecoride_rides", JSON.stringify(updated));
-        }
-        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-          supabaseSync.set("rides", updated);
-        }
-        return updated;
-      });
     }
 
     const newRideRequest: RideRequest = {
