@@ -89,9 +89,9 @@ export const findSmartMatchesForDriver = (
     if (req.status !== "Pending") return;
     if (req.requesterId === driverRide.hostId) return;
 
-    // Filter out requests for which the host driver has ALREADY sent a proposal
+    // Filter out requests for which the host driver has ALREADY sent a proposal (Pending, Accepted, or Declined)
     const alreadyProposed = rideProposals.some(
-      (p) => p.requestId === req.id && p.hostId === driverRide.hostId && (p.status === "Pending" || p.status === "Accepted")
+      (p) => p.requestId === req.id && p.hostId === driverRide.hostId && (p.status === "Pending" || p.status === "Accepted" || p.status === "Declined")
     );
     if (alreadyProposed) return;
 
