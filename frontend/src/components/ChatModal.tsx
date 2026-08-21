@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useAppState } from "@/context/StateContext";
-import { Send, MapPin, AlertCircle, X, CheckCheck, Landmark } from "lucide-react";
+import { Send, MapPin, AlertCircle, X, CheckCheck, Landmark, Navigation, Compass } from "lucide-react";
 
 interface ChatModalProps {
   rideId: string;
@@ -12,6 +12,7 @@ interface ChatModalProps {
 export default function ChatModal({ rideId, onClose }: ChatModalProps) {
   const { messages, sendMessage, currentUser, rides } = useAppState();
   const [text, setText] = useState("");
+  const [isLocating, setIsLocating] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const activeRide = rides.find(r => r.id === rideId);
@@ -29,11 +30,37 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
     setText("");
   };
 
-  const shareMeetingPoint = () => {
-    sendMessage(
-      rideId,
-      `📍 Shared Pick-up Location: Meeting point suggested near ${activeRide?.pickup || "Main entrance lobby"}`,
-      true
+  const shareLiveLocation = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+        sendMessage(
+          rideId,
+          `📍 Live GPS Location Shared: ${googleMapsUrl}`,
+          true
+        );
+        setIsLocating(false);
+      },
+      (err) => {
+        setIsLocating(false);
+        // Fallback to ride pickup location if browser permission denied
+        const fallbackAddr = activeRide?.pickup || "Main entrance pickup point";
+        const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fallbackAddr)}`;
+        sendMessage(
+          rideId,
+          `📍 Pickup Location: ${fallbackUrl}`,
+          true
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
@@ -46,8 +73,8 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="glass-panel flex h-[500px] w-full max-w-lg flex-col rounded-3xl overflow-hidden shadow-2xl border bg-white dark:bg-slate-950">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in select-none">
+      <div className="glass-panel flex h-[520px] w-full max-w-lg flex-col rounded-3xl overflow-hidden shadow-2xl border bg-white dark:bg-slate-950">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4 bg-slate-50 dark:bg-slate-900/60">
@@ -84,6 +111,7 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
             rideMessages.map(msg => {
               const isMe = msg.senderId === currentUser.id;
               const isSys = msg.senderId === "system";
+              const isLocationMsg = msg.isLocation || msg.content.includes("maps?q=") || msg.content.includes("maps/search") || msg.content.includes("google.com/maps");
               
               if (isSys) {
                 return (
@@ -108,15 +136,48 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
                         {activeRide?.status === "Started" || activeRide?.status === "Completed" || msg.senderId === currentUser.id ? msg.senderName : msg.senderId === activeRide?.hostId ? "Verified Colleague (Driver)" : "Verified Colleague"}
                       </span>
                     )}
-                    <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
-                      isMe 
-                        ? "bg-brand-green-600 text-white rounded-tr-none" 
-                        : "bg-white dark:bg-slate-900 border border-slate-200/40 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none"
-                    } ${msg.content.includes("🚨") ? "bg-rose-500 text-white border-none font-semibold animate-pulse" : ""} ${
-                      msg.isLocation ? "bg-brand-blue-600 text-white border-none" : ""
-                    }`}>
-                      <p>{msg.content}</p>
-                    </div>
+
+                    {isLocationMsg ? (
+                      (() => {
+                        const mapsMatch = msg.content.match(/(https?:\/\/[^\s]+maps[^\s]+)/i) || msg.content.match(/(https?:\/\/[^\s]+google\.com[^\s]+)/i);
+                        const mapsUrl = mapsMatch ? mapsMatch[0] : (msg.content.includes("http") ? msg.content.substring(msg.content.indexOf("http")) : null);
+                        const cleanContent = msg.content.replace(mapsUrl || "", "").trim();
+
+                        return (
+                          <div className="p-3 rounded-2xl bg-slate-900 border border-brand-blue-500/40 text-white shadow-lg space-y-2 max-w-[260px]">
+                            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-cyan-300">
+                              <Navigation className="h-4 w-4 text-cyan-400 animate-pulse flex-shrink-0" />
+                              <span>Live GPS Location Shared</span>
+                            </div>
+                            {cleanContent && (
+                              <p className="text-[10px] text-slate-200 font-semibold leading-snug">
+                                {cleanContent}
+                              </p>
+                            )}
+                            {mapsUrl && (
+                              <a
+                                href={mapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-1.5 w-full py-2 px-3 rounded-xl bg-brand-blue-600 hover:bg-brand-blue-500 active:scale-[0.98] text-white text-[10px] font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer no-underline"
+                              >
+                                <Compass className="h-3.5 w-3.5" />
+                                Navigate on Google Maps ↗
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                        isMe 
+                          ? "bg-brand-green-600 text-white rounded-tr-none" 
+                          : "bg-white dark:bg-slate-900 border border-slate-200/40 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none"
+                      } ${msg.content.includes("🚨") ? "bg-rose-500 text-white border-none font-semibold animate-pulse" : ""}`}>
+                        <p>{msg.content}</p>
+                      </div>
+                    )}
+
                     <div className={`flex items-center gap-1 mt-1 justify-end ${isMe ? "" : "flex-row-reverse"}`}>
                       <span className="text-[9px] text-slate-400">{msg.timestamp}</span>
                       {isMe && <CheckCheck className="h-3 w-3 text-brand-green-500" />}
@@ -132,16 +193,20 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
         {/* Shortcuts Panel */}
         <div className="border-t px-4 py-2 flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40">
           <button
-            onClick={shareMeetingPoint}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold rounded-lg bg-brand-blue-50 dark:bg-brand-blue-950/20 text-brand-blue-600 dark:text-brand-blue-400 hover:bg-brand-blue-100 transition-colors border border-brand-blue-200/30"
+            type="button"
+            onClick={shareLiveLocation}
+            disabled={isLocating}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-lg bg-brand-blue-500/10 hover:bg-brand-blue-500/20 text-brand-blue-600 dark:text-brand-blue-400 transition-all border border-brand-blue-500/30 cursor-pointer disabled:opacity-50"
           >
-            <MapPin className="h-3 w-3" /> Share Pickup
+            <Navigation className="h-3.5 w-3.5 text-brand-blue-500 animate-pulse" />
+            {isLocating ? "Locating GPS..." : "📍 Share Live Location"}
           </button>
           <button
+            type="button"
             onClick={triggerEmergency}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold rounded-lg bg-rose-50 dark:bg-rose-950/20 text-rose-500 hover:bg-rose-100 transition-colors border border-rose-200/30 ml-auto"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-lg bg-rose-50 dark:bg-rose-950/20 text-rose-500 hover:bg-rose-100 transition-colors border border-rose-200/30 ml-auto cursor-pointer"
           >
-            <AlertCircle className="h-3 w-3" /> Trigger SOS
+            <AlertCircle className="h-3.5 w-3.5" /> Trigger SOS
           </button>
         </div>
 
@@ -175,7 +240,7 @@ export default function ChatModal({ rideId, onClose }: ChatModalProps) {
           />
           <button
             type="submit"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white transition-colors cursor-pointer"
           >
             <Send className="h-4 w-4" />
           </button>
