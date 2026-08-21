@@ -235,13 +235,13 @@ const supabaseSync = {
     if (!supabase) return;
     try {
       if (key === "employees" && Array.isArray(value)) {
-        const changed = value.filter(r => {
-          const old = lastEmployees.find(o => o.id === r.id);
-          return !old || JSON.stringify(old) !== JSON.stringify(r);
-        });
-        if (changed.length > 0) {
-          const { error } = await supabase.from("ecoride_employees").upsert(changed);
-          if (error) throw error;
+        if (value.length > 0) {
+          try {
+            await supabase.from("ecoride_employees").upsert(value);
+          } catch (e) {}
+          try {
+            await supabase.from("ecoride_state").upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+          } catch (stErr) {}
         }
         lastEmployees = value;
         return;
@@ -267,40 +267,35 @@ const supabaseSync = {
         return;
       }
       if (key === "requests" && Array.isArray(value)) {
-        const changed = value.filter(r => {
-          const old = lastRequests.find(o => o.id === r.id);
-          return !old || JSON.stringify(old) !== JSON.stringify(r);
-        });
-        if (changed.length > 0) {
+        if (value.length > 0) {
           try {
-            const { error } = await supabase.from("ecoride_requests").upsert(changed);
-            if (error) throw error;
-          } catch (upsertErr) {
-            console.warn("Failed to upsert requests with deviationKm, retrying without it:", upsertErr);
-            // Strip deviationKm and retry to avoid query failure if table is not migrated yet
-            const strippedChanged = changed.map(({ deviationKm, ...rest }) => rest);
-            const { error } = await supabase.from("ecoride_requests").upsert(strippedChanged);
-            if (error) throw error;
-          }
+            const { error } = await supabase.from("ecoride_requests").upsert(value);
+            if (error) {
+              const stripped = value.map(({ deviationKm, ...rest }: any) => rest);
+              await supabase.from("ecoride_requests").upsert(stripped);
+            }
+          } catch (upsertErr) {}
+          try {
+            await supabase
+              .from("ecoride_state")
+              .upsert(
+                { key, value, updated_at: new Date().toISOString() },
+                { onConflict: "key" }
+              );
+          } catch (stErr) {}
         }
-        lastRequests = value;
+        lastRequests = mergeRequestsSafely(lastRequests, value);
         return;
       }
       if (key === "commute_requests" && Array.isArray(value)) {
-        const changed = value.filter(r => {
-          const old = lastCommuteRequests.find(o => o.id === r.id);
-          return !old || JSON.stringify(old) !== JSON.stringify(r);
-        });
-        if (changed.length > 0) {
+        if (value.length > 0) {
           try {
-            const { error } = await supabase.from("ecoride_commute_requests").upsert(changed);
+            const { error } = await supabase.from("ecoride_commute_requests").upsert(value);
             if (error) {
-              const sanitized = changed.map(({ urgent, cancelledByDriver, ...rest }: any) => rest);
+              const sanitized = value.map(({ urgent, cancelledByDriver, ...rest }: any) => rest);
               await supabase.from("ecoride_commute_requests").upsert(sanitized);
             }
-          } catch (dbErr) {
-            console.warn("Failed to upsert ecoride_commute_requests table:", dbErr);
-          }
+          } catch (dbErr) {}
           try {
             await supabase
               .from("ecoride_state")
@@ -310,20 +305,14 @@ const supabaseSync = {
               );
           } catch (stErr) {}
         }
-        lastCommuteRequests = value;
+        lastCommuteRequests = mergeCommuteRequestsSafely(lastCommuteRequests, value);
         return;
       }
       if (key === "ride_proposals" && Array.isArray(value)) {
-        const changed = value.filter(r => {
-          const old = lastRideProposals.find(o => o.id === r.id);
-          return !old || JSON.stringify(old) !== JSON.stringify(r);
-        });
-        if (changed.length > 0) {
+        if (value.length > 0) {
           try {
-            await supabase.from("ecoride_ride_proposals").upsert(changed);
-          } catch (dbErr) {
-            console.warn("Failed to upsert ecoride_ride_proposals table:", dbErr);
-          }
+            await supabase.from("ecoride_ride_proposals").upsert(value);
+          } catch (dbErr) {}
           try {
             await supabase
               .from("ecoride_state")
@@ -333,7 +322,7 @@ const supabaseSync = {
               );
           } catch (stErr) {}
         }
-        lastRideProposals = value;
+        lastRideProposals = mergeRideProposalsSafely(lastRideProposals, value);
         return;
       }
       if ((key === "messages" || key.startsWith("messages_")) && Array.isArray(value)) {
@@ -1380,6 +1369,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch (e) {}
     }
 
+    let bcReqs: BroadcastChannel | null = null;
+    if ("BroadcastChannel" in window) {
+      try {
+        bcReqs = new BroadcastChannel("ecoride_requests_channel");
+        bcReqs.onmessage = (event) => {
+          if (event.data && event.data.type === "NEW_REQUEST" && event.data.request) {
+            setRequests(prev => mergeRequestsSafely(prev, [event.data.request]));
+          }
+        };
+      } catch (e) {}
+    }
+
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "ecoride_messages" && e.newValue) {
         try {
@@ -1397,6 +1398,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         } catch (err) {}
       }
+      if (e.key === "ecoride_requests" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setRequests(prev => mergeRequestsSafely(prev, parsed));
+          }
+        } catch (err) {}
+      }
     };
 
     window.addEventListener("storage", handleStorage);
@@ -1404,6 +1413,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.removeEventListener("storage", handleStorage);
       if (bc) bc.close();
       if (bcRides) bcRides.close();
+      if (bcReqs) bcReqs.close();
     };
   }, []);
 
@@ -2619,7 +2629,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Request to Join a Ride — write OUTSIDE setState callback
-  const requestJoinRide = (
+  const requestJoinRide = async (
     rideId: string, 
     pickup: string, 
     pickupLat?: number, 
@@ -2687,11 +2697,31 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (typeof window !== "undefined") {
         localStorage.setItem("ecoride_requests", JSON.stringify(updated));
       }
-      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-        supabaseSync.set("requests", updated);
-      }
       return updated;
     });
+
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      try {
+        const bc = new BroadcastChannel("ecoride_requests_channel");
+        bc.postMessage({ type: "NEW_REQUEST", request: newRequest });
+        bc.close();
+      } catch (e) {}
+    }
+
+    if (SUPABASE_URL && SUPABASE_ANON_KEY && supabase) {
+      try {
+        await supabase.from("ecoride_requests").upsert([newRequest]);
+      } catch (e) {
+        console.warn("Direct ecoride_requests upsert warning:", e);
+      }
+      try {
+        const dbReqs = (await supabaseSync.get("requests")) || [];
+        const updatedReqs = mergeRequestsSafely(dbReqs, [newRequest]);
+        await supabaseSync.set("requests", updatedReqs);
+      } catch (e) {
+        console.warn("Supabase requests sync error:", e);
+      }
+    }
 
     // Trigger push notification to host (Privacy Masked)
     triggerPushNotification(
