@@ -1,4 +1,4 @@
-import { Ride, CommuteRequest } from "@/context/StateContext";
+import { Ride, CommuteRequest, RideProposal } from "@/context/StateContext";
 
 // Parse time strings ("09:00 AM", "9:30 AM", "17:30", "5:30 PM") to minutes past midnight
 export const parseTimeToMinutes = (timeStr?: string): number => {
@@ -76,7 +76,8 @@ export interface RouteMatchResult {
 
 export const findSmartMatchesForDriver = (
   driverRide: Ride,
-  commuteRequests: CommuteRequest[]
+  commuteRequests: CommuteRequest[],
+  rideProposals: RideProposal[] = []
 ): RouteMatchResult[] => {
   if (!driverRide || !commuteRequests || commuteRequests.length === 0) return [];
 
@@ -87,6 +88,12 @@ export const findSmartMatchesForDriver = (
     // Only match pending requests in the same city or matching date/route
     if (req.status !== "Pending") return;
     if (req.requesterId === driverRide.hostId) return;
+
+    // Filter out requests for which the host driver has ALREADY sent a proposal
+    const alreadyProposed = rideProposals.some(
+      (p) => p.requestId === req.id && p.hostId === driverRide.hostId && (p.status === "Pending" || p.status === "Accepted")
+    );
+    if (alreadyProposed) return;
 
     // Check date alignment if available
     if (req.rideDate && driverRide.rideDate && req.rideDate !== driverRide.rideDate) {

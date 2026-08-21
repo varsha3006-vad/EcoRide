@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
-import { Cpu, Sparkles, Leaf, Award, Navigation, Clock, Zap, ArrowRight } from "lucide-react";
+import React, { useState } from "react";
+import { Cpu, Sparkles, Leaf, Award, Navigation, Clock, Zap, ArrowRight, X } from "lucide-react";
 import { findSmartMatchesForDriver, RouteMatchResult } from "@/utils/routeMatching";
-import { Ride, CommuteRequest } from "@/context/StateContext";
+import { Ride, CommuteRequest, RideProposal, useAppState } from "@/context/StateContext";
 
 interface SmartRouteMatchesWidgetProps {
   rides: Ride[];
@@ -18,6 +18,9 @@ export default function SmartRouteMatchesWidget({
   currentUserId,
   onProposeRide,
 }: SmartRouteMatchesWidgetProps) {
+  const { rideProposals } = useAppState();
+  const [dismissedRequestIds, setDismissedRequestIds] = useState<string[]>([]);
+
   // Find published rides hosted by current user
   const myRides = rides.filter(
     (r) => r.hostId === currentUserId && r.status === "Published" && r.seatsAvailable > 0
@@ -25,10 +28,15 @@ export default function SmartRouteMatchesWidget({
 
   if (myRides.length === 0) return null;
 
+  // Filter out any locally dismissed request IDs
+  const activeRequests = commuteRequests.filter(
+    (req) => !dismissedRequestIds.includes(req.id)
+  );
+
   // Aggregate and rank all matches for all of driver's active rides
   const allMatches: RouteMatchResult[] = [];
   myRides.forEach((ride) => {
-    const matches = findSmartMatchesForDriver(ride, commuteRequests);
+    const matches = findSmartMatchesForDriver(ride, activeRequests, rideProposals);
     allMatches.push(...matches);
   });
 
@@ -36,6 +44,15 @@ export default function SmartRouteMatchesWidget({
   allMatches.sort((a, b) => b.estimatedCo2Saved - a.estimatedCo2Saved);
 
   if (allMatches.length === 0) return null;
+
+  const handleDismissMatch = (requestId: string) => {
+    setDismissedRequestIds((prev) => [...prev, requestId]);
+  };
+
+  const handleProposeClick = (req: CommuteRequest, ride: Ride) => {
+    handleDismissMatch(req.id);
+    onProposeRide(req, ride);
+  };
 
   return (
     <div className="glass-panel p-5.5 rounded-3xl border-2 border-cyan-500/40 bg-gradient-to-r from-cyan-950/40 via-slate-950/95 to-emerald-950/40 text-white shadow-2xl space-y-4 animate-fade-in relative overflow-hidden backdrop-blur-xl">
@@ -73,17 +90,26 @@ export default function SmartRouteMatchesWidget({
 
       {/* Ranked Matches List */}
       <div className="space-y-3.5 relative z-10">
-        {allMatches.slice(0, 3).map((match, idx) => {
+        {allMatches.slice(0, 3).map((match) => {
           const req = match.commuteRequest;
           const ride = match.driverRide;
 
           return (
             <div
               key={`${req.id}-${ride.id}`}
-              className="p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400/60 transition-all space-y-3 shadow-lg group"
+              className="p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400/60 transition-all space-y-3 shadow-lg group relative"
             >
+              {/* Dismiss button for individual match */}
+              <button
+                onClick={() => handleDismissMatch(req.id)}
+                className="absolute top-3 right-3 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title="Dismiss Match"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+
               {/* Match Top Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-white flex items-center gap-1.5">
                     Verified Colleague ({req.requesterDept || "Engineering"})
@@ -124,7 +150,7 @@ export default function SmartRouteMatchesWidget({
                 </div>
 
                 <button
-                  onClick={() => onProposeRide(req, ride)}
+                  onClick={() => handleProposeClick(req, ride)}
                   className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white text-xs font-black cursor-pointer transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 border border-cyan-400/40"
                 >
                   <Sparkles className="h-3.5 w-3.5 text-amber-300" /> 🚀 AI One-Tap Pickup Proposal
