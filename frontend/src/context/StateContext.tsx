@@ -897,30 +897,12 @@ const parseRideDateTime = (dateStr?: string, timeStr?: string): Date | null => {
   return new Date(year, month - 1, day, hours, minutes, 0, 0);
 };
 
-// System Purge Cutoff: Any ride created or scheduled before Aug 19, 2026 01:00 AM IST is discarded
-const SYSTEM_PURGE_CUTOFF_MS = new Date("2026-08-18T19:30:00.000Z").getTime();
-
 const filterPurgedRides = (rideList: Ride[]): Ride[] => {
   if (!rideList || !Array.isArray(rideList)) return [];
   const LEGACY_STATIC_RIDE_IDS = ["r-1", "r-2", "r-3", "r-4", "r-5", "ride-1", "ride-2", "ride-3", "ride-101", "ride-102"];
   return rideList.filter(ride => {
     if (!ride || !ride.id) return false;
     if (LEGACY_STATIC_RIDE_IDS.includes(ride.id)) return false;
-
-    let rideTimeMs = 0;
-    const rawRide = ride as any;
-    if (rawRide.createdAt) {
-      rideTimeMs = new Date(rawRide.createdAt).getTime();
-    } else if (ride.id.includes("-")) {
-      const parts = ride.id.split("-");
-      const tsStr = parts.find(p => p.length >= 13 && !isNaN(Number(p)));
-      if (tsStr) rideTimeMs = Number(tsStr);
-    }
-    
-    // If ride timestamp is prior to cutoff, drop it
-    if (rideTimeMs > 0 && rideTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
-      return false;
-    }
     return true;
   });
 };
@@ -947,7 +929,6 @@ const mergeRidesSafely = (currentRides: Ride[], incomingRides: Ride[]): Ride[] =
     if (r && r.id) {
       const existing = map.get(r.id);
       if (existing) {
-        // Protect terminal ride statuses (Completed / Cancelled) from being reverted by stale remote polling
         const isLocalTerminal = existing.status === "Completed" || existing.status === "Cancelled";
         const isIncomingActive = r.status === "Started" || r.status === "Published" || r.status === "Created";
         const finalStatus = (isLocalTerminal && isIncomingActive) ? existing.status : r.status;
@@ -979,19 +960,6 @@ const filterPurgedRequests = (reqList: RideRequest[]): RideRequest[] => {
   return reqList.filter(req => {
     if (!req || !req.id) return false;
     if (LEGACY_STATIC_REQ_IDS.includes(req.id)) return false;
-
-    let reqTimeMs = 0;
-    const rawReq = req as any;
-    if (rawReq.createdAt) {
-      reqTimeMs = new Date(rawReq.createdAt).getTime();
-    } else if (req.id.includes("-")) {
-      const parts = req.id.split("-");
-      const tsStr = parts.find(p => p.length >= 13 && !isNaN(Number(p)));
-      if (tsStr) reqTimeMs = Number(tsStr);
-    }
-    if (reqTimeMs > 0 && reqTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
-      return false;
-    }
     return true;
   });
 };
@@ -1002,19 +970,6 @@ const filterPurgedCommuteRequests = (crList: CommuteRequest[]): CommuteRequest[]
   return crList.filter(cr => {
     if (!cr || !cr.id) return false;
     if (LEGACY_STATIC_CR_IDS.includes(cr.id)) return false;
-
-    let crTimeMs = 0;
-    const rawCr = cr as any;
-    if (rawCr.createdAt) {
-      crTimeMs = new Date(rawCr.createdAt).getTime();
-    } else if (cr.id.includes("-")) {
-      const parts = cr.id.split("-");
-      const tsStr = parts.find(p => p.length >= 13 && !isNaN(Number(p)));
-      if (tsStr) crTimeMs = Number(tsStr);
-    }
-    if (crTimeMs > 0 && crTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
-      return false;
-    }
     return true;
   });
 };
@@ -1025,19 +980,6 @@ const filterPurgedProposals = (propList: RideProposal[]): RideProposal[] => {
   return propList.filter(p => {
     if (!p || !p.id) return false;
     if (LEGACY_STATIC_PROP_IDS.includes(p.id)) return false;
-
-    let pTimeMs = 0;
-    const rawP = p as any;
-    if (rawP.createdAt) {
-      pTimeMs = new Date(rawP.createdAt).getTime();
-    } else if (p.id.includes("-")) {
-      const parts = p.id.split("-");
-      const tsStr = parts.find(pt => pt.length >= 13 && !isNaN(Number(pt)));
-      if (tsStr) pTimeMs = Number(tsStr);
-    }
-    if (pTimeMs > 0 && pTimeMs < SYSTEM_PURGE_CUTOFF_MS) {
-      return false;
-    }
     return true;
   });
 };
