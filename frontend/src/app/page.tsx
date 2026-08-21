@@ -3915,12 +3915,13 @@ export default function HomePage() {
               };
 
               const computedTime = computeProposedTime(proposingToRequest.desiredTime, proposedTimeOffset);
-              const matchingRides = rides.filter(r => r.hostId === currentUser.id && (r.status === "Published" || r.status === "Created"));
+              const matchingRides = rides.filter(r => r.hostId === currentUser.id && r.status !== "Completed" && r.status !== "Cancelled");
+              const currentSelectedRide = rides.find(r => r.id === proposalRideId) || (matchingRides.length > 0 ? matchingRides[0] : undefined);
 
               const handleSendProposalSubmit = (e: React.FormEvent) => {
                 e.preventDefault();
-                const selectedRide = matchingRides.find(r => r.id === proposalRideId) || rides.find(r => r.id === proposalRideId);
-                const targetRideId = selectedRide ? selectedRide.id : (proposalRideId && proposalRideId !== "new" ? proposalRideId : undefined);
+                const selectedRide = rides.find(r => r.id === proposalRideId) || currentSelectedRide;
+                const targetRideId = proposalRideId === "new" ? undefined : (selectedRide ? selectedRide.id : (proposalRideId || (matchingRides.length > 0 ? matchingRides[0].id : undefined)));
                 
                 sendRideProposal(
                   proposingToRequest.id,
@@ -3964,16 +3965,16 @@ export default function HomePage() {
                       <div>
                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Proposal Route Type</label>
                         <select
-                          value={proposalRideId}
+                          value={proposalRideId || (currentSelectedRide ? currentSelectedRide.id : "new")}
                           onChange={e => setProposalRideId(e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none"
+                          className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs focus:ring-1 focus:ring-brand-green-500 outline-none font-bold text-slate-800 dark:text-white"
                         >
-                          <option value="new">Create & Host a New Ride matching this route</option>
                           {matchingRides.map(r => (
                             <option key={r.id} value={r.id}>
-                              Existing Ride: {r.pickup.slice(0, 15)}... at {r.departureTime} ({r.seatsAvailable} seats left)
+                              🚗 Existing Ride: {r.pickup.slice(0, 18)}... → {r.destination.slice(0, 18)}... ({r.seatsAvailable} seats left)
                             </option>
                           ))}
+                          <option value="new">➕ Create & Host a New Standalone Ride</option>
                         </select>
                       </div>
 

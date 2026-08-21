@@ -3835,6 +3835,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       targetRide = rides.find(r => r.id === proposal.rideId) || (ridesRef.current || []).find(r => r.id === proposal.rideId);
     }
 
+    // Fallback: If no explicit rideId attached to proposal, check if host has an active existing ride to merge with
+    if (!targetRide) {
+      const allRides = ridesRef.current && ridesRef.current.length > 0 ? ridesRef.current : rides;
+      targetRide = allRides.find(r => r.hostId === proposal.hostId && r.status !== "Completed" && r.status !== "Cancelled");
+    }
+
     if (!targetRide) {
       const hostUser = employees.find(e => e.id === proposal.hostId);
       const rideId = `ride-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
