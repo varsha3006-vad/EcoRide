@@ -76,7 +76,7 @@ export default function SmartRouteMatchesWidget({
           </span>
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
-              EcoRide AI Neural Engine v2.0 <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+              EcoRide AI Neural Engine <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
             </h3>
             <span className="text-[9px] font-extrabold bg-cyan-950/90 text-cyan-300 border border-cyan-400/50 px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
               🤖 AI Adaptive Matcher
