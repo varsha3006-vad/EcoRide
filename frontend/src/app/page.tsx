@@ -491,6 +491,25 @@ export default function HomePage() {
     };
   }, []);
 
+  // Auto-pop up group chat when incoming message arrives
+  useEffect(() => {
+    const handleChatPopup = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const rideId = detail?.rideId;
+      if (rideId) {
+        setActiveChatRideId(rideId);
+        try {
+          const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+          audio.volume = 0.5;
+          audio.play().catch(() => {});
+        } catch (e) {}
+      }
+    };
+
+    window.addEventListener("ecoride_chat_popup", handleChatPopup);
+    return () => window.removeEventListener("ecoride_chat_popup", handleChatPopup);
+  }, []);
+
   const extractCityName = (fullAddress: string): string => {
     if (!fullAddress) return "Unknown";
     const parts = fullAddress.split(",").map(p => p.trim());
@@ -3214,8 +3233,7 @@ export default function HomePage() {
                                     );
                                   }
                                   
-                                  const myRequest = requests.find(r => (r.rideId === trip.id || r.id === trip.id) && r.requesterId === currentUser.id && r.status === "Accepted");
-                                  const displayPin = myRequest?.boardingPin || getDeterministicBoardingPin(trip.id, currentUser.id);
+                                  const displayPin = getDeterministicBoardingPin(trip.id, currentUser.id);
                                   return (
                                     <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/40 rounded-lg text-slate-700 dark:text-slate-300 text-[10px] font-black">
                                       🔑 PIN: <span className="text-brand-green-600 dark:text-brand-green-400 tracking-wider text-xs ml-0.5">{displayPin}</span>

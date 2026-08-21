@@ -1362,7 +1362,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         bc = new BroadcastChannel("ecoride_chat_channel");
         bc.onmessage = (event) => {
           if (event.data && event.data.type === "CHAT_MSG" && event.data.message) {
-            setMessages(prev => mergeMessagesSafely(prev, [event.data.message]));
+            const msg = event.data.message;
+            if (msg.senderId !== currentUserIdRef.current && typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("ecoride_chat_popup", { detail: { rideId: msg.rideId, message: msg } }));
+            }
+            setMessages(prev => mergeMessagesSafely(prev, [msg]));
           }
         };
       } catch (e) {}
@@ -1870,6 +1874,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .channel("messages-realtime")
       .on("postgres_changes" as any, { event: "*", schema: "public", table: "ecoride_messages" }, (payload: any) => {
         if (payload.eventType === "INSERT") {
+          if (payload.new && payload.new.senderId !== currentUserIdRef.current && typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("ecoride_chat_popup", { detail: { rideId: payload.new.rideId, message: payload.new } }));
+          }
           setMessages(prev => {
             const updated = [...prev.filter(m => m.id !== payload.new.id), payload.new]
               .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
@@ -2695,7 +2702,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     // 1. Update requests status & generate boarding PIN on acceptance
-    const boardingPin = accept ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
+    const boardingPin = accept ? getDeterministicBoardingPin(reqToRespond.rideId, reqToRespond.requesterId) : undefined;
     let updatedRequests = requests.map(req => {
       if (req.id === requestId) {
         return { 
@@ -4091,7 +4098,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dropLng: commReq.destLng,
       status: "Accepted",
       timestamp: new Date().toISOString(),
-      boardingPin: Math.floor(1000 + Math.random() * 9000).toString(),
+      boardingPin: getDeterministicBoardingPin(targetRide.id, currentUser.id),
       deviationKm: 0.00
     };
 
