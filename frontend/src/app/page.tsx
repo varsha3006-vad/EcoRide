@@ -504,11 +504,11 @@ export default function HomePage() {
     if (currentUser?.vehicles && currentUser.vehicles.length > 0) {
       const currentVeh = currentUser.vehicles.find(v => v.plateNumber === hostSelectedPlate) || currentUser.vehicles[0];
       if (currentVeh) {
-        if (currentVeh.plateNumber !== hostSelectedPlate) {
+        if (!hostSelectedPlate || currentVeh.plateNumber !== hostSelectedPlate) {
           setHostSelectedPlate(currentVeh.plateNumber);
+          setVehicleType(currentVeh.type);
+          setCapacity(currentVeh.category === "2-Wheeler (Bike/Scooter)" ? 1 : currentVeh.capacity);
         }
-        setVehicleType(currentVeh.type);
-        setCapacity(currentVeh.category === "2-Wheeler (Bike/Scooter)" ? 1 : currentVeh.capacity);
       }
     }
   }, [currentUser, hostSelectedPlate]);
@@ -2232,7 +2232,7 @@ export default function HomePage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                                {((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? "🛵 Available Pillion Seat" : "Available Passenger Seats (1 to Max Capacity)"}
+                                {((currentUser.vehicles || []).find(v => v.plateNumber === hostSelectedPlate)?.category) === "2-Wheeler (Bike/Scooter)" ? "🛵 Available Pillion Seat" : "Available Passenger Seats"}
                               </label>
                               <select
                                 value={capacity}
