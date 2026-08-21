@@ -19,13 +19,14 @@ const urlBase64ToUint8Array = (base64String: string) => {
 const VAPID_PUBLIC_KEY = "BIvZxFD56q2yFyfqc-DWPUeduMsO_UwuCTB3_EzlQ4Yu_OYXiEXzdZRe4a8tYXdvXZwGb-kym8cDb7TrPEjdPV4";
 
 export const formatSemanticVersion = (rawStr: string): string => {
-  if (!rawStr) return "v1.3.1";
-  const match = rawStr.match(/v?\d+\.\d+\.\d+/i);
+  if (!rawStr) return "v1.0.0";
+  const match = rawStr.match(/v?\d+\.\d+(\.\d+)?/i);
   if (match) {
     const semVer = match[0].toLowerCase();
     return semVer.startsWith("v") ? semVer : `v${semVer}`;
   }
-  return "v1.3.1";
+  const clean = rawStr.replace(/[^0-9.]/g, "");
+  return clean ? `v${clean}` : "v1.0.0";
 };
 
 export default function ServiceWorkerRegister() {

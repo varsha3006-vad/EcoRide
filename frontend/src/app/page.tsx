@@ -456,8 +456,8 @@ export default function HomePage() {
 
   // Dynamic PWA Version Info
   const [appVersionInfo, setAppVersionInfo] = useState<{ current: string; latest: string; isOutdated: boolean }>({
-    current: "v1.3.1",
-    latest: "v1.3.1",
+    current: "",
+    latest: "",
     isOutdated: false,
   });
 
@@ -466,8 +466,8 @@ export default function HomePage() {
       const detail = (e as CustomEvent).detail;
       if (detail) {
         setAppVersionInfo({
-          current: detail.currentVersion || "v1.3.1",
-          latest: detail.latestVersion || detail.currentVersion || "v1.3.1",
+          current: detail.currentVersion || "v1.0.0",
+          latest: detail.latestVersion || detail.currentVersion || "v1.0.0",
           isOutdated: !!detail.isOutdated,
         });
       }
