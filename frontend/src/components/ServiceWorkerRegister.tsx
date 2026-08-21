@@ -36,14 +36,26 @@ export default function ServiceWorkerRegister() {
         if (res.ok) {
           const data = await res.json();
           const currentSaved = localStorage.getItem("ecoride_app_version");
+          const displayVersion = currentSaved || data.version;
+
           if (!currentSaved) {
             localStorage.setItem("ecoride_app_version", data.version);
+            window.dispatchEvent(new CustomEvent("pwa-version-state", { 
+              detail: { currentVersion: data.version, latestVersion: data.version, isOutdated: false } 
+            }));
             if (forceTriggerModal) {
               window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: data.version } }));
             }
           } else if (currentSaved !== data.version || forceTriggerModal) {
             console.log(`🚀 New app version detected! Remote: ${data.version}, Local: ${currentSaved}`);
+            window.dispatchEvent(new CustomEvent("pwa-version-state", { 
+              detail: { currentVersion: displayVersion, latestVersion: data.version, isOutdated: true } 
+            }));
             window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: data.version } }));
+          } else {
+            window.dispatchEvent(new CustomEvent("pwa-version-state", { 
+              detail: { currentVersion: displayVersion, latestVersion: data.version, isOutdated: false } 
+            }));
           }
         }
       } catch (err) {

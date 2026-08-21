@@ -454,6 +454,42 @@ export default function HomePage() {
   const [userGpsLocation, setUserGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [expandedAddressIds, setExpandedAddressIds] = useState<Record<string, boolean>>({});
 
+  // Dynamic PWA Version Info
+  const [appVersionInfo, setAppVersionInfo] = useState<{ current: string; latest: string; isOutdated: boolean }>({
+    current: "v1.3.1",
+    latest: "v1.3.1",
+    isOutdated: false,
+  });
+
+  useEffect(() => {
+    const handleVersionState = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        setAppVersionInfo({
+          current: detail.currentVersion || "v1.3.1",
+          latest: detail.latestVersion || detail.currentVersion || "v1.3.1",
+          isOutdated: !!detail.isOutdated,
+        });
+      }
+    };
+
+    window.addEventListener("pwa-version-state", handleVersionState);
+    const handleUpdateAvail = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setAppVersionInfo(prev => ({
+        ...prev,
+        latest: detail?.version || prev.current,
+        isOutdated: true,
+      }));
+    };
+    window.addEventListener("pwa-update-available", handleUpdateAvail);
+
+    return () => {
+      window.removeEventListener("pwa-version-state", handleVersionState);
+      window.removeEventListener("pwa-update-available", handleUpdateAvail);
+    };
+  }, []);
+
   const extractCityName = (fullAddress: string): string => {
     if (!fullAddress) return "Unknown";
     const parts = fullAddress.split(",").map(p => p.trim());
@@ -4502,14 +4538,38 @@ export default function HomePage() {
       />
 
       {/* Bottom status signature */}
-      <footer className="py-6 border-t mt-auto">
-        <div className="max-w-7xl mx-auto px-4 text-center text-[10px] text-slate-400 font-semibold flex flex-col items-center justify-center gap-1.5">
+      <footer className="py-6 border-t border-slate-200/60 dark:border-slate-800/60 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 text-center text-[10px] text-slate-400 font-semibold flex flex-col items-center justify-center gap-2">
           <div className="flex items-center gap-1">
             Made with <Heart className="h-3 w-3 text-brand-green-500 fill-brand-green-500 animate-pulse" /> for Corporate Sustainability &amp; ESG Compliance
           </div>
-          <div className="text-[9px] bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/40 text-slate-500 dark:text-slate-400 px-2.5 py-0.5 rounded-full font-bold">
-            EcoRide Production v1.0.0
-          </div>
+          <button
+            onClick={() => {
+              if (appVersionInfo.isOutdated) {
+                window.dispatchEvent(new CustomEvent("pwa-force-reload", { detail: { version: appVersionInfo.latest } }));
+              } else {
+                window.dispatchEvent(new CustomEvent("check-pwa-update"));
+              }
+            }}
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer shadow-sm ${
+              appVersionInfo.isOutdated
+                ? "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/40 shadow-amber-500/10 animate-pulse hover:bg-amber-500/25"
+                : "bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+            title={appVersionInfo.isOutdated ? "New update available! Click to refresh now." : "Click to check for app updates"}
+          >
+            <span className={`h-2 w-2 rounded-full ${appVersionInfo.isOutdated ? "bg-amber-400 animate-ping" : "bg-emerald-500"}`} />
+            <span>EcoRide Production {appVersionInfo.current.length > 22 ? appVersionInfo.current.slice(0, 18) + "..." : appVersionInfo.current}</span>
+            {appVersionInfo.isOutdated ? (
+              <span className="bg-amber-500/30 text-amber-600 dark:text-amber-300 text-[9px] px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1">
+                ⚡ Update Available (Click to Refresh)
+              </span>
+            ) : (
+              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                • Up to Date
+              </span>
+            )}
+          </button>
         </div>
       </footer>
     </div>
