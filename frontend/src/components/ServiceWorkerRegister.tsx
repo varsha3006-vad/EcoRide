@@ -18,6 +18,16 @@ const urlBase64ToUint8Array = (base64String: string) => {
 // VAPID Public Key
 const VAPID_PUBLIC_KEY = "BIvZxFD56q2yFyfqc-DWPUeduMsO_UwuCTB3_EzlQ4Yu_OYXiEXzdZRe4a8tYXdvXZwGb-kym8cDb7TrPEjdPV4";
 
+export const formatSemanticVersion = (rawStr: string): string => {
+  if (!rawStr) return "v1.3.1";
+  const match = rawStr.match(/v?\d+\.\d+\.\d+/i);
+  if (match) {
+    const semVer = match[0].toLowerCase();
+    return semVer.startsWith("v") ? semVer : `v${semVer}`;
+  }
+  return "v1.3.1";
+};
+
 export default function ServiceWorkerRegister() {
   const { currentUser, isLoggedIn } = useAppState();
 
@@ -36,25 +46,25 @@ export default function ServiceWorkerRegister() {
         if (res.ok) {
           const data = await res.json();
           const currentSaved = localStorage.getItem("ecoride_app_version");
-          const displayVersion = currentSaved || data.version;
+          const semVer = data.displayVersion || formatSemanticVersion(data.version);
 
           if (!currentSaved) {
             localStorage.setItem("ecoride_app_version", data.version);
             window.dispatchEvent(new CustomEvent("pwa-version-state", { 
-              detail: { currentVersion: data.version, latestVersion: data.version, isOutdated: false } 
+              detail: { currentVersion: semVer, latestVersion: semVer, isOutdated: false } 
             }));
             if (forceTriggerModal) {
-              window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: data.version } }));
+              window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: semVer } }));
             }
           } else if (currentSaved !== data.version || forceTriggerModal) {
             console.log(`🚀 New app version detected! Remote: ${data.version}, Local: ${currentSaved}`);
             window.dispatchEvent(new CustomEvent("pwa-version-state", { 
-              detail: { currentVersion: displayVersion, latestVersion: data.version, isOutdated: true } 
+              detail: { currentVersion: formatSemanticVersion(currentSaved), latestVersion: semVer, isOutdated: true } 
             }));
-            window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: data.version } }));
+            window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: semVer } }));
           } else {
             window.dispatchEvent(new CustomEvent("pwa-version-state", { 
-              detail: { currentVersion: displayVersion, latestVersion: data.version, isOutdated: false } 
+              detail: { currentVersion: semVer, latestVersion: semVer, isOutdated: false } 
             }));
           }
         }

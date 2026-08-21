@@ -3,16 +3,17 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// Dynamic deployment version identifier (Vercel Git Commit SHA or timestamp build tag)
+const PUBLIC_SEMVER = "v1.3.1";
 const BUILD_VERSION =
   process.env.VERCEL_GIT_COMMIT_SHA ||
   process.env.VERCEL_DEPLOYMENT_ID ||
-  "v1.3.1-release-20260821-v9";
+  `${PUBLIC_SEMVER}-release-20260821-v9`;
 
 export async function GET() {
   return NextResponse.json(
     {
       version: BUILD_VERSION,
+      displayVersion: PUBLIC_SEMVER,
       timestamp: new Date().toISOString()
     },
     {

@@ -4559,7 +4559,7 @@ export default function HomePage() {
             title={appVersionInfo.isOutdated ? "New update available! Click to refresh now." : "Click to check for app updates"}
           >
             <span className={`h-2 w-2 rounded-full ${appVersionInfo.isOutdated ? "bg-amber-400 animate-ping" : "bg-emerald-500"}`} />
-            <span>EcoRide Production {appVersionInfo.current.length > 22 ? appVersionInfo.current.slice(0, 18) + "..." : appVersionInfo.current}</span>
+            <span>EcoRide Production {appVersionInfo.current.startsWith("v") ? appVersionInfo.current : `v${appVersionInfo.current}`}</span>
             {appVersionInfo.isOutdated ? (
               <span className="bg-amber-500/30 text-amber-600 dark:text-amber-300 text-[9px] px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1">
                 ⚡ Update Available (Click to Refresh)
