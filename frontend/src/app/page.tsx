@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useAppState, Ride, RideRequest, Employee } from "@/context/StateContext";
+import { useAppState, Ride, RideRequest, Employee, getDeterministicBoardingPin } from "@/context/StateContext";
 import Navbar from "@/components/Navbar";
 import InteractiveMap from "@/components/InteractiveMap";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
@@ -3214,10 +3214,11 @@ export default function HomePage() {
                                     );
                                   }
                                   
-                                  const myRequest = requests.find(r => r.rideId === trip.id && r.requesterId === currentUser.id && r.status === "Accepted");
+                                  const myRequest = requests.find(r => (r.rideId === trip.id || r.id === trip.id) && r.requesterId === currentUser.id && r.status === "Accepted");
+                                  const displayPin = myRequest?.boardingPin || getDeterministicBoardingPin(trip.id, currentUser.id);
                                   return (
                                     <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/40 rounded-lg text-slate-700 dark:text-slate-300 text-[10px] font-black">
-                                      🔑 PIN: <span className="text-brand-green-600 dark:text-brand-green-400 tracking-wider text-xs ml-0.5">{myRequest?.boardingPin || "----"}</span>
+                                      🔑 PIN: <span className="text-brand-green-600 dark:text-brand-green-400 tracking-wider text-xs ml-0.5">{displayPin}</span>
                                     </div>
                                   );
                                 })()}
