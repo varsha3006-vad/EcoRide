@@ -247,13 +247,9 @@ const supabaseSync = {
         return;
       }
       if (key === "rides" && Array.isArray(value)) {
-        const changed = value.filter(r => {
-          const old = lastRides.find(o => o.id === r.id);
-          return !old || JSON.stringify(old) !== JSON.stringify(r);
-        });
-        if (changed.length > 0) {
+        if (value.length > 0) {
           try {
-            const { error } = await supabase.from("ecoride_rides").upsert(changed);
+            const { error } = await supabase.from("ecoride_rides").upsert(value);
             if (error) console.warn("Failed to upsert ecoride_rides table:", error);
           } catch (e) {
             console.warn("Failed to upsert ecoride_rides:", e);
@@ -267,7 +263,7 @@ const supabaseSync = {
               );
           } catch (stErr) {}
         }
-        lastRides = value;
+        lastRides = mergeRidesSafely(lastRides, value);
         return;
       }
       if (key === "requests" && Array.isArray(value)) {
@@ -1372,6 +1368,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch (e) {}
     }
 
+    let bcRides: BroadcastChannel | null = null;
+    if ("BroadcastChannel" in window) {
+      try {
+        bcRides = new BroadcastChannel("ecoride_rides_channel");
+        bcRides.onmessage = (event) => {
+          if (event.data && event.data.type === "NEW_RIDE" && event.data.ride) {
+            setRides(prev => mergeRidesSafely(prev, [event.data.ride]));
+          }
+        };
+      } catch (e) {}
+    }
+
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "ecoride_messages" && e.newValue) {
         try {
@@ -1381,12 +1389,21 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         } catch (err) {}
       }
+      if (e.key === "ecoride_rides" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setRides(prev => mergeRidesSafely(prev, parsed));
+          }
+        } catch (err) {}
+      }
     };
 
     window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("storage", handleStorage);
       if (bc) bc.close();
+      if (bcRides) bcRides.close();
     };
   }, []);
 
@@ -2498,7 +2515,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Create Ride — write OUTSIDE setState callback to avoid race condition
-  const createRide = (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => {
+  const createRide = async (rideData: Omit<Ride, "id" | "hostId" | "hostName" | "hostAvatar" | "hostDept" | "hostRating" | "status" | "passengers" | "boardedPassengers"> & { womenOnly?: boolean }) => {
     const overlapResult = checkRideOverlap(rideData.rideDate, rideData.departureTime);
     if (overlapResult.hasOverlap) {
       const isPending = overlapResult.isPendingRequest;
@@ -2538,11 +2555,31 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (typeof window !== "undefined") {
         localStorage.setItem("ecoride_rides", JSON.stringify(updated));
       }
-      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-        supabaseSync.set("rides", updated);
-      }
       return updated;
     });
+
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      try {
+        const bc = new BroadcastChannel("ecoride_rides_channel");
+        bc.postMessage({ type: "NEW_RIDE", ride: newRide });
+        bc.close();
+      } catch (e) {}
+    }
+
+    if (SUPABASE_URL && SUPABASE_ANON_KEY && supabase) {
+      try {
+        await supabase.from("ecoride_rides").upsert([newRide]);
+      } catch (e) {
+        console.warn("Direct ecoride_rides upsert warning:", e);
+      }
+      try {
+        const dbRides = (await supabaseSync.get("rides")) || [];
+        const updatedRides = mergeRidesSafely(dbRides, [newRide]);
+        await supabaseSync.set("rides", updatedRides);
+      } catch (e) {
+        console.warn("Supabase rides sync error:", e);
+      }
+    }
     
     logSecurityEvent("RIDE_CREATE", "INFO", `Created ride ID: ${newRide.id} from ${newRide.pickup} to ${newRide.destination} (Seats: ${newRide.seatsTotal})`);
 
