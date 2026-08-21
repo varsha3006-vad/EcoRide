@@ -80,11 +80,11 @@ export default function SmartRouteMatchesWidget({
                 EcoRide AI Neural Engine v2.0 <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
               </h3>
               <span className="text-[9px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                🤖 AI Smart Carpool Match
+                🤖 AI Adaptive Matcher
               </span>
             </div>
             <p className="text-[10px] text-slate-300 font-medium mt-0.5">
-              Predictive route deviation (≤ 5.0 km) &amp; time window proximity engine
+              Dual-Mode Adaptive Engine • Intracity (≤4km/30m) &amp; Intercity Highway (≤15km/90m)
             </p>
           </div>
         </div>
@@ -101,11 +101,16 @@ export default function SmartRouteMatchesWidget({
         {allMatches.slice(0, 3).map((match) => {
           const req = match.commuteRequest;
           const ride = match.driverRide;
+          const isIntercity = match.tripType === "Intercity";
 
           return (
             <div
               key={`${req.id}-${ride.id}`}
-              className="p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400/60 transition-all space-y-3 shadow-lg group relative"
+              className={`p-4 rounded-2xl bg-slate-900/90 border transition-all space-y-3 shadow-lg group relative ${
+                isIntercity
+                  ? "border-indigo-500/40 hover:border-indigo-400/70"
+                  : "border-cyan-500/30 hover:border-cyan-400/60"
+              }`}
             >
               {/* Dismiss button for individual match */}
               <button
@@ -124,6 +129,13 @@ export default function SmartRouteMatchesWidget({
                   </span>
                   <span className="text-[9px] bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
                     ⚡ {match.aiConfidenceScore}% AI Match Confidence
+                  </span>
+                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-black border ${
+                    isIntercity
+                      ? "bg-indigo-500/20 text-indigo-300 border-indigo-400/40"
+                      : "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
+                  }`}>
+                    {isIntercity ? "🛣️ Intercity Highway Match" : "🏙️ Local Commute Match"}
                   </span>
                 </div>
 
@@ -159,7 +171,11 @@ export default function SmartRouteMatchesWidget({
 
                 <button
                   onClick={() => handleProposeClick(req, ride)}
-                  className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white text-xs font-black cursor-pointer transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 border border-cyan-400/40"
+                  className={`py-2 px-3.5 rounded-xl text-white text-xs font-black cursor-pointer transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 border ${
+                    isIntercity
+                      ? "bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 border-indigo-400/40"
+                      : "bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 border-cyan-400/40"
+                  }`}
                 >
                   <Sparkles className="h-3.5 w-3.5 text-amber-300" /> 🚀 AI One-Tap Pickup Proposal
                 </button>

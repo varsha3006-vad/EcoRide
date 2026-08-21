@@ -63,9 +63,12 @@ export const getRouteDeviationKm = (
   return Number(deviation.toFixed(1));
 };
 
+export type TripClassification = "Intracity" | "Intercity";
+
 export interface RouteMatchResult {
   commuteRequest: CommuteRequest;
   driverRide: Ride;
+  tripType: TripClassification;
   deviationKm: number;
   timeDiffMins: number;
   aiConfidenceScore: number;
@@ -73,6 +76,32 @@ export interface RouteMatchResult {
   estimatedEsgCredits: number;
   matchScore: number;
 }
+
+// Detect whether a ride is Intracity (Local) vs Intercity (Long-distance highway)
+export const classifyTripType = (driverRide: Ride, req: CommuteRequest): TripClassification => {
+  const rStartLat = (driverRide as any).pickupLat || 12.9716;
+  const rStartLng = (driverRide as any).pickupLng || 77.5946;
+  const rEndLat = (driverRide as any).destLat || 12.9352;
+  const rEndLng = (driverRide as any).destLng || 77.6245;
+
+  const totalRouteDist = getDistanceKm(rStartLat, rStartLng, rEndLat, rEndLng);
+
+  // Check text indicators for different cities or long distance >= 60 km
+  const rPickupCity = (driverRide.city || "").toLowerCase().trim();
+  const reqCity = (req.city || "").toLowerCase().trim();
+  const destText = (driverRide.destination || "").toLowerCase().trim();
+  const reqDestText = (req.destination || "").toLowerCase().trim();
+
+  const isCrossCityText =
+    (rPickupCity && reqCity && rPickupCity !== reqCity) ||
+    destText.includes("pune") || destText.includes("mumbai") || destText.includes("mysuru") || destText.includes("chennai") ||
+    reqDestText.includes("pune") || reqDestText.includes("mumbai") || reqDestText.includes("mysuru") || reqDestText.includes("chennai");
+
+  if (totalRouteDist >= 60 || isCrossCityText) {
+    return "Intercity";
+  }
+  return "Intracity";
+};
 
 export const findSmartMatchesForDriver = (
   driverRide: Ride,
@@ -100,14 +129,18 @@ export const findSmartMatchesForDriver = (
       return;
     }
 
+    const tripType = classifyTripType(driverRide, req);
     const reqObj = req as any;
+
+    // Adaptive Thresholds based on Trip Type
+    const maxTimeWindowMins = tripType === "Intercity" ? 90 : 30; // 90 mins for Intercity, 30 mins for Intracity
+    const maxDeviationKm = tripType === "Intercity" ? 15.0 : 4.0; // 15 km for Intercity, 4 km for Intracity
 
     // Time window calculation
     const psgrTimeMins = parseTimeToMinutes(req.desiredTime || reqObj.time);
     const timeDiffMins = Math.abs(driverTimeMins - psgrTimeMins);
 
-    // Filter strictly within <= 45 minutes departure window
-    if (timeDiffMins > 45) return;
+    if (timeDiffMins > maxTimeWindowMins) return;
 
     const pLat = reqObj.pickupLat || (driverRide as any).pickupLat || 12.9716;
     const pLng = reqObj.pickupLng || (driverRide as any).pickupLng || 77.5946;
@@ -121,8 +154,7 @@ export const findSmartMatchesForDriver = (
       (driverRide as any).destLng
     );
 
-    // Filter strictly within <= 5.0 km route deviation
-    if (deviation <= 5.0) {
+    if (deviation <= maxDeviationKm) {
       const vType = driverRide.vehicleType || "Electric";
       const vehicleEmissionFactor = vType === "Electric" ? 0.02 : vType === "Hybrid" ? 0.07 : 0.14;
       const vehicleBonus = vType === "Electric" ? 20 : vType === "Hybrid" ? 10 : 0;
@@ -137,21 +169,26 @@ export const findSmartMatchesForDriver = (
         )
       );
 
+      const co2Multiplier = tripType === "Intercity" ? 1.2 : 1.0;
       const co2 = Number(
-        Math.max(0.8, (approxDistance * 0.171) - (approxDistance * vehicleEmissionFactor)).toFixed(1)
+        Math.max(0.8, ((approxDistance * 0.171) - (approxDistance * vehicleEmissionFactor)) * co2Multiplier).toFixed(1)
       );
 
-      const credits = Math.max(25, Math.round(approxDistance * 2.5) + 15 + vehicleBonus);
+      const credits = Math.max(25, Math.round(approxDistance * (tripType === "Intercity" ? 3.0 : 2.5)) + 15 + vehicleBonus);
 
-      // Neural AI Confidence Match Score calculation (70% - 99%)
+      // Neural AI Confidence Match Score calculation (70% - 99%) adjusted for trip mode
+      const deviationPenalty = tripType === "Intercity" ? deviation * 1.2 : deviation * 4.0;
+      const timePenalty = tripType === "Intercity" ? timeDiffMins * 0.25 : timeDiffMins * 0.6;
+
       const confidence = Math.min(
         99,
-        Math.max(72, Math.round(100 - (deviation * 3.5) - (timeDiffMins * 0.5)))
+        Math.max(72, Math.round(100 - deviationPenalty - timePenalty))
       );
 
       matches.push({
         commuteRequest: req,
         driverRide,
+        tripType,
         deviationKm: deviation,
         timeDiffMins,
         aiConfidenceScore: confidence,
