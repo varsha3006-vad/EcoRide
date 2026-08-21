@@ -1,5 +1,24 @@
 import { Ride, CommuteRequest } from "@/context/StateContext";
 
+// Parse time strings ("09:00 AM", "9:30 AM", "17:30", "5:30 PM") to minutes past midnight
+export const parseTimeToMinutes = (timeStr?: string): number => {
+  if (!timeStr) return 540; // Default 09:00 AM (540 mins)
+
+  const clean = timeStr.trim().toUpperCase();
+  const isPM = clean.includes("PM");
+  const isAM = clean.includes("AM");
+
+  const digits = clean.replace(/[^0-9:]/g, "");
+  const parts = digits.split(":");
+  let hours = parseInt(parts[0] || "9", 10);
+  const minutes = parseInt(parts[1] || "0", 10);
+
+  if (isPM && hours < 12) hours += 12;
+  if (isAM && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+};
+
 // Haversine distance calculation in kilometers
 export const getDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 5.0;
@@ -48,6 +67,8 @@ export interface RouteMatchResult {
   commuteRequest: CommuteRequest;
   driverRide: Ride;
   deviationKm: number;
+  timeDiffMins: number;
+  aiConfidenceScore: number;
   estimatedCo2Saved: number;
   estimatedEsgCredits: number;
   matchScore: number;
@@ -60,6 +81,7 @@ export const findSmartMatchesForDriver = (
   if (!driverRide || !commuteRequests || commuteRequests.length === 0) return [];
 
   const matches: RouteMatchResult[] = [];
+  const driverTimeMins = parseTimeToMinutes(driverRide.departureTime);
 
   commuteRequests.forEach((req) => {
     // Only match pending requests in the same city or matching date/route
@@ -72,6 +94,14 @@ export const findSmartMatchesForDriver = (
     }
 
     const reqObj = req as any;
+
+    // Time window calculation
+    const psgrTimeMins = parseTimeToMinutes(req.desiredTime || reqObj.time);
+    const timeDiffMins = Math.abs(driverTimeMins - psgrTimeMins);
+
+    // Filter strictly within <= 45 minutes departure window
+    if (timeDiffMins > 45) return;
+
     const pLat = reqObj.pickupLat || (driverRide as any).pickupLat || 12.9716;
     const pLng = reqObj.pickupLng || (driverRide as any).pickupLng || 77.5946;
 
@@ -106,10 +136,18 @@ export const findSmartMatchesForDriver = (
 
       const credits = Math.max(25, Math.round(approxDistance * 2.5) + 15 + vehicleBonus);
 
+      // Neural AI Confidence Match Score calculation (70% - 99%)
+      const confidence = Math.min(
+        99,
+        Math.max(72, Math.round(100 - (deviation * 3.5) - (timeDiffMins * 0.5)))
+      );
+
       matches.push({
         commuteRequest: req,
         driverRide,
         deviationKm: deviation,
+        timeDiffMins,
+        aiConfidenceScore: confidence,
         estimatedCo2Saved: co2,
         estimatedEsgCredits: credits,
         matchScore: co2 * 100 + credits

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Sparkles, Leaf, Award, Navigation, Send, ArrowRight } from "lucide-react";
+import { Cpu, Sparkles, Leaf, Award, Navigation, Clock, Zap, ArrowRight } from "lucide-react";
 import { findSmartMatchesForDriver, RouteMatchResult } from "@/utils/routeMatching";
 import { Ride, CommuteRequest } from "@/context/StateContext";
 
@@ -38,27 +38,41 @@ export default function SmartRouteMatchesWidget({
   if (allMatches.length === 0) return null;
 
   return (
-    <div className="glass-panel p-5 rounded-3xl border-2 border-brand-green-500/30 bg-gradient-to-r from-emerald-950/20 via-slate-950/90 to-teal-950/20 text-white shadow-xl space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="p-2 rounded-2xl bg-brand-green-500/20 text-brand-green-400 text-lg flex items-center justify-center">
-            🎯
+    <div className="glass-panel p-5.5 rounded-3xl border-2 border-cyan-500/40 bg-gradient-to-r from-cyan-950/40 via-slate-950/95 to-emerald-950/40 text-white shadow-2xl space-y-4 animate-fade-in relative overflow-hidden backdrop-blur-xl">
+      {/* Decorative AI Neural Background Accent Glow */}
+      <div className="absolute -top-12 -right-12 w-44 h-44 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Hero Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-3.5 relative z-10">
+        <div className="flex items-center gap-3">
+          <span className="p-2.5 rounded-2xl bg-gradient-to-br from-cyan-500/30 to-emerald-500/30 text-cyan-300 text-xl flex items-center justify-center border border-cyan-500/30 shadow-lg shadow-cyan-500/10">
+            <Cpu className="h-5 w-5 animate-pulse text-cyan-400" />
           </span>
           <div>
-            <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
-              AI Smart Route Matches <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-            </h3>
-            <p className="text-[10px] text-slate-300 font-medium">
-              Passengers along your route (ranked by highest CO₂ saved for Mother Earth)
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                EcoRide AI Neural Engine v2.0 <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+              </h3>
+              <span className="text-[9px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                🤖 AI Smart Carpool Match
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-300 font-medium mt-0.5">
+              Predictive route deviation (≤ 5.0 km) &amp; time window proximity engine
             </p>
           </div>
         </div>
-        <span className="text-[9px] bg-brand-green-500/20 text-brand-green-300 border border-brand-green-500/40 px-2.5 py-1 rounded-full font-extrabold uppercase">
-          {allMatches.length} {allMatches.length === 1 ? "Match" : "Matches"} (≤ 5.0 km)
-        </span>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full font-black uppercase flex items-center gap-1">
+            <Zap className="h-3 w-3 text-emerald-400" /> {allMatches.length} Best {allMatches.length === 1 ? "Match" : "Matches"} Found
+          </span>
+        </div>
       </div>
 
-      <div className="space-y-3">
+      {/* Ranked Matches List */}
+      <div className="space-y-3.5 relative z-10">
         {allMatches.slice(0, 3).map((match, idx) => {
           const req = match.commuteRequest;
           const ride = match.driverRide;
@@ -66,43 +80,54 @@ export default function SmartRouteMatchesWidget({
           return (
             <div
               key={`${req.id}-${ride.id}`}
-              className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-brand-green-500/40 transition-all space-y-2.5"
+              className="p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400/60 transition-all space-y-3 shadow-lg group"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-extrabold text-white">
-                      Verified Colleague ({req.requesterDept || "Engineering"})
-                    </span>
-                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                      {match.deviationKm.toFixed(1)} km deviation
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-350 mt-1 flex items-center gap-1">
-                    <Navigation className="h-3 w-3 text-brand-green-400" />
-                    <span>{req.pickup}</span>
-                    <ArrowRight className="h-2.5 w-2.5 text-slate-500" />
-                    <span>{req.destination}</span>
-                  </p>
+              {/* Match Top Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-white flex items-center gap-1.5">
+                    Verified Colleague ({req.requesterDept || "Engineering"})
+                  </span>
+                  <span className="text-[9px] bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
+                    ⚡ {match.aiConfidenceScore}% AI Match Confidence
+                  </span>
+                </div>
+
+                {/* Deviation & Time Proximity Tags */}
+                <div className="flex items-center gap-2 text-[9px] font-extrabold">
+                  <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                    📍 {match.deviationKm.toFixed(1)} km deviation
+                  </span>
+                  <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Clock className="h-2.5 w-2.5" /> {match.timeDiffMins === 0 ? "Exact Time Match" : `${match.timeDiffMins} min window`}
+                  </span>
                 </div>
               </div>
 
-              {/* Impact Callout Pill */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-                <div className="flex items-center gap-3 text-[10px] font-bold">
+              {/* Route Summary */}
+              <p className="text-[10px] text-slate-300 font-medium flex items-center gap-1.5 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
+                <Navigation className="h-3 w-3 text-cyan-400 flex-shrink-0" />
+                <span className="font-semibold text-white">{req.pickup}</span>
+                <ArrowRight className="h-2.5 w-2.5 text-slate-500 flex-shrink-0" />
+                <span className="font-semibold text-white">{req.destination}</span>
+              </p>
+
+              {/* Environmental Impact Callout & Action Button */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1.5 border-t border-slate-800/80">
+                <div className="flex items-center gap-3.5 text-[10px] font-black">
                   <span className="text-emerald-400 flex items-center gap-1">
-                    <Leaf className="h-3 w-3" /> +{match.estimatedCo2Saved.toFixed(1)} kg CO₂ Saved
+                    <Leaf className="h-3.5 w-3.5" /> +{match.estimatedCo2Saved.toFixed(1)} kg CO₂ Saved
                   </span>
                   <span className="text-amber-400 flex items-center gap-1">
-                    <Award className="h-3 w-3" /> +{match.estimatedEsgCredits} ESG Pts
+                    <Award className="h-3.5 w-3.5" /> +{match.estimatedEsgCredits} ESG Points
                   </span>
                 </div>
 
                 <button
                   onClick={() => onProposeRide(req, ride)}
-                  className="py-1.5 px-3 rounded-xl bg-brand-green-600 hover:bg-brand-green-500 text-white text-[10px] font-black cursor-pointer transition-all shadow-md flex items-center gap-1 active:scale-95"
+                  className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white text-xs font-black cursor-pointer transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 border border-cyan-400/40"
                 >
-                  <Send className="h-3 w-3" /> Propose Pickup Offer
+                  <Sparkles className="h-3.5 w-3.5 text-amber-300" /> 🚀 AI One-Tap Pickup Proposal
                 </button>
               </div>
             </div>
