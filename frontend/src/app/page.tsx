@@ -3564,6 +3564,11 @@ export default function HomePage() {
                                   <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
                                     Desired pickup: {formatRideDate(cr.rideDate)} at {cr.desiredTime} • Seats: {cr.seatsNeeded} • Status:{" "}
                                     <span className={`font-bold ${cr.status === "Matched" ? "text-emerald-600" : "text-amber-500"}`}>{cr.status}</span>
+                                    {cr.cancelledByDriver && (
+                                      <span className="ml-2 text-[9px] bg-amber-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse inline-flex items-center gap-1">
+                                        🚨 Previous Driver Cancelled — Request Reactivated for Other Drivers
+                                      </span>
+                                    )}
                                   </p>
                                 </div>
                                 {cr.status === "Pending" && (
@@ -3645,8 +3650,9 @@ export default function HomePage() {
                   {commuteRequests.filter(cr => {
                     if (cr.requesterId === currentUser.id) return false;
                     if (cr.status !== "Pending") return false;
-                    const activeProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id && p.status !== "Cancelled" && p.status !== "Declined");
-                    if (activeProposal && (activeProposal.status === "Accepted" || activeProposal.status === "Pending")) return false;
+                    // Exclude any request where current driver has ALREADY interacted (Pending, Accepted, Declined, or Cancelled)
+                    const hasDriverHistory = rideProposals.some(p => p.requestId === cr.id && p.hostId === currentUser.id);
+                    if (hasDriverHistory) return false;
                     if (!cr.city) return true;
                     return cr.city.toLowerCase() === activeCity.toLowerCase() ||
                       cr.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||
@@ -3661,8 +3667,9 @@ export default function HomePage() {
                         .filter(cr => {
                           if (cr.requesterId === currentUser.id) return false;
                           if (cr.status !== "Pending") return false;
-                          const activeProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id && p.status !== "Cancelled" && p.status !== "Declined");
-                          if (activeProposal && (activeProposal.status === "Accepted" || activeProposal.status === "Pending")) return false;
+                          // Exclude any request where current driver has ALREADY interacted (Pending, Accepted, Declined, or Cancelled)
+                          const hasDriverHistory = rideProposals.some(p => p.requestId === cr.id && p.hostId === currentUser.id);
+                          if (hasDriverHistory) return false;
                           if (!cr.city) return true;
                           return cr.city.toLowerCase() === activeCity.toLowerCase() ||
                             cr.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||

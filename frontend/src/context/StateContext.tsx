@@ -3270,46 +3270,34 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const proposalReqIds = rideProposals.filter(p => p.rideId === rideId).map(p => p.requestId);
           const existingReqIndex = updated.findIndex(cr => cr.requesterId === psgrId || proposalReqIds.includes(cr.id));
 
-          if (isInterCityRide) {
-            // Inter-City ride cancellation: mark request as Cancelled cleanly without urgent priority
-            if (existingReqIndex >= 0) {
-              updated[existingReqIndex] = {
-                ...updated[existingReqIndex],
-                status: "Cancelled",
-                urgent: false,
-                cancelledByDriver: true
-              };
-            }
+          // Re-activate passenger's request with Urgent priority for rescue by other drivers
+          if (existingReqIndex >= 0) {
+            updated[existingReqIndex] = {
+              ...updated[existingReqIndex],
+              status: "Pending",
+              urgent: true,
+              cancelledByDriver: true
+            };
           } else {
-            // Intra-City local ride cancellation: Re-activate with Urgent priority for local rescue section
-            if (existingReqIndex >= 0) {
-              updated[existingReqIndex] = {
-                ...updated[existingReqIndex],
-                status: "Pending",
-                urgent: true,
-                cancelledByDriver: true
-              };
-            } else {
-              // Auto-create urgent commute request if passenger joined directly without prior request
-              const newUrgentReq: CommuteRequest = {
-                id: `cr-auto-${Date.now()}-${psgrId}`,
-                requesterId: psgrId,
-                requesterName: psgrUser?.name || "Colleague Passenger",
-                requesterAvatar: psgrUser?.avatar || "👤",
-                requesterDept: psgrUser?.department || "Operations",
-                pickup: targetRide.pickup,
-                destination: targetRide.destination,
-                rideDate: targetRide.rideDate || new Date().toISOString().split("T")[0],
-                desiredTime: targetRide.departureTime || "09:00 AM",
-                seatsNeeded: 1,
-                status: "Pending",
-                city: targetRide.city || activeCity,
-                timestamp: new Date().toISOString(),
-                urgent: true,
-                cancelledByDriver: true
-              };
-              updated = [newUrgentReq, ...updated];
-            }
+            // Auto-create urgent commute request if passenger joined directly without prior request
+            const newUrgentReq: CommuteRequest = {
+              id: `cr-auto-${Date.now()}-${psgrId}`,
+              requesterId: psgrId,
+              requesterName: psgrUser?.name || "Colleague Passenger",
+              requesterAvatar: psgrUser?.avatar || "👤",
+              requesterDept: psgrUser?.department || "Operations",
+              pickup: targetRide.pickup,
+              destination: targetRide.destination,
+              rideDate: targetRide.rideDate || new Date().toISOString().split("T")[0],
+              desiredTime: targetRide.departureTime || "09:00 AM",
+              seatsNeeded: 1,
+              status: "Pending",
+              city: targetRide.city || activeCity,
+              timestamp: new Date().toISOString(),
+              urgent: true,
+              cancelledByDriver: true
+            };
+            updated = [newUrgentReq, ...updated];
           }
         });
 

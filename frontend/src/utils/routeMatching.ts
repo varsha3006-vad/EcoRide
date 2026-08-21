@@ -118,11 +118,11 @@ export const findSmartMatchesForDriver = (
     if (req.status !== "Pending") return;
     if (req.requesterId === driverRide.hostId) return;
 
-    // Filter out requests for which the host driver has ALREADY sent a proposal (Pending, Accepted, or Declined)
-    const alreadyProposed = rideProposals.some(
-      (p) => p.requestId === req.id && p.hostId === driverRide.hostId && (p.status === "Pending" || p.status === "Accepted" || p.status === "Declined")
+    // Filter out requests for which the host driver has ALREADY interacted (Pending, Accepted, Declined, or Cancelled)
+    const alreadyInteracted = rideProposals.some(
+      (p) => p.requestId === req.id && p.hostId === driverRide.hostId
     );
-    if (alreadyProposed) return;
+    if (alreadyInteracted) return;
 
     // Check date alignment if available
     if (req.rideDate && driverRide.rideDate && req.rideDate !== driverRide.rideDate) {
