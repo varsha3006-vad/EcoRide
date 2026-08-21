@@ -3906,17 +3906,19 @@ export default function HomePage() {
               };
 
               const computedTime = computeProposedTime(proposingToRequest.desiredTime, proposedTimeOffset);
-              const matchingRides = rides.filter(r => r.hostId === currentUser.id && r.rideDate === proposingToRequest.rideDate && r.status === "Published");
+              const matchingRides = rides.filter(r => r.hostId === currentUser.id && (r.status === "Published" || r.status === "Created"));
 
               const handleSendProposalSubmit = (e: React.FormEvent) => {
                 e.preventDefault();
-                const selectedRide = matchingRides.find(r => r.id === proposalRideId);
+                const selectedRide = matchingRides.find(r => r.id === proposalRideId) || rides.find(r => r.id === proposalRideId);
+                const targetRideId = selectedRide ? selectedRide.id : (proposalRideId && proposalRideId !== "new" ? proposalRideId : undefined);
+                
                 sendRideProposal(
                   proposingToRequest.id,
                   proposedTimeOffset,
                   computedTime,
-                  selectedRide ? selectedRide.id : undefined,
-                  proposalSelectedPlate
+                  targetRideId,
+                  proposalSelectedPlate || selectedRide?.vehiclePlate
                 );
                 setProposingToRequest(null);
               };

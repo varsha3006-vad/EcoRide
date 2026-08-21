@@ -3844,7 +3844,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     let targetRide: Ride | undefined;
     if (proposal.rideId) {
-      targetRide = rides.find(r => r.id === proposal.rideId);
+      targetRide = rides.find(r => r.id === proposal.rideId) || (ridesRef.current || []).find(r => r.id === proposal.rideId);
     }
 
     if (!targetRide) {
