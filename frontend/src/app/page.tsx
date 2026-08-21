@@ -3645,6 +3645,8 @@ export default function HomePage() {
                   {commuteRequests.filter(cr => {
                     if (cr.requesterId === currentUser.id) return false;
                     if (cr.status !== "Pending") return false;
+                    const myProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id);
+                    if (myProposal && (myProposal.status === "Accepted" || myProposal.status === "Pending")) return false;
                     if (!cr.city) return true;
                     return cr.city.toLowerCase() === activeCity.toLowerCase() ||
                       cr.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||
@@ -3659,6 +3661,8 @@ export default function HomePage() {
                         .filter(cr => {
                           if (cr.requesterId === currentUser.id) return false;
                           if (cr.status !== "Pending") return false;
+                          const myProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id);
+                          if (myProposal && (myProposal.status === "Accepted" || myProposal.status === "Pending")) return false;
                           if (!cr.city) return true;
                           return cr.city.toLowerCase() === activeCity.toLowerCase() ||
                             cr.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||
