@@ -11,6 +11,7 @@ import PastRidesModal from "@/components/PastRidesModal";
 import ProfileModal from "@/components/ProfileModal";
 import { EsgCreditModal } from "@/components/EsgCreditModal";
 import { RideCompletionCelebrationModal, CelebrationData } from "@/components/RideCompletionCelebrationModal";
+import SmartRouteMatchesWidget from "@/components/SmartRouteMatchesWidget";
 import {
   Car,
   Search,
@@ -2752,6 +2753,17 @@ export default function HomePage() {
                     Host colleague carpools or search available routes.
                   </p>
                 </div>
+
+                {/* AI Smart Route Matching Engine Widget for Host Drivers */}
+                <SmartRouteMatchesWidget
+                  rides={rides}
+                  commuteRequests={commuteRequests}
+                  currentUserId={currentUser?.id || ""}
+                  onProposeRide={(req, ride) => {
+                    setProposingToRequest(req);
+                    setProposalRideId(ride.id);
+                  }}
+                />
 
                 {/* PWA Install Banner */}
                 {showInstallBanner && (
