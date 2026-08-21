@@ -27,15 +27,21 @@ export default function ServiceWorkerRegister() {
     let registration: ServiceWorkerRegistration | null = null;
 
     // 1. Version Poller for cross-platform (iOS, Android, Desktop)
-    const checkVersionUpdate = async () => {
+    const checkVersionUpdate = async (forceTriggerModal = false) => {
       try {
-        const res = await fetch("/api/version", { cache: "no-store" });
+        const res = await fetch(`/api/version?t=${Date.now()}`, { 
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" }
+        });
         if (res.ok) {
           const data = await res.json();
           const currentSaved = localStorage.getItem("ecoride_app_version");
           if (!currentSaved) {
             localStorage.setItem("ecoride_app_version", data.version);
-          } else if (currentSaved !== data.version) {
+            if (forceTriggerModal) {
+              window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: data.version } }));
+            }
+          } else if (currentSaved !== data.version || forceTriggerModal) {
             console.log(`🚀 New app version detected! Remote: ${data.version}, Local: ${currentSaved}`);
             window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: data.version } }));
           }
@@ -58,8 +64,11 @@ export default function ServiceWorkerRegister() {
       if (document.visibilityState === "visible") handleFocus();
     });
 
-    // Interval poller every 60 seconds
-    const interval = setInterval(checkVersionUpdate, 60000);
+    const handleManualCheck = () => checkVersionUpdate(true);
+    window.addEventListener("check-pwa-update", handleManualCheck);
+
+    // Interval poller every 30 seconds
+    const interval = setInterval(checkVersionUpdate, 30000);
 
     // 2. Register Service Worker with update listeners
     if ("serviceWorker" in navigator) {
@@ -114,6 +123,7 @@ export default function ServiceWorkerRegister() {
     return () => {
       clearInterval(interval);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("check-pwa-update", handleManualCheck);
       window.removeEventListener("pwa-force-reload", handleForceReload);
     };
   }, []);

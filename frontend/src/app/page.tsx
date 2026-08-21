@@ -43,6 +43,7 @@ import {
   Map,
   Zap,
   Navigation,
+  RefreshCw,
   Phone,
   PhoneCall,
   ShieldAlert
@@ -4180,6 +4181,18 @@ export default function HomePage() {
                     <p className="text-[10px] text-slate-500">Leaderboard updates, achievements, rank milestones</p>
                   </div>
                 </label>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent("check-pwa-update"));
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-xs font-extrabold cursor-pointer transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> 🚀 Check For App Updates
+                </button>
               </div>
             </div>
 
