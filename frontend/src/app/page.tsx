@@ -3645,8 +3645,8 @@ export default function HomePage() {
                   {commuteRequests.filter(cr => {
                     if (cr.requesterId === currentUser.id) return false;
                     if (cr.status !== "Pending") return false;
-                    const myProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id);
-                    if (myProposal && (myProposal.status === "Accepted" || myProposal.status === "Pending")) return false;
+                    const activeProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id && p.status !== "Cancelled" && p.status !== "Declined");
+                    if (activeProposal && (activeProposal.status === "Accepted" || activeProposal.status === "Pending")) return false;
                     if (!cr.city) return true;
                     return cr.city.toLowerCase() === activeCity.toLowerCase() ||
                       cr.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||
@@ -3661,15 +3661,15 @@ export default function HomePage() {
                         .filter(cr => {
                           if (cr.requesterId === currentUser.id) return false;
                           if (cr.status !== "Pending") return false;
-                          const myProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id);
-                          if (myProposal && (myProposal.status === "Accepted" || myProposal.status === "Pending")) return false;
+                          const activeProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id && p.status !== "Cancelled" && p.status !== "Declined");
+                          if (activeProposal && (activeProposal.status === "Accepted" || activeProposal.status === "Pending")) return false;
                           if (!cr.city) return true;
                           return cr.city.toLowerCase() === activeCity.toLowerCase() ||
                             cr.pickup.toLowerCase().includes(activeCity.toLowerCase()) ||
                             cr.destination.toLowerCase().includes(activeCity.toLowerCase());
                         })
                         .map(cr => {
-                          const myProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id);
+                          const activeProposal = rideProposals.find(p => p.requestId === cr.id && p.hostId === currentUser.id && p.status !== "Cancelled" && p.status !== "Declined");
                           return (
                             <div key={cr.id} className={`p-4 rounded-2xl border flex items-center justify-between gap-4 animate-fade-in ${
                               cr.urgent
@@ -3703,15 +3703,13 @@ export default function HomePage() {
                               </div>
 
                               <div className="text-right">
-                                {myProposal ? (
+                                {activeProposal ? (
                                   <span className={`inline-block text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
-                                    myProposal.status === "Accepted"
+                                    activeProposal.status === "Accepted"
                                       ? "bg-emerald-50 text-emerald-600 border-emerald-200/30"
-                                      : myProposal.status === "Declined"
-                                      ? "bg-slate-100 text-slate-400 border-slate-200/10"
                                       : "bg-amber-50 text-amber-600 border-amber-200/30"
                                   }`}>
-                                    Offer Sent ({myProposal.status})
+                                    Offer Sent ({activeProposal.status})
                                   </span>
                                 ) : (
                                   <button
