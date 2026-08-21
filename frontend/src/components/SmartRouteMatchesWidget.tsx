@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Cpu, Sparkles, Leaf, Award, Navigation, Clock, Zap, ArrowRight, X } from "lucide-react";
 import { findSmartMatchesForDriver, RouteMatchResult } from "@/utils/routeMatching";
-import { Ride, CommuteRequest, RideProposal, useAppState } from "@/context/StateContext";
+import { Ride, CommuteRequest, useAppState } from "@/context/StateContext";
 
 interface SmartRouteMatchesWidgetProps {
   rides: Ride[];
@@ -19,7 +19,15 @@ export default function SmartRouteMatchesWidget({
   onProposeRide,
 }: SmartRouteMatchesWidgetProps) {
   const { rideProposals } = useAppState();
+  const [mounted, setMounted] = useState(false);
   const [dismissedRequestIds, setDismissedRequestIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Prevent any microsecond flash during initial un-hydrated SSR frame
+  if (!mounted || !currentUserId) return null;
 
   // Find published rides hosted by current user
   const myRides = rides.filter(
