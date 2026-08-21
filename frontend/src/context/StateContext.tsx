@@ -1832,7 +1832,19 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
       } else if (key.startsWith("messages_")) {
         setMessages(prev => {
-          const merged = mergeMessagesSafely(prev, value || []);
+          const incomingArr = Array.isArray(value) ? value : [];
+          const newFromOthers = incomingArr.filter(
+            (m: any) => m && m.senderId !== currentUserIdRef.current && !prev.some(p => p.id === m.id)
+          );
+          if (newFromOthers.length > 0 && typeof window !== "undefined") {
+            const latestMsg = newFromOthers[newFromOthers.length - 1];
+            window.dispatchEvent(
+              new CustomEvent("ecoride_chat_popup", {
+                detail: { rideId: latestMsg.rideId, message: latestMsg }
+              })
+            );
+          }
+          const merged = mergeMessagesSafely(prev, incomingArr);
           messagesRef.current = merged;
           lastMessages = merged;
           return merged;
