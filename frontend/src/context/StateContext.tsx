@@ -3752,6 +3752,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const activeVeh = (currentUser?.vehicles || []).find(v => v.plateNumber === vehiclePlate);
+    
+    // Auto-resolve driver's active rideId if not explicitly passed
+    let resolvedRideId = rideId && rideId !== "new" ? rideId : undefined;
+    if (!resolvedRideId) {
+      const allRides = ridesRef.current && ridesRef.current.length > 0 ? ridesRef.current : rides;
+      const existingDriverRide = allRides.find(r => r.hostId === currentUser.id && r.status !== "Completed" && r.status !== "Cancelled");
+      if (existingDriverRide) {
+        resolvedRideId = existingDriverRide.id;
+      }
+    }
+
     const newProposal: RideProposal = {
       id: `pr-${Date.now()}`,
       requestId,
@@ -3761,7 +3772,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       hostDept: currentUser.department,
       proposedTimeOffset,
       proposedDepartureTime,
-      rideId: rideId || undefined,
+      rideId: resolvedRideId || undefined,
       status: "Pending",
       timestamp: new Date().toISOString(),
       vehicleModel: activeVeh?.model || "",
