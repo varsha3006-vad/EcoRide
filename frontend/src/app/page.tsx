@@ -3221,17 +3221,11 @@ export default function HomePage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2">
-                                {/* Passenger View: Boarding PIN display */}
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                {/* Passenger View: Boarding PIN display (only if not boarded yet) */}
                                 {!isHost && trip.status === "Started" && (() => {
                                   const hasBoarded = trip.boardedPassengers?.includes(currentUser.id);
-                                  if (hasBoarded) {
-                                    return (
-                                      <span className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-200/20 flex items-center gap-1.5">
-                                        ✅ Boarded
-                                      </span>
-                                    );
-                                  }
+                                  if (hasBoarded) return null;
                                   
                                   const displayPin = getDeterministicBoardingPin(trip.id, currentUser.id);
                                   return (
@@ -3242,7 +3236,7 @@ export default function HomePage() {
                                 })()}
 
                                 {/* Passenger View: Share Safety Live Tracking Link */}
-                                {!isHost && trip.status === "Started" && hasBoarded && (
+                                {!isHost && trip.status === "Started" && trip.boardedPassengers?.includes(currentUser.id) && (
                                   <button
                                     onClick={() => handleShareRide(trip.id, currentUser.id)}
                                     className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm shadow-emerald-500/20"
@@ -3255,29 +3249,10 @@ export default function HomePage() {
                                 {/* Open Chat */}
                                 <button
                                   onClick={() => setActiveChatRideId(trip.id)}
-                                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-[10px] font-bold transition-all cursor-pointer"
+                                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
                                 >
-                                  Chat Group
+                                  💬 Chat Group
                                 </button>
-
-                                {/* Open in Google Maps shortcut (available for all upcoming/active rides) */}
-                                <a
-                                  href={(() => {
-                                    const waypoints = getOptimalWaypoints(trip, requests, getDistance);
-                                    const originParam = trip.driverLat && trip.driverLng ? `&origin=${trip.driverLat},${trip.driverLng}` : "";
-                                    const waypointsParam = waypoints.length > 0 
-                                      ? `&waypoints=${encodeURIComponent(waypoints.join('|'))}` 
-                                      : "";
-                                    
-                                    return `https://www.google.com/maps/dir/?api=1${originParam}&destination=${encodeURIComponent(trip.destination)}${waypointsParam}&dir_action=navigate&travelmode=driving`;
-                                  })()}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1.5"
-                                >
-                                  <Navigation className="h-3 w-3" />
-                                  Google Maps
-                                </a>
 
                                 {/* SOS Calling Feature (112) */}
                                 {trip.status?.toLowerCase() === "started" && (
@@ -3311,32 +3286,33 @@ export default function HomePage() {
                                   </button>
                                 )}
 
-                                 {/* Withdraw Pending Join Request */}
-                                 {(() => {
-                                   const isPassenger = trip.passengers && trip.passengers.includes(currentUser.id);
-                                   const myPendingReq = requests.find(r => r.rideId === trip.id && r.requesterId === currentUser.id && r.status === "Pending");
-                                   if (myPendingReq && !isHost && !isPassenger) {
-                                     return (
-                                       <button
-                                         onClick={() => cancelJoinRequest(myPendingReq.id)}
-                                         className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                       >
-                                         ✖️ Withdraw Request
-                                       </button>
-                                     );
-                                   }
-                                   return null;
-                                 })()}
+                                {/* Withdraw Pending Join Request */}
+                                {(() => {
+                                  const isPassenger = trip.passengers && trip.passengers.includes(currentUser.id);
+                                  const myPendingReq = requests.find(r => r.rideId === trip.id && r.requesterId === currentUser.id && r.status === "Pending");
+                                  if (myPendingReq && !isHost && !isPassenger) {
+                                    return (
+                                      <button
+                                        onClick={() => cancelJoinRequest(myPendingReq.id)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                      >
+                                        ✖️ Withdraw Request
+                                      </button>
+                                    );
+                                  }
+                                  return null;
+                                })()}
 
-                                 {/* Cancel action */}
-                                 {(isHost || (trip.passengers && trip.passengers.includes(currentUser.id))) && trip.status?.toLowerCase() !== "completed" && trip.status?.toLowerCase() !== "cancelled" && (
-                                   <button
-                                     onClick={() => cancelRide(trip.id, currentUser.id)}
-                                     className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer"
-                                   >
-                                     Cancel
-                                   </button>
-                                 )}
+                                {/* Cancel action (Hosts before completion; Passengers only before trip starts and before boarding) */}
+                                {((isHost && trip.status?.toLowerCase() !== "completed" && trip.status?.toLowerCase() !== "cancelled") ||
+                                  (!isHost && trip.passengers && trip.passengers.includes(currentUser.id) && trip.status?.toLowerCase() !== "started" && !trip.boardedPassengers?.includes(currentUser.id))) && (
+                                  <button
+                                    onClick={() => cancelRide(trip.id, currentUser.id)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-all cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
                               </div>
                             </div>
 
@@ -3414,7 +3390,7 @@ export default function HomePage() {
                                           : "text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
                                       }`}
                                     >
-                                      <Zap className="h-3 w-3" />
+                                      <Navigation className="h-3 w-3 text-brand-blue-500" />
                                       Open in Google Maps
                                     </a>
                                   </div>
