@@ -341,13 +341,9 @@ const supabaseSync = {
         return;
       }
       if ((key === "messages" || key.startsWith("messages_")) && Array.isArray(value)) {
-        const changed = value.filter(r => {
-          const old = lastMessages.find(o => o.id === r.id);
-          return !old || JSON.stringify(old) !== JSON.stringify(r);
-        });
-        if (changed.length > 0) {
+        if (value.length > 0) {
           try {
-            await supabase.from("ecoride_messages").upsert(changed);
+            await supabase.from("ecoride_messages").upsert(value);
           } catch (e) {
             console.warn("ecoride_messages table upsert warning:", e);
           }
@@ -360,7 +356,7 @@ const supabaseSync = {
               );
           } catch (stErr) {}
         }
-        lastMessages = value;
+        lastMessages = mergeMessagesSafely(lastMessages, value);
         return;
       }
       if (key === "audit_logs" && Array.isArray(value)) {
@@ -2921,8 +2917,13 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
     }
 
-    // Persist to Cloud Sync non-destructively
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    // Persist to Cloud Sync non-destructively & perform direct single-row upsert
+    if (SUPABASE_URL && SUPABASE_ANON_KEY && supabase) {
+      try {
+        await supabase.from("ecoride_messages").upsert([newMsg]);
+      } catch (e) {
+        console.warn("Direct ecoride_messages upsert warning:", e);
+      }
       try {
         const key = `messages_${rideId}`;
         const dbMsgs = (await supabaseSync.get(key)) || [];
