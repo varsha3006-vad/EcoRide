@@ -153,10 +153,27 @@ const supabaseSync = {
         return lastRides.length > 0 ? lastRides : null;
       }
       if (key === "requests") {
-        const { data, error } = await supabase.from("ecoride_requests").select("*");
-        if (error) throw error;
-        lastRequests = data || [];
-        return data;
+        let tableData: any[] = [];
+        try {
+          const { data, error } = await supabase.from("ecoride_requests").select("*");
+          if (!error && data && data.length > 0) tableData = data;
+        } catch (e) {}
+
+        let stateData: any[] = [];
+        try {
+          const { data: stData } = await supabase.from("ecoride_state").select("value").eq("key", key).maybeSingle();
+          if (stData && Array.isArray(stData.value)) stateData = stData.value;
+        } catch (e) {}
+
+        const mergedMap = new Map<string, any>();
+        stateData.forEach(r => { if (r && r.id) mergedMap.set(r.id, r); });
+        tableData.forEach(r => { if (r && r.id) mergedMap.set(r.id, r); });
+        const merged = Array.from(mergedMap.values());
+        if (merged.length > 0) {
+          lastRequests = mergeRequestsSafely(lastRequests, merged);
+          return merged;
+        }
+        return lastRequests.length > 0 ? lastRequests : null;
       }
       if (key === "commute_requests") {
         try {
