@@ -188,17 +188,29 @@ const supabaseSync = {
       }
       if (key === "messages" || key.startsWith("messages_")) {
         const rideId = key.startsWith("messages_") ? key.replace("messages_", "") : null;
-        let query = supabase.from("ecoride_messages").select("*");
-        if (rideId) {
-          query = query.eq("rideId", rideId);
+        let tableData: any[] = [];
+        try {
+          let query = supabase.from("ecoride_messages").select("*");
+          if (rideId) query = query.eq("rideId", rideId);
+          const { data, error } = await query;
+          if (!error && data && data.length > 0) tableData = data;
+        } catch (e) {}
+
+        let stateData: any[] = [];
+        try {
+          const { data: stData } = await supabase.from("ecoride_state").select("value").eq("key", key).maybeSingle();
+          if (stData && Array.isArray(stData.value)) stateData = stData.value;
+        } catch (e) {}
+
+        const mergedMap = new Map<string, any>();
+        stateData.forEach(m => { if (m && m.id) mergedMap.set(m.id, m); });
+        tableData.forEach(m => { if (m && m.id) mergedMap.set(m.id, m); });
+        const merged = Array.from(mergedMap.values());
+        if (merged.length > 0) {
+          lastMessages = mergeMessagesSafely(lastMessages, merged);
+          return merged;
         }
-        const { data, error } = await query;
-        if (error) throw error;
-        if (data) {
-          const otherMsgs = lastMessages.filter((m: any) => rideId ? m.rideId !== rideId : false);
-          lastMessages = [...otherMsgs, ...data];
-        }
-        return data;
+        return lastMessages.length > 0 ? lastMessages : null;
       }
       if (key === "audit_logs") {
         const { data, error } = await supabase.from("ecoride_audit_logs").select("*");
@@ -334,8 +346,19 @@ const supabaseSync = {
           return !old || JSON.stringify(old) !== JSON.stringify(r);
         });
         if (changed.length > 0) {
-          const { error } = await supabase.from("ecoride_messages").upsert(changed);
-          if (error) throw error;
+          try {
+            await supabase.from("ecoride_messages").upsert(changed);
+          } catch (e) {
+            console.warn("ecoride_messages table upsert warning:", e);
+          }
+          try {
+            await supabase
+              .from("ecoride_state")
+              .upsert(
+                { key, value, updated_at: new Date().toISOString() },
+                { onConflict: "key" }
+              );
+          } catch (stErr) {}
         }
         lastMessages = value;
         return;
@@ -1331,6 +1354,40 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     setSyncErrorExternal = setSyncError;
+  }, []);
+
+  // Cross-Tab & Cross-Device PWA BroadcastChannel & Storage Event Sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let bc: BroadcastChannel | null = null;
+    if ("BroadcastChannel" in window) {
+      try {
+        bc = new BroadcastChannel("ecoride_chat_channel");
+        bc.onmessage = (event) => {
+          if (event.data && event.data.type === "CHAT_MSG" && event.data.message) {
+            setMessages(prev => mergeMessagesSafely(prev, [event.data.message]));
+          }
+        };
+      } catch (e) {}
+    }
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "ecoride_messages" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setMessages(prev => mergeMessagesSafely(prev, parsed));
+          }
+        } catch (err) {}
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      if (bc) bc.close();
+    };
   }, []);
 
   // Restore login session synchronously on mount to prevent login-screen flickers
@@ -2841,6 +2898,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       messagesRef.current = updated;
       return updated;
     });
+
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      try {
+        const bc = new BroadcastChannel("ecoride_chat_channel");
+        bc.postMessage({ type: "CHAT_MSG", message: newMsg });
+        bc.close();
+      } catch (e) {}
+    }
 
     // Trigger push notifications to other participants
     const targetRideForMsg = rides.find(r => r.id === rideId);
