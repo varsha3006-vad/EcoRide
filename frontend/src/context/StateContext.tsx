@@ -1071,6 +1071,35 @@ const mergeRideProposalsSafely = (current: RideProposal[], incoming: RideProposa
   return merged;
 };
 
+const mergeMessagesSafely = (current: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] => {
+  const map = new Map<string, ChatMessage>();
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem("ecoride_messages");
+      if (saved) {
+        const parsed: ChatMessage[] = JSON.parse(saved);
+        parsed.forEach(m => { if (m && m.id) map.set(m.id, m); });
+      }
+    } catch (e) {}
+  }
+  (current || []).forEach(m => { if (m && m.id) map.set(m.id, m); });
+  (incoming || []).forEach(m => {
+    if (m && m.id) {
+      const existing = map.get(m.id);
+      map.set(m.id, existing ? { ...existing, ...m } : m);
+    }
+  });
+  const merged = Array.from(map.values()).sort((a, b) => {
+    return a.id.localeCompare(b.id);
+  });
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("ecoride_messages", JSON.stringify(merged));
+    } catch (e) {}
+  }
+  return merged;
+};
+
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -1403,9 +1432,15 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       let finalRequests = mergeRequestsSafely(localRequests, loadedRequests || []);
 
-      if (loadedMessages) {
-        setMessages(loadedMessages);
+      let localMessages: ChatMessage[] = [];
+      if (typeof window !== "undefined") {
+        const savedMsgs = localStorage.getItem("ecoride_messages");
+        if (savedMsgs) {
+          try { localMessages = JSON.parse(savedMsgs); } catch (e) {}
+        }
       }
+      let finalMessages = mergeMessagesSafely(localMessages, loadedMessages || []);
+      setMessages(finalMessages);
 
       let localCommuteReqs: CommuteRequest[] = [];
       if (typeof window !== "undefined") {
@@ -1683,12 +1718,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return merged;
         });
       } else if (key.startsWith("messages_")) {
-        const rId = key.replace("messages_", "");
         setMessages(prev => {
-          const otherMsgs = prev.filter((m: ChatMessage) => m.rideId !== rId);
-          const updated = [...otherMsgs, ...value].sort((a: ChatMessage, b: ChatMessage) => a.id.localeCompare(b.id));
-          lastMessages = updated;
-          return updated;
+          const merged = mergeMessagesSafely(prev, value || []);
+          messagesRef.current = merged;
+          lastMessages = merged;
+          return merged;
         });
       }
     };
@@ -2789,8 +2823,12 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isLocation
     };
 
-    // Optimistically append locally
-    setMessages(prev => [...prev, newMsg]);
+    // Instantly append and persist locally using safe deduplicating merge
+    setMessages(prev => {
+      const updated = mergeMessagesSafely(prev, [newMsg]);
+      messagesRef.current = updated;
+      return updated;
+    });
 
     // Trigger push notifications to other participants
     const targetRideForMsg = rides.find(r => r.id === rideId);
@@ -2806,19 +2844,16 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
     }
 
-    // Explicit Fetch-Modify-Write to prevent sync clobbers
+    // Persist to Cloud Sync non-destructively
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      const key = `messages_${rideId}`;
-      const dbMsgs = await supabaseSync.get(key) || [];
-      const updatedMsgs = [...dbMsgs];
-      if (!updatedMsgs.some(m => m.id === newMsg.id)) {
-        updatedMsgs.push(newMsg);
+      try {
+        const key = `messages_${rideId}`;
+        const dbMsgs = (await supabaseSync.get(key)) || [];
+        const updatedMsgs = mergeMessagesSafely(dbMsgs, [newMsg]);
+        await supabaseSync.set(key, updatedMsgs);
+      } catch (e) {
+        console.warn("Supabase message sync error:", e);
       }
-      await supabaseSync.set(key, updatedMsgs);
-      setMessages(prev => {
-        const otherMsgs = prev.filter(m => m.rideId !== rideId);
-        return [...otherMsgs, ...updatedMsgs].sort((a, b) => a.id.localeCompare(b.id));
-      });
     }
   };
 
