@@ -2740,16 +2740,16 @@ export default function HomePage() {
               <div className="max-w-2xl mx-auto space-y-6">
                 
                 {/* Clean Header / Title for Mobile */}
-                <div className="text-center py-2 space-y-1">
+                <div className="text-center py-3 px-4 space-y-1 rounded-2xl bg-slate-900/5 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-sm shadow-sm">
                   {currentUser && (
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      Welcome, <span className="font-extrabold text-brand-green-600 dark:text-brand-green-400">{currentUser.name}</span>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Welcome, <span className="font-black text-brand-green-700 dark:text-brand-green-400">{currentUser.name}</span> 👋
                     </p>
                   )}
-                  <h2 className="text-xl font-extrabold tracking-tight text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
+                  <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white flex items-center justify-center gap-1.5">
                     🚗 Choose Your Commute
                   </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Host colleague carpools or search available routes.
                   </p>
                 </div>
