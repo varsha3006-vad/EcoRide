@@ -55,14 +55,14 @@ export default function ServiceWorkerRegister() {
               detail: { currentVersion: semVer, latestVersion: semVer, isOutdated: false } 
             }));
             if (forceTriggerModal) {
-              window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: semVer } }));
+              window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: semVer, rawVersion: data.version } }));
             }
           } else if (currentSaved !== data.version || forceTriggerModal) {
             console.log(`🚀 New app version detected! Remote: ${data.version}, Local: ${currentSaved}`);
             window.dispatchEvent(new CustomEvent("pwa-version-state", { 
               detail: { currentVersion: formatSemanticVersion(currentSaved), latestVersion: semVer, isOutdated: true } 
             }));
-            window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: semVer } }));
+            window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { version: semVer, rawVersion: data.version } }));
           } else {
             window.dispatchEvent(new CustomEvent("pwa-version-state", { 
               detail: { currentVersion: semVer, latestVersion: semVer, isOutdated: false } 
@@ -90,8 +90,8 @@ export default function ServiceWorkerRegister() {
     const handleManualCheck = () => checkVersionUpdate(true);
     window.addEventListener("check-pwa-update", handleManualCheck);
 
-    // Interval poller every 30 seconds
-    const interval = setInterval(checkVersionUpdate, 30000);
+    // Interval poller every 60 seconds
+    const interval = setInterval(checkVersionUpdate, 60000);
 
     // 2. Register Service Worker with update listeners
     if ("serviceWorker" in navigator) {
@@ -131,9 +131,10 @@ export default function ServiceWorkerRegister() {
 
     // 3. Listener to execute force reload
     const handleForceReload = (e: Event) => {
-      const customEvent = e as CustomEvent<{ version?: string }>;
-      if (customEvent.detail?.version) {
-        localStorage.setItem("ecoride_app_version", customEvent.detail.version);
+      const customEvent = e as CustomEvent<{ version?: string; rawVersion?: string }>;
+      const targetVersion = customEvent.detail?.rawVersion || customEvent.detail?.version;
+      if (targetVersion) {
+        localStorage.setItem("ecoride_app_version", targetVersion);
       }
       if (registration && registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });
