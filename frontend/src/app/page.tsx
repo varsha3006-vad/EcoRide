@@ -1201,9 +1201,9 @@ export default function HomePage() {
       ["Scope", "Enterprise Corporate Fleet"],
       ["Total Active Users", "4290"],
       ["Carbon Reduction Target Met", "74%"],
-      ["Total CO₂ Saved (kg)", (currentUser.carbonSaved + 14280).toFixed(1)],
-      ["Trees Planted Equivalent", Math.round((currentUser.carbonSaved + 14280) / 22).toString()],
-      ["Total Cost Savings ($)", ((currentUser.carbonSaved + 14280) * 0.65).toFixed(2)]
+      ["Total CO₂ Saved (kg)", (currentUser.carbonSaved || 0).toFixed(1)],
+      ["Trees Planted Equivalent", Math.round((currentUser.carbonSaved || 0) / 22).toString()],
+      ["Total Cost Savings ($)", ((currentUser.carbonSaved || 0) * 0.65).toFixed(2)]
     ];
     
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -1759,10 +1759,10 @@ export default function HomePage() {
                       <TrendingUp className="h-5 w-5 text-brand-green-500" />
                     </div>
                     <h3 className="text-2xl font-bold mt-2 text-slate-800 dark:text-white">
-                      {(currentUser.carbonSaved + 14280.4).toFixed(1)} kg
+                      {(currentUser.carbonSaved || 0).toFixed(1)} kg
                     </h3>
                     <p className="text-[10px] text-brand-green-600 dark:text-brand-green-400 mt-1 flex items-center gap-1 font-semibold">
-                      <span>🌱 {Math.round((currentUser.carbonSaved + 14280) / 22)} trees</span> equivalent offset
+                      <span>🌱 {Math.max(1, Math.round((currentUser.carbonSaved || 0) / 22))} trees</span> equivalent offset
                     </p>
                   </div>
 
@@ -1783,7 +1783,7 @@ export default function HomePage() {
                       <Award className="h-5 w-5 text-amber-500" />
                     </div>
                     <h3 className="text-2xl font-bold mt-2 text-slate-800 dark:text-white">
-                      ${((currentUser.carbonSaved + 14280) * 0.65).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      ${((currentUser.carbonSaved || 0) * 0.65).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </h3>
                     <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
                       Fuel & Parking optimization

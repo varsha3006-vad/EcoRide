@@ -1456,11 +1456,32 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           : (baseEmp.vehicle ? [baseEmp.vehicle] : []);
 
         const vaultCredits = getVaultCreditsForUser(emp.id);
-        const protectedCredits = Math.max(emp.credits || 0, vaultCredits);
+
+        // Compute cumulative stats directly from ride history to ensure 100% synchronization
+        const empCompletedRides = (finalRides || []).filter(
+          r => r && r.status === "Completed" && (r.hostId === emp.id || (r.passengers || []).includes(emp.id))
+        );
+
+        const historyCarbon = empCompletedRides.reduce((acc, r) => {
+          const isDriver = r.hostId === emp.id;
+          const totalPsgrs = (r.passengers || []).length;
+          return isDriver ? acc + (r.co2Saved * (totalPsgrs || 1)) : acc + r.co2Saved;
+        }, 0);
+
+        const historyCredits = empCompletedRides.reduce((acc, r) => {
+          const isDriver = r.hostId === emp.id;
+          const totalPsgrs = (r.passengers || []).length;
+          const earned = r.esgCredits + (totalPsgrs * 15);
+          return isDriver ? acc + earned : acc + Math.round(earned * 0.5);
+        }, 0);
+
+        const protectedCredits = Math.max(emp.credits || 0, vaultCredits, historyCredits);
+        const protectedCarbon = Number(Math.max(emp.carbonSaved || 0, historyCarbon).toFixed(1));
 
         return {
           ...baseEmp,
           credits: protectedCredits,
+          carbonSaved: protectedCarbon,
           vehicles: resolvedVehicles
         };
       });
